@@ -1,0 +1,288 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Login - Medical Evidence</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+
+<body class="authBody">
+  <div class="authShell">
+    <div class="authCard">
+
+      <!-- LEFT: visual panel -->
+      <section class="authVisual">
+        <div class="authVisualTop">
+          <div class="authLogo">
+            <span class="authLogoMark">ME</span>
+            <span class="authLogoText">Medical Evidence</span>
+          </div>
+          <span class="authPill">Evidence-first • BYOK AI</span>
+        </div>
+
+        <div class="authVisualMid">
+          <h1>Capture papers.<br/>Build evidence.</h1>
+          <p>
+            Search (Europe PMC + Semantic Scholar), save to your library, add notes,
+            discuss in threads, and run AI analysis.
+          </p>
+        </div>
+
+        <div class="authVisualBottom">
+          <div class="authStats">
+            <div class="authStat">
+              <div class="authStatNum">2</div>
+              <div class="authStatLabel">providers</div>
+            </div>
+            <div class="authStat">
+              <div class="authStatNum">BYOK</div>
+              <div class="authStatLabel">AI mode</div>
+            </div>
+            <div class="authStat">
+              <div class="authStatNum">JWT</div>
+              <div class="authStatLabel">secure auth</div>
+            </div>
+          </div>
+          <div class="authHint">Tip: Guest mode lets you browse/search. Login to save + comment.</div>
+        </div>
+
+        <div class="authGlow"></div>
+      </section>
+
+      <!-- RIGHT: form panel -->
+      <section class="authForm">
+        <div class="authFormHeader">
+          <h2 id="formTitle">Welcome back</h2>
+          <p class="muted" id="formSubtitle">Log in to your account to save papers and comment.</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="authTabs" role="tablist" aria-label="Auth tabs">
+          <button class="authTab active" id="tabLogin" type="button">Login</button>
+          <button class="authTab" id="tabRegister" type="button">Register</button>
+        </div>
+
+        <!-- LOGIN -->
+        <form id="loginForm" class="authFields">
+          <label class="authLabel">Username</label>
+          <input id="loginUsername" class="authInput" autocomplete="username" placeholder="username"/>
+
+          <label class="authLabel">Password</label>
+          <div class="authInputRow">
+            <input id="loginPassword" class="authInput" type="password" autocomplete="current-password" placeholder="password"/>
+            <button class="authIconBtn" id="toggleLoginPw" type="button" aria-label="Show/hide password">👁</button>
+          </div>
+
+          <button class="authPrimary" id="loginBtn" type="submit">Login</button>
+
+          <!-- PATCH: single guest button id that app.js can auto-wire -->
+          <button class="authGhost" id="continueGuest" type="button">Continue as guest</button>
+
+          <div class="authMsg" id="loginMsg"></div>
+
+          <div class="authFoot">
+            <span class="muted">No account?</span>
+            <a href="#" id="goRegister">Create one</a>
+          </div>
+        </form>
+
+        <!-- REGISTER -->
+        <form id="registerForm" class="authFields" style="display:none;">
+          <div class="authGrid2">
+            <div>
+              <label class="authLabel">Username</label>
+              <input id="regUsername" class="authInput" autocomplete="username" placeholder="username"/>
+            </div>
+            <div>
+              <label class="authLabel">Email</label>
+              <input id="regEmail" class="authInput" autocomplete="email" placeholder="email@example.com"/>
+            </div>
+          </div>
+
+          <label class="authLabel">Password</label>
+          <div class="authInputRow">
+            <input id="regPassword" class="authInput" type="password" autocomplete="new-password" placeholder="password"/>
+            <button class="authIconBtn" id="toggleRegPw" type="button" aria-label="Show/hide password">👁</button>
+          </div>
+
+          <label class="authLabel">Confirm password</label>
+          <input id="regPassword2" class="authInput" type="password" autocomplete="new-password" placeholder="confirm password"/>
+
+          <button class="authPrimary" id="registerBtn" type="submit">Create account</button>
+
+          <!-- PATCH: reuse same guest button id (works regardless of tab) -->
+          <button class="authGhost" id="continueGuest2" type="button">Continue as guest</button>
+
+          <div class="authMsg" id="regMsg"></div>
+
+          <div class="authFoot">
+            <span class="muted">Already have an account?</span>
+            <a href="#" id="goLogin">Login</a>
+          </div>
+        </form>
+
+        <div class="authMeta">
+          <span class="muted">API:</span> <span class="mono">http://127.0.0.1:8000</span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- IMPORTANT: api.js MUST be loaded from same folder as login.html -->
+  <script src="./api.js"></script>
+
+  <!-- PATCH: load app.js so the guest button + navbar logic is consistent everywhere -->
+  <script src="./app.js"></script>
+
+  <script>
+    // ---- Failsafe helpers (work even if api.js didn't load)
+    function safeClearToken(){
+      try { localStorage.removeItem("token"); } catch {}
+    }
+    function safeSetUsername(u){
+      try {
+        if (u) localStorage.setItem("username", u);
+        else localStorage.removeItem("username");
+      } catch {}
+    }
+    function safeEscapeHtml(s){
+      return String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function $(id){ return document.getElementById(id); }
+    function setMsg(id, html){ $(id).innerHTML = html || ""; }
+
+    function setMode(mode){
+      const isLogin = mode === "login";
+      $("tabLogin").classList.toggle("active", isLogin);
+      $("tabRegister").classList.toggle("active", !isLogin);
+
+      $("loginForm").style.display = isLogin ? "block" : "none";
+      $("registerForm").style.display = isLogin ? "none" : "block";
+
+      $("formTitle").textContent = isLogin ? "Welcome back" : "Create an account";
+      $("formSubtitle").textContent = isLogin
+        ? "Log in to your account to save papers and comment."
+        : "Register to start saving papers and notes.";
+      setMsg("loginMsg", "");
+      setMsg("regMsg", "");
+    }
+
+    function togglePw(inputId){
+      const el = $(inputId);
+      el.type = (el.type === "password") ? "text" : "password";
+    }
+
+    $("tabLogin").onclick = () => setMode("login");
+    $("tabRegister").onclick = () => setMode("register");
+    $("goRegister").onclick = (e) => { e.preventDefault(); setMode("register"); };
+    $("goLogin").onclick = (e) => { e.preventDefault(); setMode("login"); };
+
+    $("toggleLoginPw").onclick = () => togglePw("loginPassword");
+    $("toggleRegPw").onclick = () => togglePw("regPassword");
+
+    // PATCH: single guest handler, wired to both buttons
+    function goGuest(){
+      if (typeof clearToken === "function") clearToken(); else safeClearToken();
+      if (typeof setUsername === "function") setUsername(""); else safeSetUsername("");
+
+      try {
+        sessionStorage.removeItem("last_external");
+        sessionStorage.removeItem("open_study_id");
+      } catch {}
+
+      window.location.href = "search.html";
+    }
+
+    const g1 = $("continueGuest");
+    if (g1) g1.onclick = goGuest;
+
+    const g2 = $("continueGuest2");
+    if (g2) g2.onclick = goGuest;
+
+    function haveApiJs(){
+      return (typeof fetchJson === "function" && typeof setToken === "function");
+    }
+
+    $("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setMsg("loginMsg", "");
+
+      try {
+        if (!haveApiJs()) {
+          setMsg("loginMsg", `<span class="authErr">api.js not loaded. Ensure login.html and api.js are in the same folder.</span>`);
+          return;
+        }
+
+        const username = $("loginUsername").value.trim();
+        const password = $("loginPassword").value;
+
+        if (!username || !password) {
+          setMsg("loginMsg", `<span class="authErr">Enter username + password.</span>`);
+          return;
+        }
+
+        const data = await fetchJson("/auth/login", {
+          method: "POST",
+          body: { username, password }
+        });
+
+        setToken(data.access_token);
+        setUsername(username);
+
+        window.location.href = "search.html";
+      } catch (err) {
+        setMsg("loginMsg", `<span class="authErr">${safeEscapeHtml(err.message || String(err))}</span>`);
+      }
+    });
+
+    $("registerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setMsg("regMsg", "");
+
+      try {
+        if (!haveApiJs()) {
+          setMsg("regMsg", `<span class="authErr">api.js not loaded. Ensure login.html and api.js are in the same folder.</span>`);
+          return;
+        }
+
+        const username = $("regUsername").value.trim();
+        const email = $("regEmail").value.trim();
+        const password = $("regPassword").value;
+        const password2 = $("regPassword2").value;
+
+        if (!username || !email || !password) {
+          setMsg("regMsg", `<span class="authErr">Fill all fields.</span>`);
+          return;
+        }
+        if (password !== password2) {
+          setMsg("regMsg", `<span class="authErr">Passwords do not match.</span>`);
+          return;
+        }
+
+        await fetchJson("/auth/register", {
+          method: "POST",
+          body: { username, email, password }
+        });
+
+        setMsg("regMsg", `<span class="authOk">Account created. Please log in.</span>`);
+
+        $("loginUsername").value = username;
+        $("loginPassword").value = "";
+        setMode("login");
+        setMsg("loginMsg", `<span class="authOk">Registered. Now log in.</span>`);
+      } catch (err) {
+        setMsg("regMsg", `<span class="authErr">${safeEscapeHtml(err.message || String(err))}</span>`);
+      }
+    });
+
+    setMode("login");
+  </script>
+</body>
+</html>

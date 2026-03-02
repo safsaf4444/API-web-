@@ -1,0 +1,158 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Saved Papers - Medical Evidence</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<header>
+  <div class="headerInner">
+    <div class="brand">Medical Evidence</div>
+    <nav id="nav" class="navRow"></nav>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Saved Papers</h2>
+
+    <div class="split" style="grid-template-columns:2fr 1fr 1fr;">
+      <div>
+        <label>Search</label>
+        <input id="q" placeholder="filter title/abstract" />
+      </div>
+      <div>
+        <label>Sort</label>
+        <select id="sort">
+          <option value="newest" selected>Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="year_desc">Year ↓</option>
+          <option value="year_asc">Year ↑</option>
+          <option value="title_asc">Title A→Z</option>
+          <option value="title_desc">Title Z→A</option>
+        </select>
+      </div>
+      <div>
+        <label>Folder</label>
+        <select id="folder"></select>
+      </div>
+    </div>
+
+    <div class="itemActions" style="margin-top:14px;">
+      <button class="primary" id="loadBtn">Load</button>
+      <button id="newFolderBtn">New Folder</button>
+    </div>
+
+    <div class="small" id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h3>Your Library</h3>
+    <div id="items" class="list"></div>
+  </div>
+</main>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script>
+requireAuthOrRedirect();
+
+function setMsg(html){ $("msg").innerHTML = html || ""; }
+
+async function loadFolders(){
+  const sel = $("folder");
+  sel.innerHTML = `<option value="">(all)</option>`;
+  try{
+    const folders = await fetchJson("/folders");
+    for (const f of folders){
+      const opt = document.createElement("option");
+      opt.value = f.id;
+      opt.textContent = f.name;
+      sel.appendChild(opt);
+    }
+  }catch(e){
+    setMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
+  }
+}
+
+async function loadStudies(){
+  setMsg("");
+  const q = $("q").value.trim();
+  const sort = $("sort").value;
+  const folderId = $("folder").value;
+
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (sort) params.set("sort", sort);
+  if (folderId) params.set("folder_id", folderId);
+
+  try{
+    const items = await fetchJson("/studies?" + params.toString());
+    const wrap = $("items");
+    wrap.innerHTML = "";
+
+    if (!items.length){
+      wrap.innerHTML = `<div class="item small">No saved papers.</div>`;
+      return;
+    }
+
+    for (const it of items){
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `
+        <div class="itemTitle">${escapeHtml(it.title)}</div>
+        <div class="itemMeta">
+          ${it.year ? `<span class="badge blue">${escapeHtml(it.year)}</span>` : ""}
+          ${it.venue ? `<span class="badge">${escapeHtml(it.venue)}</span>` : ""}
+          <span class="badge">${escapeHtml(it.source)}</span>
+          ${it.study_type ? `<span class="badge green">${escapeHtml(it.study_type)}</span>` : ""}
+          ${it.tags ? `<span class="badge">${escapeHtml(it.tags)}</span>` : ""}
+        </div>
+        <div class="itemActions">
+          <button class="primary" data-open>Open</button>
+          <button class="danger" data-del>Delete</button>
+        </div>
+      `;
+      div.querySelector("[data-open]").onclick = () => {
+        sessionStorage.setItem("open_study_id", String(it.id));
+        sessionStorage.removeItem("last_external");
+        window.location.href = "paper.html";
+      };
+      div.querySelector("[data-del]").onclick = async () => {
+        if (!confirm("Delete this saved paper?")) return;
+        try{
+          await fetchJson(`/studies/${it.id}`, { method:"DELETE" });
+          loadStudies();
+        }catch(e){
+          setMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
+        }
+      };
+      wrap.appendChild(div);
+    }
+  }catch(e){
+    setMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
+  }
+}
+
+$("loadBtn").onclick = loadStudies;
+
+$("newFolderBtn").onclick = async () => {
+  const name = prompt("Folder name?");
+  if (!name) return;
+  try{
+    await fetchJson("/folders", { method:"POST", json:{ name }});
+    await loadFolders();
+    setMsg(`<span style="color:var(--success);font-weight:900;">Folder created.</span>`);
+  }catch(e){
+    setMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
+  }
+};
+
+loadFolders().then(loadStudies);
+</script>
+</body>
+</html>
+
+<body class="appDark"></body>

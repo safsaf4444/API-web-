@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AI - Medical Evidence</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<header>
+  <div class="headerInner">
+    <div class="brand">Medical Evidence</div>
+    <nav id="nav" class="navRow"></nav>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>AI</h2>
+    <div class="small">
+      This page is a simple BYOK check. For paper-based AI, use the Paper page → Panels → AI tab.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Key status</h3>
+    <div class="small" id="status">(loading)</div>
+
+    <div class="hr"></div>
+
+    <label>Set OpenAI API key</label>
+    <input id="k" placeholder="sk-..." />
+    <div class="itemActions" style="margin-top:12px;">
+      <button class="primary" id="save">Save</button>
+      <button id="clear">Clear</button>
+    </div>
+  </div>
+</main>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script>
+requireAuthOrRedirect();
+
+async function refresh(){
+  try{
+    const s = await fetchJson("/ai/key_status");
+    $("status").innerHTML = s.has_key
+      ? `<span class="badge green">key set</span> ${escapeHtml(s.masked || "")}`
+      : `<span class="badge">no key set</span>`;
+  }catch(e){
+    $("status").innerHTML = `<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`;
+  }
+}
+
+$("save").onclick = async () => {
+  try{
+    await fetchJson("/ai/set_key", { method:"POST", json:{ api_key: $("k").value.trim() }});
+    $("k").value = "";
+    refresh();
+  }catch(e){
+    alert(e.message);
+  }
+};
+
+$("clear").onclick = async () => {
+  try{
+    await fetchJson("/ai/clear_key", { method:"DELETE" });
+    refresh();
+  }catch(e){
+    alert(e.message);
+  }
+};
+
+refresh();
+</script>
+</body>
+</html>

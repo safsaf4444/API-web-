@@ -1,0 +1,455 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Paper - Medical Evidence</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+
+<body class="appDark">
+<header>
+  <div class="headerInner">
+    <div class="brand">Medical Evidence</div>
+    <nav id="nav" class="navRow"></nav>
+  </div>
+</header>
+
+<main class="split">
+  <!-- LEFT -->
+  <div>
+    <div class="card">
+      <div class="paperTitle" id="title">(paper)</div>
+      <div class="paperMetaLine" id="meta"></div>
+
+      <div class="itemActions" style="margin-top:12px;">
+        <button class="primary" id="saveBtn">Save to my library</button>
+        <button id="openBtn">Open Europe PMC</button>
+      </div>
+      <div class="small" id="saveMsg" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="sectionLabel">ABSTRACT</div>
+      <div class="hr"></div>
+      <div class="abstractBox">
+        <h4>ABSTRACT</h4>
+        <div class="prose" id="abstract">(abstract)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div>
+    <div class="card">
+      <div class="panelsTopRow">
+        <h3 style="margin:0;">PANELS</h3>
+        <div class="panelsButtons">
+          <button id="modeBtn">Mode: Side</button>
+          <button id="closeBtn">Close</button>
+        </div>
+      </div>
+
+      <div class="tabPills">
+        <div class="tabPill active" data-tab="thread">Thread</div>
+        <div class="tabPill" data-tab="ai">AI</div>
+        <div class="tabPill" data-tab="related">Related</div>
+      </div>
+
+      <div class="panelBody" id="panel"></div>
+    </div>
+  </div>
+</main>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script>
+/* ----------------- Helpers ----------------- */
+/* Use qs() from api.js everywhere (no $). */
+function requireAuthOrRedirect(){
+  if (getToken()) return true;
+  // friendly redirect
+  try { sessionStorage.setItem("after_login", "paper.html"); } catch {}
+  window.location.href = "login.html";
+  return false;
+}
+
+function setSaveMsg(html){ qs("saveMsg").innerHTML = html || ""; }
+function setPanel(html){ qs("panel").innerHTML = html || ""; }
+
+let external = null;
+let savedStudy = null;
+let panelOpen = true;
+
+function getCurrentPaper(){
+  const id = sessionStorage.getItem("open_study_id");
+  if (id) return { mode:"saved", id: parseInt(id, 10) };
+
+  const ext = sessionStorage.getItem("last_external");
+  if (ext) return { mode:"external", paper: JSON.parse(ext) };
+
+  return { mode:"none" };
+}
+
+async function loadSavedStudy(studyId){
+  if (!requireAuthOrRedirect()) return null;
+  savedStudy = await fetchJson(`/studies/${studyId}`);
+  return savedStudy;
+}
+
+function europePmcLink(p){
+  // Prefer explicit url if it exists
+  if (p && p.url) return p.url;
+
+  // Then build a stable Europe PMC link
+  const pmcid = (p.pmcid || "").trim();
+  const pmid  = (p.pmid  || "").trim();
+  const doi   = (p.doi   || "").trim();
+
+  if (pmcid) return `https://europepmc.org/article/PMC/${encodeURIComponent(pmcid)}`;
+  if (pmid)  return `https://europepmc.org/article/MED/${encodeURIComponent(pmid)}`;
+  if (doi)   return `https://europepmc.org/article/DOI/${encodeURIComponent(doi)}`;
+
+  return "";
+}
+
+function renderPaper(p){
+  qs("title").textContent = (p.title || "(untitled)").toUpperCase();
+
+  const meta = [
+    p.year ? `year: ${p.year}` : null,
+    p.venue ? `venue: ${p.venue}` : null,
+    p.source ? `source: ${p.source}` : null,
+    p.source_id ? `source_id: ${p.source_id}` : null,
+    `pmcid: ${p.pmcid || "n/a"}`,
+    `pmid: ${p.pmid || "n/a"}`,
+    `doi: ${p.doi || "n/a"}`
+  ].filter(Boolean).join(" • ");
+
+  qs("meta").textContent = meta;
+
+  qs("abstract").textContent =
+    (p.abstract || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "(no abstract)";
+
+  const epmc = europePmcLink(p);
+  qs("openBtn").disabled = !epmc;
+  qs("openBtn").onclick = () => {
+    const url = europePmcLink(p);
+    if (url) window.open(url, "_blank");
+  };
+}
+
+async function doSave(){
+  if (!requireAuthOrRedirect()) return;
+  if (!external) return;
+
+  setSaveMsg("");
+  try{
+    // IMPORTANT: fetchJson expects { body: obj }, NOT { json: obj }
+    const saved = await fetchJson("/external/import", { method:"POST", body: external });
+    savedStudy = saved;
+
+    setSaveMsg(`<span class="badge green">Saved</span>`);
+    sessionStorage.setItem("open_study_id", String(saved.id));
+    sessionStorage.removeItem("last_external");
+
+    qs("saveBtn").disabled = true;
+  }catch(e){
+    setSaveMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
+  }
+}
+
+qs("saveBtn").onclick = doSave;
+
+/* ---------- Panel Tabs ---------- */
+function setActiveTab(tab){
+  document.querySelectorAll(".tabPill").forEach(x => x.classList.remove("active"));
+  const el = document.querySelector(`.tabPill[data-tab="${tab}"]`);
+  if (el) el.classList.add("active");
+}
+
+async function showThread(){
+  setActiveTab("thread");
+
+  if (!getToken()){
+    setPanel(`
+      <div class="threadHint">Login required to view/post comments.</div>
+      <textarea disabled placeholder="Login required..."></textarea>
+      <div style="margin-top:10px;">
+        <button class="primary fullWidthBtn" disabled>Post Comment</button>
+      </div>
+    `);
+    return;
+  }
+
+  if (!savedStudy){
+    setPanel(`
+      <div class="threadHint">Save this paper to your library to enable comments.</div>
+      <textarea disabled placeholder="Write a comment (save required)..."></textarea>
+      <div style="margin-top:10px;">
+        <button class="primary fullWidthBtn" disabled>Post Comment</button>
+      </div>
+    `);
+    return;
+  }
+
+  const me = getUsername() || "";
+  const comments = await fetchJson(`/studies/${savedStudy.id}/comments`);
+
+  // build tree
+  const byParent = new Map();
+  for (const c of comments){
+    const pid = (c.parent_id === undefined ? null : c.parent_id);
+    if (!byParent.has(pid)) byParent.set(pid, []);
+    byParent.get(pid).push(c);
+  }
+
+  function fmtTime(s){
+    try { return new Date(s).toLocaleString(); } catch { return ""; }
+  }
+
+  function renderNode(c, depth){
+    const canEdit = (c.author === me);
+    const pad = Math.min(depth * 16, 48);
+
+    return `
+      <div class="item" style="margin-left:${pad}px;">
+        <div style="display:flex;justify-content:space-between;gap:10px;">
+          <div>
+            <b>${escapeHtml(c.author)}</b>
+            <span class="small">${escapeHtml(fmtTime(c.created_at))}</span>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="smallBtn" data-action="reply" data-id="${c.id}">Reply</button>
+            ${canEdit ? `<button class="smallBtn" data-action="edit" data-id="${c.id}">Edit</button>` : ``}
+            ${canEdit ? `<button class="smallBtn danger" data-action="delete" data-id="${c.id}">Delete</button>` : ``}
+          </div>
+        </div>
+
+        <div class="small" style="margin-top:6px;color:var(--text);">${escapeHtml(c.body)}</div>
+
+        <div class="small" style="margin-top:10px; display:none;" id="replyBox_${c.id}">
+          <textarea id="replyText_${c.id}" placeholder="Write a reply..."></textarea>
+          <div style="margin-top:8px; display:flex; gap:10px;">
+            <button class="primary" data-action="postReply" data-id="${c.id}">Post Reply</button>
+            <button data-action="cancelReply" data-id="${c.id}">Cancel</button>
+          </div>
+        </div>
+
+        <div class="small" style="margin-top:10px; display:none;" id="editBox_${c.id}">
+          <textarea id="editText_${c.id}">${escapeHtml(c.body)}</textarea>
+          <div style="margin-top:8px; display:flex; gap:10px;">
+            <button class="primary" data-action="saveEdit" data-id="${c.id}">Save</button>
+            <button data-action="cancelEdit" data-id="${c.id}">Cancel</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTree(parentId, depth){
+    const nodes = byParent.get(parentId) || [];
+    let html = "";
+    for (const c of nodes){
+      html += renderNode(c, depth);
+      html += renderTree(c.id, depth + 1);
+    }
+    return html;
+  }
+
+  let html = `<div class="threadHint">Comments</div>`;
+  html += `<div class="list">`;
+  const top = byParent.get(null) || byParent.get(undefined) || [];
+  if (!top.length){
+    html += `<div class="item small">No comments yet.</div>`;
+  } else {
+    html += renderTree(null, 0);
+  }
+  html += `</div>`;
+
+  // root composer
+  html += `
+    <div class="hr"></div>
+    <textarea id="commentBox" placeholder="Write a comment..."></textarea>
+    <div style="margin-top:10px;">
+      <button class="primary fullWidthBtn" id="postBtn">Post Comment</button>
+    </div>
+    <div class="small" id="threadMsg" style="margin-top:8px;"></div>
+  `;
+
+  setPanel(html);
+
+  // root post
+  qs("postBtn").onclick = async () => {
+    const body = qs("commentBox").value.trim();
+    if (!body) return;
+    try{
+      await fetchJson(`/studies/${savedStudy.id}/comments`, { method:"POST", body:{ body, parent_id: null }});
+      showThread();
+    }catch(e){
+      qs("threadMsg").innerHTML = `<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`;
+    }
+  };
+
+  // actions (event delegation)
+  qs("panel").onclick = async (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const action = btn.getAttribute("data-action");
+    const id = parseInt(btn.getAttribute("data-id"), 10);
+
+    const rb = qs(`replyBox_${id}`);
+    const eb = qs(`editBox_${id}`);
+
+    if (action === "reply"){
+      if (rb) rb.style.display = "";
+      return;
+    }
+    if (action === "cancelReply"){
+      if (rb) rb.style.display = "none";
+      return;
+    }
+    if (action === "postReply"){
+      const text = qs(`replyText_${id}`)?.value?.trim() || "";
+      if (!text) return;
+      try{
+        await fetchJson(`/studies/${savedStudy.id}/comments`, { method:"POST", body:{ body:text, parent_id:id }});
+        showThread();
+      }catch(err){
+        alert(err.message || String(err));
+      }
+      return;
+    }
+
+    if (action === "edit"){
+      if (eb) eb.style.display = "";
+      return;
+    }
+    if (action === "cancelEdit"){
+      if (eb) eb.style.display = "none";
+      return;
+    }
+    if (action === "saveEdit"){
+      const text = qs(`editText_${id}`)?.value?.trim() || "";
+      if (!text) return;
+      try{
+        await fetchJson(`/comments/${id}`, { method:"PATCH", body:{ body:text }});
+        showThread();
+      }catch(err){
+        alert(err.message || String(err));
+      }
+      return;
+    }
+
+    if (action === "delete"){
+      if (!confirm("Delete this comment (and its replies)?")) return;
+      try{
+        await fetchJson(`/comments/${id}`, { method:"DELETE" });
+        showThread();
+      }catch(err){
+        alert(err.message || String(err));
+      }
+      return;
+    }
+  };
+}
+
+async function showAI(){
+  setActiveTab("ai");
+  if (!requireAuthOrRedirect()) return;
+
+  const p = savedStudy || external;
+  setPanel(`
+    <div class="small">Uses your BYOK OpenAI key. Abstract-only context.</div>
+    <div class="itemActions" style="margin-top:10px;">
+      <button class="primary" id="sumBtn">Summarize</button>
+      <button id="askBtn">Ask</button>
+    </div>
+    <label style="margin-top:10px;">Question</label>
+    <textarea id="qBox" placeholder="Ask a question..."></textarea>
+    <div class="hr"></div>
+    <div class="small" id="aiOut">(output)</div>
+  `);
+
+  const base = {
+    title: p.title,
+    abstract: p.abstract,
+    venue: p.venue,
+    year: p.year,
+    pmid: p.pmid,
+    pmcid: p.pmcid,
+    doi: p.doi,
+  };
+
+  qs("sumBtn").onclick = async () => {
+    qs("aiOut").textContent = "Working...";
+    try{
+      const r = await fetchJson("/ai/summarize", { method:"POST", body: base });
+      qs("aiOut").textContent = r.text;
+    }catch(e){
+      qs("aiOut").innerHTML = `<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`;
+    }
+  };
+
+  qs("askBtn").onclick = async () => {
+    const q = qs("qBox").value.trim();
+    if (!q) return;
+    qs("aiOut").textContent = "Working...";
+    try{
+      const r = await fetchJson("/ai/ask", { method:"POST", body: { ...base, question:q }});
+      qs("aiOut").textContent = r.text;
+    }catch(e){
+      qs("aiOut").innerHTML = `<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`;
+    }
+  };
+}
+
+async function showRelated(){
+  setActiveTab("related");
+  setPanel(`<div class="small">Related is Phase 2 (citation + similarity scoring).</div>`);
+}
+
+/* ---------- Mode + Close ---------- */
+qs("modeBtn").onclick = () => {
+  const cur = qs("modeBtn").textContent.includes("Side") ? "Drawer" : "Side";
+  qs("modeBtn").textContent = `Mode: ${cur}`;
+};
+
+qs("closeBtn").onclick = () => {
+  panelOpen = !panelOpen;
+  qs("panel").style.display = panelOpen ? "" : "none";
+  qs("closeBtn").textContent = panelOpen ? "Close" : "Open";
+};
+
+document.querySelectorAll(".tabPill").forEach(t => {
+  t.onclick = () => {
+    const tab = t.getAttribute("data-tab");
+    if (tab === "thread") return showThread();
+    if (tab === "ai") return showAI();
+    if (tab === "related") return showRelated();
+  };
+});
+
+(async function init(){
+  const ref = getCurrentPaper();
+
+  if (ref.mode === "saved") {
+    await loadSavedStudy(ref.id);
+    if (savedStudy) renderPaper(savedStudy);
+    qs("saveBtn").disabled = true;
+    external = null;
+  } else if (ref.mode === "external") {
+    external = ref.paper;
+    renderPaper(external);
+  } else {
+    qs("title").textContent = "NO PAPER SELECTED";
+    qs("saveBtn").disabled = true;
+    qs("openBtn").disabled = true;
+  }
+
+  showThread();
+})();
+</script>
+</body>
+</html>

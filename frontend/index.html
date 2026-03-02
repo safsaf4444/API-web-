@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Medical Evidence</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<header>
+  <div class="headerInner">
+    <div class="brand">Medical Evidence</div>
+    <nav id="nav" class="navRow"></nav>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Welcome</h2>
+    <div class="small">
+      Search papers, save them, add notes, discuss in threads, and use BYOK AI.
+    </div>
+    <div class="itemActions" style="margin-top:14px;">
+      <button class="primary" onclick="location.href='search.html'">Search</button>
+      <button onclick="location.href='library.html'">Saved Papers</button>
+      <button onclick="location.href='ai.html'">AI</button>
+    </div>
+  </div>
+</main>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

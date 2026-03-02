@@ -1,0 +1,184 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Search - Medical Evidence</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+
+<body class="appDark">
+<header>
+  <div class="headerInner">
+    <div class="brand">Medical Evidence</div>
+    <nav id="nav"></nav>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Search</h2>
+
+    <div class="row">
+      <div style="flex:2">
+        <label>Query</label>
+        <input id="q" placeholder="e.g. creatine" value="creatine"/>
+      </div>
+
+      <div style="flex:1">
+        <label>Source</label>
+        <select id="source">
+          <option value="europepmc">Europe PMC</option>
+          <option value="semantic_scholar">Semantic Scholar</option>
+        </select>
+      </div>
+
+      <div style="flex:1">
+        <label>Page size</label>
+        <select id="limit">
+          <option>10</option>
+          <option selected>25</option>
+          <option>50</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <button class="primary" id="searchBtn">Search</button>
+      <button class="ghost" id="prevBtn" disabled>Prev</button>
+      <button class="ghost" id="nextBtn" disabled>Next</button>
+      <div class="small" id="pageLabel"></div>
+    </div>
+
+    <div id="msg" class="small"></div>
+  </div>
+
+  <div class="card">
+    <h3>Results</h3>
+    <div id="results" class="list"></div>
+  </div>
+</main>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+
+<script>
+let stack = [];
+let nextCursor = null;
+
+function setMsg(html) { qs("msg").innerHTML = html || ""; }
+
+function defaultCursorFor(source) {
+  return source === "semantic_scholar" ? "0" : "*";
+}
+
+function renderResults(items) {
+  const wrap = qs("results");
+  wrap.innerHTML = "";
+
+  if (!items || !items.length) {
+    wrap.innerHTML = `<div class="empty">No results.</div>`;
+    return;
+  }
+
+  for (const it of items) {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="itemTitle">${escapeHtml(it.title)}</div>
+      <div class="itemMeta">
+        ${it.year ? `<span class="badge">${escapeHtml(it.year)}</span>` : ""}
+        ${it.venue ? `<span class="badge">${escapeHtml(it.venue)}</span>` : ""}
+        <span class="badge blue">${escapeHtml(it.source)}</span>
+      </div>
+      <div class="itemActions">
+        <button class="primary">Open</button>
+      </div>
+    `;
+
+    div.querySelector("button").onclick = () => {
+      sessionStorage.setItem("last_external", JSON.stringify(it));
+      sessionStorage.removeItem("open_study_id");
+      window.location.href = "paper.html";
+    };
+
+    wrap.appendChild(div);
+  }
+}
+
+function updateButtons() {
+  qs("prevBtn").disabled = stack.length <= 1;
+  qs("nextBtn").disabled = !nextCursor;
+}
+
+async function fetchPage(cursor) {
+  setMsg("");
+  const q = qs("q").value.trim();
+  const source = qs("source").value;
+  const limit = parseInt(qs("limit").value, 10);
+
+  if (!q || q.length < 2) {
+    setMsg(`<span class="error">Query must be at least 2 characters.</span>`);
+    return;
+  }
+
+  const url =
+    `/external/search?q=${encodeURIComponent(q)}` +
+    `&source=${encodeURIComponent(source)}` +
+    `&limit=${encodeURIComponent(limit)}` +
+    `&cursor_mark=${encodeURIComponent(cursor)}`;
+
+  try {
+    const data = await fetchJson(url);
+
+    nextCursor = data.next_cursor_mark || null;
+
+    qs("pageLabel").textContent =
+      `hit_count: ${data.hit_count ?? "?"} • ` +
+      `page: ${stack.length} • ` +
+      `next: ${nextCursor ? "yes" : "no"}`;
+
+    renderResults(data.items || []);
+    updateButtons();
+  } catch (e) {
+    const hint =
+      (qs("source").value === "semantic_scholar")
+        ? "Semantic Scholar rate limits hard. Reduce page size, or wait."
+        : "Europe PMC rate limits sometimes. Reduce page size or wait a bit.";
+
+    setMsg(`<span class="error">${escapeHtml(e.message)}</span><br/><span class="small">${escapeHtml(hint)}</span>`);
+    nextCursor = null;
+    updateButtons();
+  }
+}
+
+async function newSearch() {
+  stack = [defaultCursorFor(qs("source").value)];
+  nextCursor = null;
+
+  qs("pageLabel").textContent = "";
+  renderResults([]);
+  updateButtons();
+
+  await fetchPage(stack[0]);
+}
+
+qs("searchBtn").onclick = newSearch;
+
+qs("nextBtn").onclick = async () => {
+  if (!nextCursor) return;
+  stack.push(nextCursor);
+  await fetchPage(nextCursor);
+};
+
+qs("prevBtn").onclick = async () => {
+  if (stack.length <= 1) return;
+  stack.pop();
+  const prevCursor = stack[stack.length - 1];
+  await fetchPage(prevCursor);
+};
+
+newSearch();
+</script>
+</body>
+</html>
