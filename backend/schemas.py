@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ---------- Auth ----------
@@ -23,6 +23,8 @@ class TokenResponse(BaseModel):
 
 
 class UserPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     username: str
     email: str
@@ -34,13 +36,21 @@ class FolderCreate(BaseModel):
 
 
 class FolderRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     owner_username: str
     name: str
 
 
+class FolderPatch(BaseModel):
+    name: str
+
+
 # ---------- Study ----------
 class StudyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     owner_username: str
     folder_id: Optional[int]
@@ -72,12 +82,14 @@ class StudyPatch(BaseModel):
 
 # ---------- Comments ----------
 class CommentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     study_id: int
     parent_id: Optional[int] = None
     author: str
     body: str
-    created_at: Optional[str] = None
+    created_at: datetime
 
 
 class CommentCreate(BaseModel):

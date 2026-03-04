@@ -30,8 +30,26 @@ SearchResult = Tuple[List[ExternalPaper], Optional[str], int]
 
 class Provider(Protocol):
     source_name: str
-    async def search(self, q: str, limit: int = 10, cursor_mark: str = "*") -> SearchResult:
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
         ...
+
+
+def _clean_doi(doi: Optional[str]) -> Optional[str]:
+    if not doi:
+        return None
+    d = str(doi).strip()
+    d = re.sub(r"^https?://(dx\.)?doi\.org/", "", d, flags=re.I)
+    d = d.strip()
+    return d or None
 
 
 class ProviderError(Exception):
@@ -62,6 +80,19 @@ def _int_or_none(x: Any) -> Optional[int]:
         return int(x)
     except Exception:
         return None
+
+
+def _year_bounds(year_from: Optional[int], year_to: Optional[int]) -> Tuple[Optional[int], Optional[int]]:
+    yf = _int_or_none(year_from)
+    yt = _int_or_none(year_to)
+    if yf is not None and (yf < 1000 or yf > 3000):
+        yf = None
+    if yt is not None and (yt < 1000 or yt > 3000):
+        yt = None
+    # If reversed, swap
+    if yf is not None and yt is not None and yf > yt:
+        yf, yt = yt, yf
+    return yf, yt
 
 
 async def _request_with_retries(
@@ -102,11 +133,27 @@ async def _request_with_retries(
 class EuropePMCProvider:
     source_name = "europepmc"
 
-    async def search(self, q: str, limit: int = 10, cursor_mark: str = "*") -> SearchResult:
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
         page_size = _clamp_limit(limit, 100)
 
+        yf, yt = _year_bounds(year_from, year_to)
+        query = q
+        # Apply year bounds at source level to avoid "page filtered down to 1/25"
+        if yf is not None or yt is not None:
+            yf2 = yf if yf is not None else 1000
+            yt2 = yt if yt is not None else 3000
+            query = f"({q}) AND PUB_YEAR:[{yf2} TO {yt2}]"
+
         params = {
-            "query": q,
+            "query": query,
             "format": "json",
             "pageSize": str(page_size),
             "resultType": "core",
@@ -206,7 +253,15 @@ class SemanticScholarProvider:
     def __init__(self):
         self.api_key = (os.getenv("SEMANTIC_SCHOLAR_API_KEY") or "").strip()
 
-    async def search(self, q: str, limit: int = 10, cursor_mark: str = "0") -> SearchResult:
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "0",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
         page_size = _clamp_limit(limit, 100)
 
         offset = 0
@@ -222,6 +277,18 @@ class SemanticScholarProvider:
             "offset": offset,
             "fields": "paperId,title,abstract,year,venue,authors,url,externalIds",
         }
+
+        # Apply year bounds at source level if user set them.
+        yf, yt = _year_bounds(year_from, year_to)
+        if yf is not None or yt is not None:
+            # Semantic Scholar supports a "year" query parameter using "YYYY-", "-YYYY", or "YYYY-YYYY" syntax.
+            # Example: year=2023- for >= 2023. :contentReference[oaicite:3]{index=3}
+            if yf is not None and yt is not None:
+                params["year"] = f"{yf}-{yt}"
+            elif yf is not None:
+                params["year"] = f"{yf}-"
+            else:
+                params["year"] = f"-{yt}"
 
         headers = {
             "Accept": "application/json",
@@ -316,9 +383,310 @@ class SemanticScholarProvider:
         return out, next_cursor, int(total)
 
 
+class OpenAlexProvider:
+    """OpenAlex is a broad, open index of scholarly works.
+
+    We keep it metadata-first (title/year/authors/venue/doi/url/abstract when available).
+    """
+
+    source_name = "openalex"
+    BASE = "https://api.openalex.org"
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 200)
+
+        cursor = (cursor_mark or "*").strip() or "*"
+
+        params = {
+            "search": q,
+            "per_page": str(page_size),
+            "cursor": cursor,
+        }
+
+        # Apply year bounds at source level using OpenAlex filters.
+        # OpenAlex supports from_publication_date/to_publication_date. :contentReference[oaicite:4]{index=4}
+        yf, yt = _year_bounds(year_from, year_to)
+        filters: List[str] = []
+        if yf is not None:
+            filters.append(f"from_publication_date:{yf}-01-01")
+        if yt is not None:
+            filters.append(f"to_publication_date:{yt}-12-31")
+        if filters:
+            params["filter"] = ",".join(filters)
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (OpenAlex)",
+        }
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                f"{self.BASE}/works",
+                params=params,
+                headers=headers,
+                timeout=25.0,
+                max_retries=3,
+            )
+        except Exception as e:
+            raise ProviderError(f"OpenAlex error: {type(e).__name__}: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError("OpenAlex rate-limited (429). Try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"OpenAlex HTTP {r.status_code}. {(r.text or '')[:250]}", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("OpenAlex returned non-JSON response.", status_code=502)
+
+        results = data.get("results") or []
+        meta = data.get("meta") or {}
+        hit_count = _int_or_none(meta.get("count")) or 0
+        next_cursor = None
+        if isinstance(meta, dict) and meta.get("next_cursor"):
+            next_cursor = str(meta.get("next_cursor"))
+
+        out: List[ExternalPaper] = []
+        if not isinstance(results, list):
+            results = []
+
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            work_id = item.get("id")
+            if not title or not work_id:
+                continue
+
+            year = _int_or_none(item.get("publication_year"))
+
+            authors = None
+            al = item.get("authorships")
+            if isinstance(al, list):
+                names: List[str] = []
+                for a in al:
+                    if not isinstance(a, dict):
+                        continue
+                    au = a.get("author") or {}
+                    if isinstance(au, dict) and au.get("display_name"):
+                        names.append(str(au.get("display_name")))
+                if names:
+                    authors = names
+
+            venue = None
+            host = item.get("host_venue") or {}
+            if isinstance(host, dict):
+                venue = host.get("display_name")
+
+            doi = None
+            ids = item.get("ids") or {}
+            if isinstance(ids, dict):
+                doi = ids.get("doi")
+            doi = _clean_doi(doi)
+
+            url = None
+            if doi:
+                url = f"https://doi.org/{doi}"
+            elif item.get("id"):
+                url = str(item.get("id"))
+
+            abstract = None
+            aii = item.get("abstract_inverted_index")
+            if isinstance(aii, dict) and aii:
+                try:
+                    positions: Dict[int, str] = {}
+                    for token, poss in aii.items():
+                        if not isinstance(poss, list):
+                            continue
+                        for p in poss:
+                            if isinstance(p, int):
+                                positions[p] = str(token)
+                    if positions:
+                        abstract = " ".join(positions[i] for i in sorted(positions.keys()))
+                except Exception:
+                    abstract = None
+
+            out.append(
+                ExternalPaper(
+                    source=self.source_name,
+                    source_id=str(work_id),
+                    title=title,
+                    year=year,
+                    authors=authors,
+                    venue=str(venue) if venue else None,
+                    doi=doi,
+                    url=url,
+                    abstract=abstract,
+                    raw=item,
+                )
+            )
+
+        return out, next_cursor, int(hit_count)
+
+
+class CrossrefProvider:
+    """Crossref is a DOI metadata backbone. Abstracts are rare; use for breadth."""
+
+    source_name = "crossref"
+    BASE = "https://api.crossref.org"
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 100)
+        offset = 0
+        try:
+            if cursor_mark is not None and str(cursor_mark).strip() != "":
+                offset = max(0, int(str(cursor_mark)))
+        except Exception:
+            offset = 0
+
+        params = {
+            "query": q,
+            "rows": str(page_size),
+            "offset": str(offset),
+            "select": "DOI,title,author,issued,container-title,URL,abstract",
+        }
+
+        # Apply year bounds at source level using Crossref filters.
+        # Crossref supports from-pub-date / until-pub-date. :contentReference[oaicite:5]{index=5}
+        yf, yt = _year_bounds(year_from, year_to)
+        filt_parts: List[str] = []
+        if yf is not None:
+            filt_parts.append(f"from-pub-date:{yf}-01-01")
+        if yt is not None:
+            filt_parts.append(f"until-pub-date:{yt}-12-31")
+        if filt_parts:
+            params["filter"] = ",".join(filt_parts)
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (Crossref)",
+        }
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                f"{self.BASE}/works",
+                params=params,
+                headers=headers,
+                timeout=25.0,
+                max_retries=3,
+            )
+        except Exception as e:
+            raise ProviderError(f"Crossref error: {type(e).__name__}: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError("Crossref rate-limited (429). Try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"Crossref HTTP {r.status_code}. {(r.text or '')[:250]}", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("Crossref returned non-JSON response.", status_code=502)
+
+        msg = data.get("message") or {}
+        items = msg.get("items") or []
+        total = _int_or_none(msg.get("total-results")) or 0
+
+        out: List[ExternalPaper] = []
+        if not isinstance(items, list):
+            items = []
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            doi = _clean_doi(item.get("DOI"))
+            title_list = item.get("title")
+            title = None
+            if isinstance(title_list, list) and title_list:
+                title = str(title_list[0]).strip()
+            elif isinstance(title_list, str):
+                title = title_list.strip()
+            if not title:
+                continue
+
+            source_id = doi or item.get("URL") or title
+
+            year = None
+            issued = item.get("issued") or {}
+            if isinstance(issued, dict):
+                dp = issued.get("date-parts")
+                if isinstance(dp, list) and dp and isinstance(dp[0], list) and dp[0]:
+                    year = _int_or_none(dp[0][0])
+
+            venue = None
+            ct = item.get("container-title")
+            if isinstance(ct, list) and ct:
+                venue = str(ct[0])
+
+            authors = None
+            au = item.get("author")
+            if isinstance(au, list):
+                names: List[str] = []
+                for a in au:
+                    if not isinstance(a, dict):
+                        continue
+                    given = (a.get("given") or "").strip()
+                    family = (a.get("family") or "").strip()
+                    nm = (given + " " + family).strip()
+                    if nm:
+                        names.append(nm)
+                if names:
+                    authors = names
+
+            url = None
+            if doi:
+                url = f"https://doi.org/{doi}"
+            elif item.get("URL"):
+                url = str(item.get("URL"))
+
+            abstract = item.get("abstract")
+
+            out.append(
+                ExternalPaper(
+                    source=self.source_name,
+                    source_id=str(source_id),
+                    title=title,
+                    year=year,
+                    authors=authors,
+                    venue=venue,
+                    doi=doi,
+                    url=url,
+                    abstract=str(abstract) if isinstance(abstract, str) and abstract.strip() else None,
+                    raw=item,
+                )
+            )
+
+        next_cursor: Optional[str] = None
+        if total > 0 and (offset + page_size) < total:
+            next_cursor = str(offset + page_size)
+
+        return out, next_cursor, int(total)
+
+
 PROVIDERS: Dict[str, Provider] = {
     EuropePMCProvider.source_name: EuropePMCProvider(),
     SemanticScholarProvider.source_name: SemanticScholarProvider(),
+    OpenAlexProvider.source_name: OpenAlexProvider(),
+    CrossrefProvider.source_name: CrossrefProvider(),
 }
 
 ALIASES: Dict[str, str] = {
@@ -327,6 +695,10 @@ ALIASES: Dict[str, str] = {
     "semantic": "semantic_scholar",
     "semantic_scholar": "semantic_scholar",
     "semanticscholar": "semantic_scholar",
+    "open_alex": "openalex",
+    "openalex": "openalex",
+    "cross_ref": "crossref",
+    "crossref": "crossref",
 }
 
 

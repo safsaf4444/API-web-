@@ -3,271 +3,186 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Paper - Medical Evidence</title>
+  <title>Info - Medical Evidence</title>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 <header>
-  <div class="brand">Medical Evidence</div>
-  <nav id="nav"></nav>
+  <div class="headerInner">
+    <div class="brand">Medical Evidence</div>
+    <nav id="nav" class="navRow"></nav>
+  </div>
 </header>
 
 <main>
   <div class="card">
-    <h2 id="title">(paper)</h2>
-    <div class="small" id="meta"></div>
-    <div class="row" style="margin-top:10px;">
-      <button id="saveBtn">Save to Library</button>
-      <button class="ghost" id="openLinkBtn">Open Source</button>
+    <h2>Info</h2>
+    <div class="small">
+      This page explains how keys work for AI and Semantic Scholar. Search is available in Guest Mode, but saving, comments, and AI require login.
     </div>
-    <div id="saveMsg" class="small"></div>
   </div>
 
+  <!-- Guest / Login -->
   <div class="card">
-    <h3>Abstract</h3>
-    <div id="abstract" class="small"></div>
+    <h3>Guest Mode vs Login</h3>
+    <div class="list">
+      <div class="item">
+        <div class="itemTitle">Guest Mode</div>
+        <div class="small" style="margin-top:6px;">
+          You can search and open papers from external providers (Europe PMC, Semantic Scholar).
+          You can’t save, comment, or use AI without logging in.
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="itemTitle">Login Required For</div>
+        <div class="small" style="margin-top:6px;">
+          • Saving papers to your library<br/>
+          • Notes and folders<br/>
+          • Comment threads<br/>
+          • AI features (Summarize / Ask)
+        </div>
+      </div>
+    </div>
   </div>
 
+  <!-- AI BYOK -->
   <div class="card">
-    <h3>Panels</h3>
-    <div class="row">
-      <button class="ghost" data-tab="notes">Notes</button>
-      <button class="ghost" data-tab="thread">Thread</button>
-      <button class="ghost" data-tab="ai">AI</button>
-      <button class="ghost" data-tab="fulltext">Full Text</button>
+    <h3>AI (BYOK — Bring Your Own Key)</h3>
+    <div class="small">
+      The app does not ship with an AI key. You provide your own OpenAI API key and the backend uses it only for your requests.
     </div>
-    <hr/>
-    <div id="panel"></div>
+
+    <div class="hr"></div>
+
+    <div class="list">
+      <div class="item">
+        <div class="itemTitle">What happens when I set my key?</div>
+        <div class="small" style="margin-top:6px;">
+          • Your key is sent to the backend over HTTP (localhost).<br/>
+          • The backend stores it <b>encrypted</b> in the database tied to your user.<br/>
+          • The frontend does <b>not</b> store your OpenAI key in localStorage.
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="itemTitle">What uses the key?</div>
+        <div class="small" style="margin-top:6px;">
+          These endpoints require login and a stored key:<br/>
+          • <span class="mono">POST /ai/summarize</span><br/>
+          • <span class="mono">POST /ai/ask</span>
+          <div style="margin-top:8px;">
+            The AI only sees the paper’s title + abstract (unless you add full-text support later).
+          </div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="itemTitle">Key management endpoints</div>
+        <div class="small" style="margin-top:6px;">
+          • <span class="mono">POST /ai/set_key</span> — store/update your key<br/>
+          • <span class="mono">GET /ai/key_status</span> — shows masked key status<br/>
+          • <span class="mono">DELETE /ai/clear_key</span> — remove your key
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="itemTitle">Security notes (local dev)</div>
+        <div class="small" style="margin-top:6px;">
+          Since you run this locally, “security” is mostly about not leaking keys into the browser.
+          For production, use HTTPS, stronger secret management, and rotate keys.
+        </div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="itemActions">
+      <button class="primary requiresLogin" id="checkAiBtn">Check AI Key Status</button>
+      <button class="requiresLogin" id="clearAiBtn">Clear AI Key</button>
+    </div>
+    <div class="small" id="aiMsg" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- Semantic Scholar -->
+  <div class="card">
+    <h3>Semantic Scholar API Key</h3>
+    <div class="small">
+      Semantic Scholar often rate-limits unauthenticated requests. Adding an API key increases reliability and reduces “429 Too Many Requests”.
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="list">
+      <div class="item">
+        <div class="itemTitle">Where does the Semantic Scholar key go?</div>
+        <div class="small" style="margin-top:6px;">
+          The Semantic Scholar key should be configured on the <b>backend</b> as an environment variable.
+          The frontend does not need to store it.
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="itemTitle">How to set it (recommended)</div>
+        <div class="small" style="margin-top:6px;">
+          Set an environment variable before starting the backend (name depends on your backend code).<br/>
+          Common patterns are:
+          <div class="mono" style="margin-top:8px;">
+            SEMANTIC_SCHOLAR_API_KEY=your_key_here
+          </div>
+          Then restart the backend.
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="itemTitle">How you’ll know it’s working</div>
+        <div class="small" style="margin-top:6px;">
+          Searches against Semantic Scholar should stop throwing <b>429</b> errors and return results consistently.
+        </div>
+      </div>
+    </div>
   </div>
 </main>
 
 <script src="api.js"></script>
 <script src="app.js"></script>
 <script>
-let external = null;
-let savedStudy = null;
+function setAiMsg(html){ qs("aiMsg").innerHTML = html || ""; }
 
-function setSaveMsg(html){ qs("saveMsg").innerHTML = html || ""; }
-
-function setPanel(html){ qs("panel").innerHTML = html; }
-
-function getCurrentPaper() {
-  const id = sessionStorage.getItem("open_study_id");
-  if (id) return { mode: "saved", id: parseInt(id, 10) };
-  const ext = sessionStorage.getItem("last_external");
-  if (ext) return { mode: "external", paper: JSON.parse(ext) };
-  return { mode: "none" };
-}
-
-async function loadSavedStudy(studyId) {
-  requireAuthOrRedirect();
-  savedStudy = await fetchJson(`/studies/${studyId}`);
-  return savedStudy;
-}
-
-function renderPaper(p) {
-  qs("title").textContent = p.title || "(untitled)";
-  qs("meta").textContent = [
-    p.year ? `Year: ${p.year}` : null,
-    p.venue ? `Venue: ${p.venue}` : null,
-    p.source ? `Source: ${p.source}` : null
-  ].filter(Boolean).join(" | ");
-
-  qs("abstract").textContent = (p.abstract || "").replace(/<[^>]+>/g, " ");
-
-  qs("openLinkBtn").onclick = () => {
-    const url = p.url || "";
-    if (url) window.open(url, "_blank");
-  };
-}
-
-async function doSave() {
-  requireAuthOrRedirect();
-  setSaveMsg("");
-  try {
-    const req = {
-      source: external.source,
-      source_id: external.source_id,
-      title: external.title,
-      year: external.year,
-      authors: external.authors,
-      venue: external.venue,
-      doi: external.doi,
-      url: external.url,
-      abstract: external.abstract,
-      pmid: external.pmid,
-      pmcid: external.pmcid
-    };
-    const saved = await fetchJson("/external/import", { method:"POST", body: JSON.stringify(req) });
-    savedStudy = saved;
-    setSaveMsg(`<span class="success">Saved!</span>`);
-    sessionStorage.setItem("open_study_id", String(saved.id));
-  } catch (e) {
-    setSaveMsg(`<span class="error">${e.message}</span>`);
-  }
-}
-
-qs("saveBtn").onclick = doSave;
-
-async function showNotes() {
-  if (!savedStudy) {
-    setPanel(`<div class="small"><span class="error">Save the paper to use Notes.</span></div>`);
-    return;
-  }
-  setPanel(`
-    <div class="small">Notes are saved to your library record.</div>
-    <textarea id="notesBox" placeholder="Write notes...">${savedStudy.notes || ""}</textarea>
-    <div class="row" style="margin-top:10px;">
-      <button id="saveNotesBtn">Save Notes</button>
-    </div>
-    <div class="small" id="notesMsg"></div>
-  `);
-
-  document.getElementById("saveNotesBtn").onclick = async () => {
-    const notes = document.getElementById("notesBox").value;
-    try {
-      const updated = await fetchJson(`/studies/${savedStudy.id}`, { method:"PATCH", body: JSON.stringify({ notes })});
-      savedStudy = updated;
-      document.getElementById("notesMsg").innerHTML = `<span class="success">Saved.</span>`;
-    } catch (e) {
-      document.getElementById("notesMsg").innerHTML = `<span class="error">${e.message}</span>`;
+qs("checkAiBtn").onclick = async () => {
+  if (!getToken()) return; // requiresLogin already blocks guests with toast
+  setAiMsg("Checking...");
+  try{
+    const r = await fetchJson("/ai/key_status");
+    if (r && r.has_key){
+      setAiMsg(`<span class="badge green">Key set</span> <span class="small">(${escapeHtml(r.masked || "")})</span>`);
+    } else {
+      setAiMsg(`<span class="badge">No key set</span> <span class="small">Go to the AI page to add your key.</span>`);
     }
-  };
-}
-
-async function showThread() {
-  if (!savedStudy) {
-    setPanel(`<div class="small"><span class="error">Save the paper to use Thread.</span></div>`);
-    return;
+  }catch(e){
+    setAiMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
   }
-  const comments = await fetchJson(`/studies/${savedStudy.id}/comments`);
-  let html = `<div class="small">Comments</div>`;
-  html += `<div style="margin-top:8px;">`;
-  for (const c of comments) {
-    html += `<div class="list-item"><b>${c.author}</b> <span class="small">${new Date(c.created_at).toLocaleString()}</span><div>${c.body}</div></div>`;
+};
+
+qs("clearAiBtn").onclick = async () => {
+  if (!getToken()) return;
+  const ok = await confirmModal({
+    title: "Clear AI key?",
+    message: "This removes your stored OpenAI key from the server. AI will stop working until you set it again.",
+    okText: "Clear key",
+    cancelText: "Cancel",
+    danger: true
+  });
+  if(!ok) return;
+
+  setAiMsg("Clearing...");
+  try{
+    await fetchJson("/ai/clear_key", { method:"DELETE" });
+    setAiMsg(`<span class="badge green">Cleared</span>`);
+  }catch(e){
+    setAiMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
   }
-  html += `</div>`;
-  html += `
-    <hr/>
-    <textarea id="commentBox" placeholder="Write a comment..."></textarea>
-    <div class="row" style="margin-top:10px;">
-      <button id="postCommentBtn">Post</button>
-    </div>
-    <div class="small" id="threadMsg"></div>
-  `;
-  setPanel(html);
-
-  document.getElementById("postCommentBtn").onclick = async () => {
-    const body = document.getElementById("commentBox").value.trim();
-    if (!body) return;
-    try {
-      await fetchJson(`/studies/${savedStudy.id}/comments`, { method:"POST", body: JSON.stringify({ body })});
-      showThread();
-    } catch (e) {
-      document.getElementById("threadMsg").innerHTML = `<span class="error">${e.message}</span>`;
-    }
-  };
-}
-
-async function showAI() {
-  requireAuthOrRedirect();
-  const p = savedStudy || external;
-  setPanel(`
-    <div class="small">Uses your BYOK OpenAI key (set it in <a href="info.html">Info</a>).</div>
-    <div class="row">
-      <button id="sumBtn">Summarize</button>
-      <button class="ghost" id="askBtn">Ask</button>
-    </div>
-    <textarea id="askQ" placeholder="Ask a question (for Ask)..."></textarea>
-    <div class="card" style="margin-top:10px;">
-      <div class="small" id="aiOut">(output)</div>
-    </div>
-  `);
-
-  const basePayload = {
-    title: p.title,
-    abstract: p.abstract,
-    venue: p.venue,
-    year: p.year,
-    pmid: p.pmid,
-    pmcid: p.pmcid,
-    doi: p.doi,
-  };
-
-  document.getElementById("sumBtn").onclick = async () => {
-    try {
-      document.getElementById("aiOut").textContent = "Working...";
-      const r = await fetchJson("/ai/summarize", { method:"POST", body: JSON.stringify(basePayload) });
-      document.getElementById("aiOut").textContent = r.text;
-    } catch (e) {
-      document.getElementById("aiOut").innerHTML = `<span class="error">${e.message}</span>`;
-    }
-  };
-
-  document.getElementById("askBtn").onclick = async () => {
-    try {
-      const question = document.getElementById("askQ").value.trim();
-      if (!question) return;
-      document.getElementById("aiOut").textContent = "Working...";
-      const r = await fetchJson("/ai/ask", { method:"POST", body: JSON.stringify({ ...basePayload, question }) });
-      document.getElementById("aiOut").textContent = r.text;
-    } catch (e) {
-      document.getElementById("aiOut").innerHTML = `<span class="error">${e.message}</span>`;
-    }
-  };
-}
-
-async function showFullText() {
-  const p = savedStudy || external;
-  if (!p || !p.pmcid) {
-    setPanel(`<div class="small"><span class="error">No PMCID available → full text not available.</span></div>`);
-    return;
-  }
-  setPanel(`<div class="small">Loading full text…</div>`);
-  try {
-    const r = await fetchJson(`/external/fulltext?source=europepmc&pmcid=${encodeURIComponent(p.pmcid)}`);
-    if (!r.available) {
-      setPanel(`<div class="small"><span class="error">${r.message}</span></div>`);
-      return;
-    }
-    setPanel(`<div class="small">${r.message}</div><hr/>${r.html || "<div class='small'>(no paragraphs)</div>"}`);
-  } catch (e) {
-    setPanel(`<div class="small"><span class="error">${e.message}</span></div>`);
-  }
-}
-
-document.querySelectorAll("[data-tab]").forEach(btn => {
-  btn.onclick = async () => {
-    const tab = btn.getAttribute("data-tab");
-    if (tab === "notes") return showNotes();
-    if (tab === "thread") return showThread();
-    if (tab === "ai") return showAI();
-    if (tab === "fulltext") return showFullText();
-  };
-});
-
-(async function init() {
-  const ref = getCurrentPaper();
-  if (ref.mode === "saved") {
-    await loadSavedStudy(ref.id);
-    renderPaper(savedStudy);
-    external = null;
-    qs("saveBtn").disabled = true;
-    qs("saveBtn").textContent = "Saved";
-  } else if (ref.mode === "external") {
-    external = ref.paper;
-    renderPaper(external);
-  } else {
-    qs("title").textContent = "No paper selected";
-    qs("saveBtn").disabled = true;
-  }
-
-  // default tab
-  showNotes();
-})();
+};
 </script>
 </body>
 </html>
-
-<body class="appDark">
-

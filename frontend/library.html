@@ -40,17 +40,39 @@
       </div>
     </div>
 
-    <div class="itemActions" style="margin-top:14px;">
-      <button class="primary" id="loadBtn">Load</button>
-      <button id="newFolderBtn">New Folder</button>
+    <!-- ✅ NEW: extra filters -->
+    <div class="split" style="grid-template-columns:1fr 1fr 1fr; margin-top:12px;">
+      <div>
+        <label>Source</label>
+        <select id="sourceFilter">
+          <option value="all" selected>All</option>
+        </select>
+      </div>
+      <div>
+        <label>Year from</label>
+        <input id="yearFrom" inputmode="numeric" placeholder="e.g. 2015"/>
+      </div>
+      <div>
+        <label>Year to</label>
+        <input id="yearTo" inputmode="numeric" placeholder="e.g. 2024"/>
+      </div>
     </div>
 
-    <div class="small" id="msg"></div>
+    <div class="itemActions" style="margin-top:14px;">
+      <button class="primary" id="loadBtn">Refresh</button>
+      <button id="newFolderBtn">New Folder</button>
+      <button id="clearBtn">Clear filters</button>
+    </div>
+
+    <div id="msg" class="small" style="margin-top:10px;"></div>
   </div>
 
   <div class="card">
-    <h3>Your Library</h3>
-    <div id="items" class="list"></div>
+    <div class="row" style="align-items:center;justify-content:space-between;">
+      <h3 style="margin:0;">Your Library</h3>
+      <div class="small" id="countLabel"></div>
+    </div>
+    <div class="list" id="items" style="margin-top:12px;"></div>
   </div>
 </main>
 
@@ -59,46 +81,243 @@
 <script>
 requireAuthOrRedirect();
 
-function setMsg(html){ $("msg").innerHTML = html || ""; }
+const STATE_KEY = "me_library_state_v2";
 
-async function loadFolders(){
-  const sel = $("folder");
-  sel.innerHTML = `<option value="">(all)</option>`;
+let foldersCache = [];
+let activeFolderId = "all"; // "all" or folderId as string
+
+function setMsg(msg){
+  $("msg").innerHTML = String(msg ?? "");
+}
+
+function setCountLabel(text){
+  const el = $("countLabel");
+  if(el) el.textContent = text || "";
+}
+
+function normStr(x){ return (x ?? "").toString().trim(); }
+
+function parseYear(x){
+  const n = parseInt(String(x || "").trim(), 10);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1000 || n > 3000) return null;
+  return n;
+}
+
+function saveState(){
   try{
-    const folders = await fetchJson("/folders");
-    for (const f of folders){
-      const opt = document.createElement("option");
-      opt.value = f.id;
-      opt.textContent = f.name;
-      sel.appendChild(opt);
-    }
-  }catch(e){
-    setMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
+    const st = {
+      q: $("q").value || "",
+      sort: $("sort").value || "newest",
+      folder: $("folder").value || "all",
+      source: $("sourceFilter").value || "all",
+      yearFrom: $("yearFrom").value || "",
+      yearTo: $("yearTo").value || "",
+      savedAt: Date.now(),
+    };
+    sessionStorage.setItem(STATE_KEY, JSON.stringify(st));
+  }catch{}
+}
+
+function loadState(){
+  try{
+    const raw = sessionStorage.getItem(STATE_KEY);
+    if(!raw) return null;
+    const st = JSON.parse(raw);
+    if(!st || typeof st !== "object") return null;
+    return st;
+  }catch{
+    return null;
   }
 }
 
+/* ---------------- Folder actions ---------------- */
+async function renameFolder(folder){
+  const name = await promptModal({
+    title: "Rename folder",
+    message: "Enter a new folder name",
+    placeholder: "e.g. Cardiology",
+    okText: "Rename",
+    cancelText: "Cancel",
+    initialValue: folder.name || ""
+  });
+  if (!name) return;
+  await fetchJson(`/folders/${folder.id}`, { method:"PATCH", body:{ name }});
+  await loadFolders();
+}
+
+async function deleteFolder(folder){
+  const ok = await confirmModal({
+    title: "Delete folder?",
+    message: "This removes the folder. Papers stay saved (moved to no folder).",
+    okText: "Delete folder",
+    cancelText: "Cancel",
+    danger: true
+  });
+  if (!ok) return;
+  await fetchJson(`/folders/${folder.id}`, { method:"DELETE" });
+  activeFolderId = "all";
+  await loadFolders();
+  await loadStudies();
+}
+
+async function newFolder(){
+  const name = await promptModal({
+    title: "New folder",
+    message: "Enter a folder name",
+    placeholder: "e.g. Endocrinology",
+    okText: "Create",
+    cancelText: "Cancel",
+    initialValue: ""
+  });
+  if (!name) return;
+  await fetchJson("/folders", { method:"POST", body:{ name }});
+  await loadFolders();
+}
+
+/* ---------------- Folder pick UI ---------------- */
+function folderSelectHtml(study){
+  const cur = study.folder_id ? String(study.folder_id) : "";
+  let opts = `<option value="">No folder</option>`;
+  for (const f of foldersCache){
+    opts += `<option value="${f.id}" ${String(f.id)===cur?"selected":""}>${escapeHtml(f.name)}</option>`;
+  }
+  return `
+    <div style="margin-top:12px;">
+      <label>Folder</label>
+      <select data-folder-pick="${study.id}">${opts}</select>
+      <div class="small" data-folder-msg="${study.id}" style="margin-top:8px;"></div>
+    </div>
+  `;
+}
+
+/* ---------------- Load folders ---------------- */
+async function loadFolders(){
+  try{
+    const folders = await fetchJson("/folders");
+    foldersCache = Array.isArray(folders) ? folders : [];
+
+    const sel = $("folder");
+    sel.innerHTML = "";
+
+    const optAll = document.createElement("option");
+    optAll.value = "all";
+    optAll.textContent = "All";
+    sel.appendChild(optAll);
+
+    // "No folder" pseudo
+    const optNone = document.createElement("option");
+    optNone.value = "none";
+    optNone.textContent = "No folder";
+    sel.appendChild(optNone);
+
+    for (const f of foldersCache){
+      const opt = document.createElement("option");
+      opt.value = String(f.id);
+      opt.textContent = f.name;
+      sel.appendChild(opt);
+    }
+
+    // restore active selection if possible
+    const wanted = (activeFolderId || "all");
+    sel.value = Array.from(sel.options).some(o => o.value === wanted) ? wanted : "all";
+    activeFolderId = sel.value;
+
+  }catch(e){
+    setMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
+  }
+}
+
+/* ---------------- Source dropdown (based on returned studies) ---------------- */
+function buildSourceFilterFromItems(items){
+  const sel = $("sourceFilter");
+  if(!sel) return;
+
+  const cur = sel.value || "all";
+
+  const sources = new Set();
+  (items || []).forEach(it => {
+    const s = normStr(it?.source);
+    if(s) sources.add(s);
+  });
+
+  const sorted = Array.from(sources).sort((a,b)=>a.localeCompare(b));
+
+  sel.innerHTML = `<option value="all">All</option>`;
+  for (const s of sorted){
+    const opt = document.createElement("option");
+    opt.value = s;
+    opt.textContent = s;
+    sel.appendChild(opt);
+  }
+
+  // restore
+  sel.value = Array.from(sel.options).some(o => o.value === cur) ? cur : "all";
+}
+
+/* ---------------- Apply client filters ---------------- */
+function applyClientFilters(items){
+  const srcNeed = $("sourceFilter").value || "all";
+  const yFrom = parseYear($("yearFrom").value);
+  const yTo = parseYear($("yearTo").value);
+
+  return (items || []).filter(it => {
+    if (srcNeed !== "all" && normStr(it?.source) !== srcNeed) return false;
+
+    const y = parseYear(it?.year);
+    if (yFrom !== null) {
+      if (y === null) return false;
+      if (y < yFrom) return false;
+    }
+    if (yTo !== null) {
+      if (y === null) return false;
+      if (y > yTo) return false;
+    }
+    return true;
+  });
+}
+
+/* ---------------- Load studies ---------------- */
 async function loadStudies(){
   setMsg("");
+  setCountLabel("");
+
   const q = $("q").value.trim();
   const sort = $("sort").value;
-  const folderId = $("folder").value;
 
-  const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  if (sort) params.set("sort", sort);
-  if (folderId) params.set("folder_id", folderId);
+  let url = `/studies?sort=${encodeURIComponent(sort)}`;
+  if (q) url += `&q=${encodeURIComponent(q)}`;
+  if (activeFolderId && activeFolderId !== "all"){
+    if (activeFolderId === "none") url += `&folder_id=${encodeURIComponent("")}`; // backend treats missing; we handle client-side below too
+    else url += `&folder_id=${encodeURIComponent(activeFolderId)}`;
+  }
 
   try{
-    const items = await fetchJson("/studies?" + params.toString());
+    let items = await fetchJson(url);
+    if (!Array.isArray(items)) items = [];
+
+    // If user selected "No folder", backend doesn't support it cleanly, so filter it client-side.
+    if (activeFolderId === "none"){
+      items = items.filter(it => !it.folder_id);
+    }
+
+    // build source dropdown from what we have
+    buildSourceFilterFromItems(items);
+
+    const filtered = applyClientFilters(items);
+
     const wrap = $("items");
     wrap.innerHTML = "";
 
-    if (!items.length){
+    setCountLabel(`${filtered.length} shown / ${items.length} loaded`);
+
+    if (!filtered || !filtered.length){
       wrap.innerHTML = `<div class="item small">No saved papers.</div>`;
+      saveState();
       return;
     }
 
-    for (const it of items){
+    for (const it of filtered){
       const div = document.createElement("div");
       div.className = "item";
       div.innerHTML = `
@@ -110,49 +329,155 @@ async function loadStudies(){
           ${it.study_type ? `<span class="badge green">${escapeHtml(it.study_type)}</span>` : ""}
           ${it.tags ? `<span class="badge">${escapeHtml(it.tags)}</span>` : ""}
         </div>
+
+        ${folderSelectHtml(it)}
+
         <div class="itemActions">
-          <button class="primary" data-open>Open</button>
-          <button class="danger" data-del>Delete</button>
+          <!-- ✅ KEY FIX: attach the study id to the button -->
+          <button class="primary" type="button" data-open data-study-id="${it.id}">Open</button>
+          <button class="danger" type="button" data-del data-study-id="${it.id}">Delete</button>
         </div>
       `;
-      div.querySelector("[data-open]").onclick = () => {
-        sessionStorage.setItem("open_study_id", String(it.id));
-        sessionStorage.removeItem("last_external");
-        window.location.href = "paper.html";
-      };
-      div.querySelector("[data-del]").onclick = async () => {
-        if (!confirm("Delete this saved paper?")) return;
-        try{
-          await fetchJson(`/studies/${it.id}`, { method:"DELETE" });
-          loadStudies();
-        }catch(e){
-          setMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
-        }
-      };
+
+      // Move / remove folder
+      const sel = div.querySelector(`[data-folder-pick="${it.id}"]`);
+      if (sel){
+        sel.onchange = async () => {
+          const v = sel.value;
+          const msg = div.querySelector(`[data-folder-msg="${it.id}"]`);
+          if (msg) msg.textContent = "Saving...";
+
+          try{
+            await fetchJson(`/studies/${it.id}`, {
+              method: "PATCH",
+              body: { folder_id: v ? parseInt(v, 10) : null }
+            });
+            if (msg) msg.innerHTML = `<span class="badge green">Updated</span>`;
+            await loadStudies();
+          }catch(e){
+            if (msg) msg.innerHTML = `<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`;
+          }
+        };
+      }
+
       wrap.appendChild(div);
     }
+
+    saveState();
   }catch(e){
-    setMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
+    setMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
   }
 }
 
-$("loadBtn").onclick = loadStudies;
+/* ✅ ONE delegated click handler = never “wrong paper” */
+(function wireDelegatedClicks(){
+  const wrap = $("items");
+  if (!wrap) return;
+  if (wrap.dataset.wired === "1") return;
+  wrap.dataset.wired = "1";
 
-$("newFolderBtn").onclick = async () => {
-  const name = prompt("Folder name?");
-  if (!name) return;
-  try{
-    await fetchJson("/folders", { method:"POST", json:{ name }});
-    await loadFolders();
-    setMsg(`<span style="color:var(--success);font-weight:900;">Folder created.</span>`);
-  }catch(e){
-    setMsg(`<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`);
-  }
+  wrap.addEventListener("click", async (e) => {
+    const btnOpen = e.target.closest("[data-open]");
+    const btnDel = e.target.closest("[data-del]");
+
+    if (btnOpen){
+      const id = parseInt(btnOpen.getAttribute("data-study-id"), 10);
+      sessionStorage.setItem("open_study_id", String(id));
+      sessionStorage.removeItem("last_external");
+      location.href = "paper.html";
+      return;
+    }
+
+    if (btnDel){
+      const id = parseInt(btnDel.getAttribute("data-study-id"), 10);
+      const ok = await confirmModal({
+        title: "Delete paper?",
+        message: "This removes it from your library.",
+        okText: "Delete",
+        cancelText: "Cancel",
+        danger: true
+      });
+      if (!ok) return;
+
+      try{
+        await fetchJson(`/studies/${id}`, { method:"DELETE" });
+        await loadStudies();
+      }catch(err){
+        showToast("Delete failed", err.message, "error");
+      }
+      return;
+    }
+  });
+})();
+
+/* ---------------- Wire UI events (debounced) ---------------- */
+function debounce(fn, ms=250){
+  let t = null;
+  return (...args)=>{
+    if(t) clearTimeout(t);
+    t = setTimeout(()=>fn(...args), ms);
+  };
+}
+
+const debouncedLoad = debounce(loadStudies, 250);
+
+$("loadBtn").onclick = loadStudies;
+$("newFolderBtn").onclick = async ()=>{ await newFolder(); };
+$("clearBtn").onclick = async ()=>{
+  $("q").value = "";
+  $("sort").value = "newest";
+  $("sourceFilter").value = "all";
+  $("yearFrom").value = "";
+  $("yearTo").value = "";
+  $("folder").value = "all";
+  activeFolderId = "all";
+  saveState();
+  await loadStudies();
 };
 
-loadFolders().then(loadStudies);
+$("q").addEventListener("input", ()=>{ debouncedLoad(); saveState(); });
+$("sort").addEventListener("change", ()=>{ loadStudies(); saveState(); });
+
+$("folder").addEventListener("change", ()=>{
+  activeFolderId = $("folder").value || "all";
+  loadStudies();
+  saveState();
+});
+
+$("sourceFilter").addEventListener("change", ()=>{ loadStudies(); saveState(); });
+$("yearFrom").addEventListener("input", ()=>{ debouncedLoad(); saveState(); });
+$("yearTo").addEventListener("input", ()=>{ debouncedLoad(); saveState(); });
+
+/* ---------------- Init ---------------- */
+(async function init(){
+  await loadFolders();
+
+  // restore saved view
+  const st = loadState();
+  if (st){
+    $("q").value = st.q || "";
+    $("sort").value = st.sort || "newest";
+
+    const wantedFolder = st.folder || "all";
+    $("folder").value = Array.from($("folder").options).some(o => o.value === wantedFolder) ? wantedFolder : "all";
+    activeFolderId = $("folder").value;
+
+    $("yearFrom").value = st.yearFrom || "";
+    $("yearTo").value = st.yearTo || "";
+    // sourceFilter options depend on loaded items; we restore after first load
+  }
+
+  await loadStudies();
+
+  // restore source after first load (because we build options dynamically)
+  if (st && st.source){
+    const sel = $("sourceFilter");
+    if (sel && Array.from(sel.options).some(o => o.value === st.source)){
+      sel.value = st.source;
+      await loadStudies();
+    }
+  }
+})();
 </script>
 </body>
 </html>
-
-<body class="appDark"></body>
