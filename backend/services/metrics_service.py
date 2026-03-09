@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
@@ -34,8 +34,8 @@ def get_or_create_metrics(session: Session, study_id: int, owner_username: str) 
 def touch_metrics(session: Session, study_id: int, owner_username: str) -> None:
     """Update last_accessed timestamp. Call whenever a user opens a paper."""
     m = get_or_create_metrics(session, study_id, owner_username)
-    m.last_accessed = datetime.utcnow()
-    m.updated_at = datetime.utcnow()
+    m.last_accessed = datetime.now(timezone.utc)
+    m.updated_at = datetime.now(timezone.utc)
     session.add(m)
     session.commit()
 
@@ -44,7 +44,7 @@ def increment_ai_runs(session: Session, study_id: int, owner_username: str) -> N
     """Increment ai_runs counter. Call after every successful AI response."""
     m = get_or_create_metrics(session, study_id, owner_username)
     m.ai_runs = (m.ai_runs or 0) + 1
-    m.updated_at = datetime.utcnow()
+    m.updated_at = datetime.now(timezone.utc)
     session.add(m)
     session.commit()
 
@@ -53,7 +53,7 @@ def increment_comment_count(session: Session, study_id: int, owner_username: str
     """Increment comment_count. Call after a comment is posted."""
     m = get_or_create_metrics(session, study_id, owner_username)
     m.comment_count = (m.comment_count or 0) + 1
-    m.updated_at = datetime.utcnow()
+    m.updated_at = datetime.now(timezone.utc)
     session.add(m)
     session.commit()
 
@@ -62,7 +62,7 @@ def sync_folder_count(session: Session, study: Study) -> None:
     """Derived: 1 if folder_id set else 0."""
     m = get_or_create_metrics(session, study.id, study.owner_username)
     m.folder_count = 1 if study.folder_id is not None else 0
-    m.updated_at = datetime.utcnow()
+    m.updated_at = datetime.now(timezone.utc)
     session.add(m)
     session.commit()
 
@@ -71,6 +71,6 @@ def on_study_saved(session: Session, study: Study) -> None:
     """Call once when a paper is first imported/saved."""
     m = get_or_create_metrics(session, study.id, study.owner_username)
     m.save_count = (m.save_count or 0) + 1
-    m.updated_at = datetime.utcnow()
+    m.updated_at = datetime.now(timezone.utc)
     session.add(m)
     session.commit()

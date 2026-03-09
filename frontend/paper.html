@@ -363,26 +363,49 @@ function renderAuthors(p) {
   box.innerHTML = `<div>${escapeHtml(authors.join(", "))}</div>`;
 }
 
+const SOURCE_LABELS_PAPER = {
+  europepmc: "Europe PMC", semantic_scholar: "Semantic Scholar",
+  openalex: "OpenAlex", crossref: "Crossref",
+};
+const STUDY_TYPE_LABELS_PAPER = {
+  rct: "RCT", meta_analysis: "Meta-analysis", systematic_review: "Systematic Review",
+  observational: "Observational", cohort: "Cohort", case_control: "Case-Control",
+  case_report: "Case Report", review: "Review", editorial: "Editorial", other: "Other",
+};
+function detectStudyTypePaper(p) {
+  if (p.study_type) return p.study_type.toLowerCase().replace(/[\s-]/g, "_");
+  const text = ((p.title || "") + " " + (p.abstract || "")).toLowerCase();
+  if (/\brandom(is|iz)ed\b|\brct\b/.test(text))  return "rct";
+  if (/\bmeta.?analy/.test(text))                   return "meta_analysis";
+  if (/\bsystematic\s+review\b/.test(text))        return "systematic_review";
+  if (/\bcohort\b/.test(text))                     return "cohort";
+  if (/\bcase.control\b/.test(text))               return "case_control";
+  if (/\bcase\s+report\b/.test(text))             return "case_report";
+  if (/\breview\b/.test(text))                     return "review";
+  if (/\beditorial\b/.test(text))                  return "editorial";
+  if (/\bobservational\b/.test(text))              return "observational";
+  return null;
+}
 function renderPaper(p) {
   qs("title").textContent = (p.title || "(untitled)").toUpperCase();
 
-  const authors     = normalizeAuthors(p);
-  const authorsMeta = authors.length
-    ? `authors: ${authors.slice(0,8).join(", ")}${authors.length>8 ? "…" : ""}`
-    : null;
+  const studyType = detectStudyTypePaper(p);
+  const typeLabel = studyType ? (STUDY_TYPE_LABELS_PAPER[studyType] || studyType) : null;
+  const isOA = !!normStr(p.pmcid);
+  const srcLabel = SOURCE_LABELS_PAPER[p.source] || p.source || "";
 
-  const meta = [
-    p.year      ? `year: ${p.year}`           : null,
-    p.venue     ? `venue: ${p.venue}`         : null,
-    authorsMeta,
-    p.source    ? `source: ${p.source}`       : null,
-    p.source_id ? `source_id: ${p.source_id}` : null,
-    `pmcid: ${p.pmcid || "n/a"}`,
-    `pmid: ${p.pmid   || "n/a"}`,
-    `doi: ${p.doi     || "n/a"}`
-  ].filter(Boolean).join(" • ");
+  const badges = [
+    p.year    ? `<span class="badge">${escapeHtml(String(p.year))}</span>` : "",
+    p.venue   ? `<span class="badge">${escapeHtml(p.venue)}</span>` : "",
+    srcLabel  ? `<span class="badge blue">${escapeHtml(srcLabel)}</span>` : "",
+    typeLabel ? `<span class="badge" style="background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.25);color:#b45309;">${escapeHtml(typeLabel)}</span>` : "",
+    isOA      ? `<span class="badge green">Open Access</span>` : "",
+    p.doi     ? `<span class="badge" style="font-family:monospace;font-size:.72rem;">DOI: ${escapeHtml(p.doi)}</span>` : "",
+    p.pmid    ? `<span class="badge" style="font-size:.72rem;">PMID: ${escapeHtml(p.pmid)}</span>` : "",
+    p.pmcid   ? `<span class="badge" style="font-size:.72rem;">PMC: ${escapeHtml(p.pmcid)}</span>` : "",
+  ].filter(Boolean).join(" ");
 
-  qs("meta").textContent = meta;
+  qs("meta").innerHTML = `<div class="itemMeta" style="flex-wrap:wrap;gap:6px;">${badges}</div>`;
   qs("abstract").innerHTML = formatAbstractHtml(p.abstract || "");
   renderAuthors(p);
 
@@ -397,8 +420,8 @@ function renderPaper(p) {
   qs("openFullBtn").onclick  = () => { if (prov) window.open(prov, "_blank"); };
 
   qs("fullTextHint").innerHTML = canOA
-    ? `<span class="small">Open Access full text may be available (PMCID detected). You can load it inline.</span>`
-    : `<span class="small">No PMCID detected yet. We'll try to find one automatically (via Europe PMC) for inline OA full text.</span>`;
+    ? `<span class="small">Open Access full text available (PMCID detected). Load it inline below.</span>`
+    : `<span class="small">No PMCID detected. We\'ll try to find one automatically via Europe PMC.</span>`;
 }
 
 /* ═══════════════════════════════════════════
@@ -902,18 +925,27 @@ async function showRelated() {
       `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(src)}&limit=10&cursor_mark=*`,
       { auth:false }
     );
-    const items = (r.items || []).filter(x => x.source_id !== p.source_id).slice(0, 10);
+    // Smart ranking: sort by year desc (newest first), exclude current paper
+    const items = (r.items || [])
+      .filter(x => x.source_id !== p.source_id)
+      .sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0))
+      .slice(0, 10);
 
     if (!items.length) { setPanel(`<div class="small">No related results found for: <b>${escapeHtml(q)}</b></div>`); return; }
 
-    let html = `<div class="small">Related results for: <b>${escapeHtml(q)}</b></div><div class="hr"></div><div class="list">`;
+    let html = `<div class="small" style="margin-bottom:8px;">Related · sorted by year · <b>${escapeHtml(q)}</b></div><div class="hr"></div><div class="list">`;
     for (const it of items) {
+      const relType = detectStudyTypePaper(it);
+      const relTypeLabel = relType ? (STUDY_TYPE_LABELS_PAPER[relType] || relType) : null;
+      const relOA = !!((it.pmcid || "").toString().trim());
       html += `
         <div class="item">
           <div class="itemTitle">${escapeHtml(it.title)}</div>
-          <div class="itemMeta">
-            ${it.year ? `<span class="badge">${escapeHtml(it.year)}</span>` : ""}
-            <span class="badge blue">${escapeHtml(it.source)}</span>
+          <div class="itemMeta" style="margin-top:6px;">
+            ${it.year ? `<span class="badge">${escapeHtml(String(it.year))}</span>` : ""}
+            <span class="badge blue">${escapeHtml(SOURCE_LABELS_PAPER[it.source] || it.source)}</span>
+            ${relTypeLabel ? `<span class="badge" style="background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.25);color:#b45309;">${escapeHtml(relTypeLabel)}</span>` : ""}
+            ${relOA ? `<span class="badge green">OA</span>` : ""}
           </div>
           <div class="itemActions">
             <button type="button" class="primary" data-open-rel="1">Open</button>
