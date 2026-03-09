@@ -5,6 +5,7 @@ line-length = 120
 select = ["E", "F", "W"]
 ignore = [
   "E501",   # line too long — handled by formatter separately
+  "E402",   # module import not at top (doi import placed after try/except block)
   "E711",   # comparison to None (SQLModel uses == None in queries)
   "E712",   # comparison to True/False
   "F401",   # unused imports (too noisy during active dev)
