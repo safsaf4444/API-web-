@@ -20,12 +20,12 @@
   <div class="card">
     <h2>Search</h2>
 
+    <!-- Row 1: query + source + page size -->
     <div class="row">
-      <div style="flex:2">
+      <div style="flex:3">
         <label>Query</label>
-        <input id="q" placeholder="e.g. creatine" value="creatine"/>
+        <input id="q" placeholder="e.g. creatine supplementation" value="creatine"/>
       </div>
-
       <div style="flex:1">
         <label>Source</label>
         <select id="source">
@@ -35,7 +35,6 @@
           <option value="crossref">Crossref</option>
         </select>
       </div>
-
       <div style="flex:1">
         <label>Page size</label>
         <select id="limit">
@@ -46,50 +45,69 @@
       </div>
     </div>
 
-    <div class="row" style="margin-top:10px;">
-      <div style="flex:1">
-        <label>Author contains</label>
-        <input id="author" placeholder="e.g. smith"/>
-      </div>
-
-      <div style="flex:1">
+    <!-- Row 2: advanced filters -->
+    <div class="filterBar">
+      <div class="filterGroup">
         <label>Year from</label>
-        <input id="yearFrom" inputmode="numeric" placeholder="e.g. 2015"/>
+        <input id="yearFrom" inputmode="numeric" placeholder="e.g. 2015" style="max-width:110px;"/>
       </div>
-
-      <div style="flex:1">
+      <div class="filterGroup">
         <label>Year to</label>
-        <input id="yearTo" inputmode="numeric" placeholder="e.g. 2024"/>
+        <input id="yearTo" inputmode="numeric" placeholder="e.g. 2024" style="max-width:110px;"/>
       </div>
-
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;">
-        <label style="opacity:.8;">Options</label>
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-          <label class="small" style="display:flex;gap:8px;align-items:center;">
-            <input type="checkbox" id="hasAbstract"/>
-            has abstract
+      <div class="filterGroup">
+        <label>Study type</label>
+        <select id="studyType">
+          <option value="">Any</option>
+          <option value="rct">RCT</option>
+          <option value="meta_analysis">Meta-analysis</option>
+          <option value="systematic_review">Systematic Review</option>
+          <option value="observational">Observational</option>
+          <option value="cohort">Cohort</option>
+          <option value="case_control">Case-Control</option>
+          <option value="case_report">Case Report</option>
+          <option value="review">Review</option>
+          <option value="editorial">Editorial</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="filterGroup">
+        <label>Author contains</label>
+        <input id="author" placeholder="e.g. smith" style="max-width:150px;"/>
+      </div>
+      <div class="filterGroup" style="justify-content:flex-end;">
+        <label style="opacity:.7;">Options</label>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+          <label class="small filterCheck">
+            <input type="checkbox" id="hasAbstract"/> has abstract
           </label>
-          <label class="small" style="display:flex;gap:8px;align-items:center;">
-            <input type="checkbox" id="titleOnly"/>
-            title contains query
+          <label class="small filterCheck">
+            <input type="checkbox" id="openAccess"/> open access
+          </label>
+          <label class="small filterCheck">
+            <input type="checkbox" id="titleOnly"/> title match
           </label>
         </div>
       </div>
     </div>
 
-    <div class="row" style="margin-top:10px;">
+    <!-- Row 3: actions -->
+    <div class="row" style="margin-top:12px;">
       <button class="primary" id="searchBtn">Search</button>
-      <button class="ghost" id="prevBtn" disabled>Prev</button>
-      <button class="ghost" id="nextBtn" disabled>Next</button>
-      <button class="ghost" id="clearBtn" title="Clear filters">Clear</button>
-      <div class="small" id="pageLabel"></div>
+      <button class="ghost" id="prevBtn" disabled>← Prev</button>
+      <button class="ghost" id="nextBtn" disabled>Next →</button>
+      <button class="ghost" id="clearBtn" title="Clear all filters">Clear filters</button>
+      <div class="small" id="pageLabel" style="margin-left:auto;"></div>
     </div>
 
-    <div id="msg" class="small"></div>
+    <div id="msg" class="small" style="margin-top:8px;"></div>
   </div>
 
   <div class="card">
-    <h3>Results</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+      <h3 style="margin:0;">Results</h3>
+      <div id="activeFilters" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    </div>
     <div id="results" class="list"></div>
   </div>
 </main>
@@ -100,12 +118,8 @@
 <script>
 let stack = [];
 let nextCursor = null;
-
-// ✅ keep last fetched page so filters don't trigger refetch
 let __LAST_ITEMS__ = [];
 let __LAST_HIT_COUNT__ = null;
-
-// ✅ request sequencing (avoids AbortError + avoids old responses overwriting new)
 let __REQ_SEQ__ = 0;
 
 const SOURCE_LABELS = {
@@ -115,114 +129,168 @@ const SOURCE_LABELS = {
   crossref: "Crossref",
 };
 
-const STATE_KEY = "me_search_state_v4";
+const STUDY_TYPE_LABELS = {
+  rct: "RCT",
+  meta_analysis: "Meta-analysis",
+  systematic_review: "Systematic Review",
+  observational: "Observational",
+  cohort: "Cohort",
+  case_control: "Case-Control",
+  case_report: "Case Report",
+  review: "Review",
+  editorial: "Editorial",
+  other: "Other",
+};
+
+// Study type detection from title/abstract (client-side, same logic as backend)
+function detectStudyType(it) {
+  if (it.study_type) return it.study_type.toLowerCase().replace(/[\s-]/g, "_");
+  const text = ((it.title || "") + " " + (it.abstract || "")).toLowerCase();
+  if (/\brandom(is|iz)ed\b|\brct\b/.test(text))           return "rct";
+  if (/\bmeta.?analy/.test(text))                          return "meta_analysis";
+  if (/\bsystematic\s+review\b/.test(text))                return "systematic_review";
+  if (/\bcohort\b/.test(text))                             return "cohort";
+  if (/\bcase.control\b/.test(text))                       return "case_control";
+  if (/\bcase\s+report\b/.test(text))                      return "case_report";
+  if (/\breview\b/.test(text))                             return "review";
+  if (/\beditorial\b/.test(text))                          return "editorial";
+  if (/\bobservational\b/.test(text))                      return "observational";
+  return null;
+}
+
+const STATE_KEY = "me_search_state_v5";
 
 function setMsg(html) { qs("msg").innerHTML = html || ""; }
-function normStr(x){ return (x ?? "").toString().trim(); }
+function normStr(x) { return (x ?? "").toString().trim(); }
 
 function defaultCursorFor(source) {
   return source === "semantic_scholar" ? "0" : "*";
 }
 
-function parseYear(x){
+function parseYear(x) {
   const n = parseInt(String(x || "").trim(), 10);
-  if (!Number.isFinite(n)) return null;
-  if (n < 1000 || n > 3000) return null;
+  if (!Number.isFinite(n) || n < 1000 || n > 3000) return null;
   return n;
 }
 
-function normalizeAuthorsForDisplay(it){
+function normalizeAuthorsForDisplay(it) {
   const a = it?.authors;
   if (!a) return [];
   if (Array.isArray(a)) return a.map(x => (x ?? "").toString().trim()).filter(Boolean);
   return [];
 }
 
-function hasUsefulAbstract(it){
-  const a = (it?.abstract || "").toString().trim();
-  return a.length >= 20;
+function hasUsefulAbstract(it) {
+  return (it?.abstract || "").toString().trim().length >= 20;
 }
 
-function titleContainsQuery(it, q){
-  const t = (it?.title || "").toString().toLowerCase();
-  const qq = (q || "").toString().toLowerCase().trim();
-  if (!qq) return true;
-  const tokens = qq.split(/\s+/).filter(w => w.length >= 3);
-  if (!tokens.length) return t.includes(qq);
+function isOpenAccess(it) {
+  return !!(it?.pmcid && it.pmcid.toString().trim());
+}
+
+function titleContainsQuery(it, q) {
+  const t = (it?.title || "").toLowerCase();
+  const tokens = (q || "").toLowerCase().trim().split(/\s+/).filter(w => w.length >= 3);
+  if (!tokens.length) return true;
   return tokens.every(tok => t.includes(tok));
 }
 
-function authorMatches(it, authorNeedle){
-  const needle = (authorNeedle || "").toString().toLowerCase().trim();
+function authorMatches(it, needle) {
   if (!needle) return true;
-
-  const authors = normalizeAuthorsForDisplay(it);
-  if (!authors.length) return false;
-  return authors.some(a => a.toLowerCase().includes(needle));
+  return normalizeAuthorsForDisplay(it).some(a => a.toLowerCase().includes(needle.toLowerCase()));
 }
 
-function applyFilters(items){
-  const q = normStr(qs("q").value);
-  const author = normStr(qs("author").value);
-  const yFrom = parseYear(qs("yearFrom").value);
-  const yTo = parseYear(qs("yearTo").value);
-  const needAbs = qs("hasAbstract").checked;
-  const titleOnly = qs("titleOnly").checked;
+function studyTypeMatches(it, filterVal) {
+  if (!filterVal) return true;
+  const detected = detectStudyType(it);
+  return detected === filterVal;
+}
 
+function getFilters() {
+  return {
+    q:          normStr(qs("q").value),
+    author:     normStr(qs("author").value),
+    yFrom:      parseYear(qs("yearFrom").value),
+    yTo:        parseYear(qs("yearTo").value),
+    studyType:  qs("studyType").value || "",
+    needAbs:    qs("hasAbstract").checked,
+    openAccess: qs("openAccess").checked,
+    titleOnly:  qs("titleOnly").checked,
+  };
+}
+
+function applyFilters(items) {
+  const f = getFilters();
   return (items || []).filter(it => {
-    if (needAbs && !hasUsefulAbstract(it)) return false;
-    if (titleOnly && !titleContainsQuery(it, q)) return false;
-
+    if (f.needAbs && !hasUsefulAbstract(it))          return false;
+    if (f.openAccess && !isOpenAccess(it))             return false;
+    if (f.titleOnly && !titleContainsQuery(it, f.q))   return false;
+    if (!authorMatches(it, f.author))                  return false;
+    if (!studyTypeMatches(it, f.studyType))            return false;
     const y = parseYear(it?.year);
-
-    // ✅ missing years do NOT get excluded
-    if (yFrom !== null) {
-      if (y !== null && y < yFrom) return false;
-    }
-    if (yTo !== null) {
-      if (y !== null && y > yTo) return false;
-    }
-
-    if (!authorMatches(it, author)) return false;
+    if (f.yFrom !== null && y !== null && y < f.yFrom) return false;
+    if (f.yTo   !== null && y !== null && y > f.yTo)   return false;
     return true;
   });
+}
+
+/* Active filter chips shown above results */
+function renderActiveFilters() {
+  const f = getFilters();
+  const chips = [];
+  if (f.yFrom)      chips.push(`From ${f.yFrom}`);
+  if (f.yTo)        chips.push(`To ${f.yTo}`);
+  if (f.studyType)  chips.push(STUDY_TYPE_LABELS[f.studyType] || f.studyType);
+  if (f.author)     chips.push(`Author: ${f.author}`);
+  if (f.needAbs)    chips.push("Has abstract");
+  if (f.openAccess) chips.push("Open access");
+  if (f.titleOnly)  chips.push("Title match");
+
+  const wrap = qs("activeFilters");
+  if (!wrap) return;
+  wrap.innerHTML = chips.map(c =>
+    `<span class="badge" style="font-size:.72rem;padding:4px 10px;">${escapeHtml(c)}</span>`
+  ).join("");
 }
 
 function renderResults(itemsRaw) {
   const wrap = qs("results");
   wrap.innerHTML = "";
+  renderActiveFilters();
 
   const items = applyFilters(itemsRaw);
 
-  if (!items || !items.length) {
-    wrap.innerHTML = `<div class="empty">No results (after filters).</div>`;
+  if (!items.length) {
+    wrap.innerHTML = `<div class="empty">No results${itemsRaw.length ? " after filters" : ""}.</div>`;
     return;
   }
 
   for (const it of items) {
     const authors = normalizeAuthorsForDisplay(it);
-    const authorLine = authors.length ? authors.slice(0, 6).join(", ") : "";
+    const authorLine = authors.length ? authors.slice(0, 5).join(", ") + (authors.length > 5 ? "…" : "") : "";
+    const detectedType = detectStudyType(it);
+    const typeLabel = detectedType ? (STUDY_TYPE_LABELS[detectedType] || detectedType) : null;
+    const oa = isOpenAccess(it);
 
     const div = document.createElement("div");
     div.className = "item";
     div.innerHTML = `
       <div class="itemTitle">${escapeHtml(it.title)}</div>
-
-      ${authorLine ? `<div class="small" style="opacity:.9;margin-top:6px;">${escapeHtml(authorLine)}${authors.length > 6 ? "…" : ""}</div>` : ""}
-
+      ${authorLine ? `<div class="small" style="opacity:.85;margin-top:5px;">${escapeHtml(authorLine)}</div>` : ""}
       <div class="itemMeta" style="margin-top:8px;">
-        ${it.year ? `<span class="badge">${escapeHtml(it.year)}</span>` : ""}
+        ${it.year  ? `<span class="badge">${escapeHtml(String(it.year))}</span>` : ""}
         ${it.venue ? `<span class="badge">${escapeHtml(it.venue)}</span>` : ""}
         <span class="badge blue">${escapeHtml(SOURCE_LABELS[it.source] || it.source)}</span>
-        ${hasUsefulAbstract(it) ? `<span class="badge green">abstract</span>` : ``}
+        ${typeLabel ? `<span class="badge" style="background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.25);color:#b45309;">${escapeHtml(typeLabel)}</span>` : ""}
+        ${oa        ? `<span class="badge green">Open Access</span>` : ""}
+        ${hasUsefulAbstract(it) ? `<span class="badge green">Abstract</span>` : ""}
       </div>
-
       <div class="itemActions">
-        <button class="primary">Open</button>
+        <button class="primary openBtn">Open</button>
       </div>
     `;
 
-    div.querySelector("button").onclick = () => {
+    div.querySelector(".openBtn").onclick = () => {
       sessionStorage.setItem("last_external", JSON.stringify(it));
       sessionStorage.removeItem("open_study_id");
       window.location.href = "paper.html";
@@ -237,49 +305,42 @@ function updateButtons() {
   qs("nextBtn").disabled = !nextCursor;
 }
 
-function saveState(){
-  try{
-    const state = {
-      q: qs("q").value || "",
-      source: qs("source").value || "europepmc",
-      limit: qs("limit").value || "25",
+function updateLabel(serverHitCount, rawCount, shownCount) {
+  const hc = serverHitCount ?? (__LAST_HIT_COUNT__ ?? "?");
+  qs("pageLabel").textContent =
+    `${hc} hits · page ${stack.length} · showing ${shownCount}/${rawCount}${nextCursor ? " · more ›" : ""}`;
+}
+
+function saveState() {
+  try {
+    const f = getFilters();
+    sessionStorage.setItem(STATE_KEY, JSON.stringify({
+      q: f.q,
+      source: qs("source").value,
+      limit: qs("limit").value,
       filters: {
-        author: qs("author").value || "",
-        yearFrom: qs("yearFrom").value || "",
-        yearTo: qs("yearTo").value || "",
-        hasAbstract: !!qs("hasAbstract").checked,
-        titleOnly: !!qs("titleOnly").checked,
+        author: f.author, yearFrom: qs("yearFrom").value, yearTo: qs("yearTo").value,
+        studyType: f.studyType, hasAbstract: f.needAbs, openAccess: f.openAccess, titleOnly: f.titleOnly,
       },
-      stack,
-      nextCursor,
-      savedAt: Date.now(),
-    };
-    sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
-  }catch{}
+      stack, nextCursor, savedAt: Date.now(),
+    }));
+  } catch {}
 }
 
-function loadState(){
-  try{
-    const raw = sessionStorage.getItem(STATE_KEY);
-    if(!raw) return null;
-    const st = JSON.parse(raw);
-    if(!st || typeof st !== "object") return null;
-    return st;
-  }catch{
-    return null;
-  }
+function loadState() {
+  try {
+    const st = JSON.parse(sessionStorage.getItem(STATE_KEY) || "null");
+    return (st && typeof st === "object") ? st : null;
+  } catch { return null; }
 }
 
-async function loadSources(){
-  try{
-    const r = await fetchJson("/external/sources", { auth:false });
-    const sources = (r && r.sources) ? r.sources : [];
-
+async function loadSources() {
+  try {
+    const r = await fetchJson("/external/sources", { auth: false });
+    const sources = r?.sources || [];
     const sel = qs("source");
-    if (!sel) return;
-
+    if (!sel || !sources.length) return;
     const cur = sel.value || "europepmc";
-
     sel.innerHTML = "";
     for (const src of sources) {
       const opt = document.createElement("option");
@@ -287,86 +348,50 @@ async function loadSources(){
       opt.textContent = SOURCE_LABELS[src] || src;
       sel.appendChild(opt);
     }
-
-    if (!sources.length) {
-      sel.innerHTML = `
-        <option value="europepmc">Europe PMC</option>
-        <option value="semantic_scholar">Semantic Scholar</option>
-        <option value="openalex">OpenAlex</option>
-        <option value="crossref">Crossref</option>
-      `;
-    }
-
     sel.value = Array.from(sel.options).some(o => o.value === cur) ? cur : (sel.options[0]?.value || "europepmc");
-  }catch{}
-}
-
-function updateLabelWithCounts(serverHitCount, rawCount, shownCount){
-  const hc = (serverHitCount !== null && serverHitCount !== undefined) ? serverHitCount : (__LAST_HIT_COUNT__ ?? "?");
-  qs("pageLabel").textContent =
-    `hit_count: ${hc} • ` +
-    `page: ${stack.length} • ` +
-    `shown: ${shownCount}/${rawCount} • ` +
-    `next: ${nextCursor ? "yes" : "no"}`;
+  } catch {}
 }
 
 async function fetchPage(cursor) {
   setMsg("");
-
   const mySeq = ++__REQ_SEQ__;
-
   const q = qs("q").value.trim();
   const source = qs("source").value;
   const limit = parseInt(qs("limit").value, 10);
-
   const yFrom = parseYear(qs("yearFrom").value);
-  const yTo = parseYear(qs("yearTo").value);
+  const yTo   = parseYear(qs("yearTo").value);
 
   if (!q || q.length < 2) {
-    setMsg(`<span class="error">Query must be at least 2 characters.</span>`);
+    setMsg(`<span style="color:var(--bad);">Query must be at least 2 characters.</span>`);
     return;
   }
 
-  // ✅ only year range is sent to backend; other filters are purely client-side
-  const yearParams =
-    (yFrom !== null || yTo !== null)
-      ? `&year_from=${encodeURIComponent(yFrom ?? "")}&year_to=${encodeURIComponent(yTo ?? "")}`
-      : "";
+  let url = `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(source)}&limit=${encodeURIComponent(limit)}&cursor_mark=${encodeURIComponent(cursor)}`;
+  if (yFrom !== null) url += `&year_from=${encodeURIComponent(yFrom)}`;
+  if (yTo   !== null) url += `&year_to=${encodeURIComponent(yTo)}`;
 
-  const url =
-    `/external/search?q=${encodeURIComponent(q)}` +
-    `&source=${encodeURIComponent(source)}` +
-    `&limit=${encodeURIComponent(limit)}` +
-    `&cursor_mark=${encodeURIComponent(cursor)}` +
-    yearParams;
+  setMsg(`<span style="color:var(--muted);">Searching…</span>`);
 
   try {
-    // ✅ use fetchJson for consistent errors + JSON parsing
-    const data = await fetchJson(url, { auth:false });
-
-    // ✅ ignore stale response if a newer request finished first
+    const data = await fetchJson(url, { auth: false });
     if (mySeq !== __REQ_SEQ__) return;
 
     nextCursor = data?.next_cursor_mark || null;
-
     __LAST_ITEMS__ = Array.isArray(data?.items) ? data.items : [];
-    __LAST_HIT_COUNT__ = (data && (data.hit_count ?? null)) ?? null;
+    __LAST_HIT_COUNT__ = data?.hit_count ?? null;
 
     const shown = applyFilters(__LAST_ITEMS__).length;
-    updateLabelWithCounts(__LAST_HIT_COUNT__, __LAST_ITEMS__.length, shown);
-
+    updateLabel(__LAST_HIT_COUNT__, __LAST_ITEMS__.length, shown);
+    setMsg("");
     renderResults(__LAST_ITEMS__);
     updateButtons();
     saveState();
   } catch (e) {
     if (mySeq !== __REQ_SEQ__) return;
-
-    const hint =
-      (qs("source").value === "semantic_scholar")
-        ? "Semantic Scholar rate limits hard. Reduce page size, or wait. You can also set SEMANTIC_SCHOLAR_API_KEY on the backend."
-        : "Some sources rate limit sometimes. Reduce page size or wait a bit.";
-
-    setMsg(`<span class="error">${escapeHtml(e.message)}</span><br/><span class="small">${escapeHtml(hint)}</span>`);
+    const hint = source === "semantic_scholar"
+      ? "Semantic Scholar rate limits hard — reduce page size or wait."
+      : "Provider error — reduce page size or try another source.";
+    setMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span> <span class="small">${escapeHtml(hint)}</span>`);
     nextCursor = null;
     updateButtons();
     saveState();
@@ -378,106 +403,84 @@ async function newSearch() {
   nextCursor = null;
   __LAST_ITEMS__ = [];
   __LAST_HIT_COUNT__ = null;
-
   qs("pageLabel").textContent = "";
   qs("results").innerHTML = "";
   updateButtons();
-
   saveState();
   await fetchPage(stack[0]);
 }
 
-function clearFilters(){
+function clearFilters() {
   qs("author").value = "";
   qs("yearFrom").value = "";
   qs("yearTo").value = "";
+  qs("studyType").value = "";
   qs("hasAbstract").checked = false;
+  qs("openAccess").checked = false;
   qs("titleOnly").checked = false;
   saveState();
-
-  // ✅ re-render current page instantly (no refetch)
   renderResults(__LAST_ITEMS__);
-  const shown = applyFilters(__LAST_ITEMS__).length;
-  updateLabelWithCounts(null, __LAST_ITEMS__.length, shown);
+  updateLabel(null, __LAST_ITEMS__.length, applyFilters(__LAST_ITEMS__).length);
 }
 
 qs("searchBtn").onclick = newSearch;
+qs("clearBtn").onclick  = clearFilters;
+qs("nextBtn").onclick   = async () => { if (!nextCursor) return; stack.push(nextCursor); await fetchPage(nextCursor); };
+qs("prevBtn").onclick   = async () => { if (stack.length <= 1) return; stack.pop(); await fetchPage(stack[stack.length - 1]); };
 
-qs("nextBtn").onclick = async () => {
-  if (!nextCursor) return;
-  stack.push(nextCursor);
-  await fetchPage(nextCursor);
-};
+qs("q").addEventListener("keydown", e => { if (e.key === "Enter") newSearch(); });
 
-qs("prevBtn").onclick = async () => {
-  if (stack.length <= 1) return;
-  stack.pop();
-  const prevCursor = stack[stack.length - 1];
-  await fetchPage(prevCursor);
-};
-
-qs("clearBtn").onclick = () => {
-  clearFilters();
-};
-
-// ✅ filters re-render locally; only year change triggers refetch (optional)
-(function wireLiveFilters(){
-  const localOnly = ["author","hasAbstract","titleOnly"];
-  const yearIds = ["yearFrom","yearTo"];
-
-  let t = null;
-
-  localOnly.forEach(id => {
-    const el = qs(id);
-    if(!el) return;
-    const evt = (el.type === "checkbox") ? "change" : "input";
-    el.addEventListener(evt, ()=>{
-      if(t) clearTimeout(t);
-      t = setTimeout(()=>{
+/* Live filter wiring */
+(function wireLiveFilters() {
+  // client-side only — re-render instantly
+  ["author", "hasAbstract", "openAccess", "titleOnly", "studyType"].forEach(id => {
+    const el = qs(id); if (!el) return;
+    const evt = el.type === "checkbox" ? "change" : "input";
+    let t = null;
+    el.addEventListener(evt, () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
         renderResults(__LAST_ITEMS__);
-        const shown = applyFilters(__LAST_ITEMS__).length;
-        updateLabelWithCounts(null, __LAST_ITEMS__.length, shown);
+        updateLabel(null, __LAST_ITEMS__.length, applyFilters(__LAST_ITEMS__).length);
         saveState();
-      }, 150);
+      }, 120);
     });
   });
 
-  // year changes refetch (because backend-level filtering is more efficient)
-  yearIds.forEach(id => {
-    const el = qs(id);
-    if(!el) return;
-    el.addEventListener("input", ()=>{
-      if(t) clearTimeout(t);
-      t = setTimeout(async ()=>{
+  // year — refetch from backend
+  ["yearFrom", "yearTo"].forEach(id => {
+    const el = qs(id); if (!el) return;
+    let t = null;
+    el.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(async () => {
         const cur = stack[stack.length - 1] || defaultCursorFor(qs("source").value);
         await fetchPage(cur);
-      }, 260);
+      }, 320);
     });
-    el.addEventListener("change", ()=> saveState());
+    el.addEventListener("change", () => saveState());
   });
 })();
 
-(async ()=>{
+/* Boot */
+(async () => {
   await loadSources();
-
   const st = loadState();
-  if (st){
-    qs("q").value = st.q || "";
-    qs("limit").value = String(st.limit || "25");
+  if (st) {
+    qs("q").value      = st.q || "";
+    qs("limit").value  = String(st.limit || "25");
     qs("source").value = st.source || "europepmc";
-
     const f = st.filters || {};
-    qs("author").value = f.author || "";
-    qs("yearFrom").value = f.yearFrom || "";
-    qs("yearTo").value = f.yearTo || "";
+    qs("author").value       = f.author    || "";
+    qs("yearFrom").value     = f.yearFrom  || "";
+    qs("yearTo").value       = f.yearTo    || "";
+    qs("studyType").value    = f.studyType || "";
     qs("hasAbstract").checked = !!f.hasAbstract;
-    qs("titleOnly").checked = !!f.titleOnly;
-
-    stack = Array.isArray(st.stack) && st.stack.length ? st.stack : [defaultCursorFor(qs("source").value)];
+    qs("openAccess").checked  = !!f.openAccess;
+    qs("titleOnly").checked   = !!f.titleOnly;
+    stack      = Array.isArray(st.stack) && st.stack.length ? st.stack : [defaultCursorFor(qs("source").value)];
     nextCursor = st.nextCursor || null;
-
-    const cur = stack[stack.length - 1] || stack[0];
-    await fetchPage(cur);
+    await fetchPage(stack[stack.length - 1] || stack[0]);
     updateButtons();
   } else {
     await newSearch();

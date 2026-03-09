@@ -617,3 +617,38 @@ button.ghost{
 }
 .aiFooter a{ color: var(--brand); text-decoration: none; }
 .aiFooter a:hover{ text-decoration: underline; }
+
+/* ── Search filter bar ── */
+.filterBar{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 12px;
+  padding: 14px 14px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+}
+.filterGroup{
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 100px;
+}
+.filterCheck{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 900;
+  color: var(--muted);
+}
+.filterCheck input[type="checkbox"]{
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  padding: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
