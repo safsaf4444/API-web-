@@ -8,7 +8,6 @@ ignore = [
   "E711",   # comparison to None (SQLModel uses == None in queries)
   "E712",   # comparison to True/False
   "F401",   # unused imports (too noisy during active dev)
-  "W503",   # line break before binary operator
 ]
 
 [lint.per-file-ignores]
