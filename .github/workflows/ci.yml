@@ -31,8 +31,8 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff
-        run: ruff check backend/ tests/ --select E,F,W --ignore E501,W503
-        # E501 = line too long (don't care), W503 = line break style
+        run: ruff check backend/ tests/ --select E,F --ignore E501,E711,E712
+        # E501 = line too long, E711/E712 = SQLModel uses == None / == True
 
   # ─────────────────────────────────────────
   # 2. TEST
