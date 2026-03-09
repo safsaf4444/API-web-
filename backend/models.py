@@ -12,7 +12,7 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     email: str = Field(index=True, unique=True)
     hashed_password: str
-    ai_key_enc: Optional[str] = Field(default=None)  # encrypted OpenAI key (BYOK)
+    ai_key_enc: Optional[str] = Field(default=None)
 
 
 class Folder(SQLModel, table=True):
@@ -27,12 +27,11 @@ class Study(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("owner_username", "source", "source_id", name="uq_study_owner_source_id"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-
     owner_username: str = Field(index=True)
     folder_id: Optional[int] = Field(default=None, foreign_key="folder.id", index=True)
 
-    source: str = Field(index=True)  # europepmc / semantic_scholar / openalex / crossref
-    source_id: str = Field(index=True)  # provider record id
+    source: str = Field(index=True)
+    source_id: str = Field(index=True)
 
     title: str
     year: Optional[int] = Field(default=None, index=True)
@@ -41,12 +40,10 @@ class Study(SQLModel, table=True):
 
     doi: Optional[str] = Field(default=None, index=True)
     url: Optional[str] = None
-
     abstract: Optional[str] = None
     pmid: Optional[str] = Field(default=None, index=True)
     pmcid: Optional[str] = Field(default=None, index=True)
 
-    # v1 enrichment fields (safe for Phase 1 and Phase 2)
     notes: Optional[str] = None
     study_type: Optional[str] = None
     tags: Optional[str] = None
@@ -56,48 +53,58 @@ class Study(SQLModel, table=True):
 
 
 class StudyExternalRef(SQLModel, table=True):
-    """
-    Tracks additional external IDs for a saved Study so one saved paper can be linked to
-    multiple providers (Europe PMC, OpenAlex, Crossref, Semantic Scholar, etc).
-
-    This avoids duplicates while still preserving provenance + alternative IDs.
-    """
-
     __table_args__ = (
         UniqueConstraint("owner_username", "source", "source_id", name="uq_studyext_owner_source_sourceid"),
         UniqueConstraint("study_id", "source", name="uq_studyext_study_source"),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-
     owner_username: str = Field(index=True)
     study_id: int = Field(foreign_key="study.id", index=True)
-
     source: str = Field(index=True)
     source_id: str = Field(index=True)
-
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
 class StudyMetrics(SQLModel, table=True):
-    """
-    Optional evidence-scoring / quality assessment record.
-    Kept minimal so Phase 1 boots cleanly.
-    """
-
     id: Optional[int] = Field(default=None, primary_key=True)
 
     owner_username: str = Field(index=True)
     study_id: int = Field(foreign_key="study.id", index=True)
 
-    # Core metrics (extend later)
-    study_type: Optional[str] = Field(default=None, index=True)  # RCT / Meta-analysis / Observational / etc
-    evidence_strength: Optional[int] = Field(default=None, ge=0, le=5)  # 0..5
-    risk_of_bias: Optional[int] = Field(default=None, ge=0, le=5)  # 0..5
+    # Evidence scoring
+    study_type: Optional[str] = Field(default=None, index=True)
+    evidence_strength: Optional[int] = Field(default=None, ge=0, le=5)
+    risk_of_bias: Optional[int] = Field(default=None, ge=0, le=5)
     sample_size: Optional[int] = Field(default=None, ge=0)
+
+    # FIX: these 5 fields were missing — caused crash in metrics_service
+    save_count: int = Field(default=0)
+    folder_count: int = Field(default=0)
+    comment_count: int = Field(default=0)
+    ai_runs: int = Field(default=0)
+    last_accessed: Optional[datetime] = Field(default=None)
 
     notes: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AIResult(SQLModel, table=True):
+    """
+    FIX: This model was imported in routers/ai.py but never defined.
+    Caused an ImportError on every startup — all /ai/* endpoints were dead.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    owner_username: str = Field(index=True)
+    cache_key: str = Field(index=True)
+    kind: str = Field(index=True)  # "summarize" | "ask"
+    model_used: str = Field(default="byok")
+
+    question: Optional[str] = None
+    summary: Optional[str] = None
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Comment(SQLModel, table=True):

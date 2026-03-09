@@ -4,8 +4,9 @@ import logging
 import time
 from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 
 def init_logging() -> None:
@@ -40,4 +41,3 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 def install_logging(app: FastAPI) -> None:
     init_logging()
     app.add_middleware(RequestLoggingMiddleware)
-    

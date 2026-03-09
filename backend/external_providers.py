@@ -43,13 +43,7 @@ class Provider(Protocol):
         ...
 
 
-def _clean_doi(doi: Optional[str]) -> Optional[str]:
-    if not doi:
-        return None
-    d = str(doi).strip()
-    d = re.sub(r"^https?://(dx\.)?doi\.org/", "", d, flags=re.I)
-    d = d.strip()
-    return d or None
+from backend.doi import normalize_doi as _clean_doi
 
 
 class ProviderError(Exception):

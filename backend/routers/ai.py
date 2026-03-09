@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from backend.ai_secure import decrypt_api_key, encrypt_api_key, mask_key
 from backend.db import get_session
 from backend.deps.auth import get_current_user
-from backend.models import User
+from backend.models import AIResult, User
 from backend.schemas import (
     AIAskRequest,
     AIAskResponse,
@@ -17,12 +17,20 @@ from backend.schemas import (
     AISummarizeRequest,
     AISummarizeResponse,
 )
-from backend.services.ai_service import call_openai, strip_html, user_key_or_400
+from backend.services.ai_engine import run as engine_run
+from backend.services.ai_service import strip_html
 
 router = APIRouter(tags=["ai"])
 
 
-def _cache_key(kind: str, title: str, doi: str | None, pmid: str | None, pmcid: str | None, question: str | None = None) -> str:
+def _cache_key(
+    kind: str,
+    title: str,
+    doi: str | None,
+    pmid: str | None,
+    pmcid: str | None,
+    question: str | None = None,
+) -> str:
     base = {
         "kind": kind,
         "title": (title or "").strip().lower(),
@@ -33,6 +41,30 @@ def _cache_key(kind: str, title: str, doi: str | None, pmid: str | None, pmcid: 
     }
     raw = "|".join([f"{k}={base[k]}" for k in sorted(base.keys())])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _get_byok_keys(user: User) -> dict:
+    """
+    Decrypt and return whatever BYOK key the user has stored.
+    Returns a dict ready to unpack into engine_run().
+    If no key stored, returns empty dict — engine falls through to free tier.
+    """
+    if not user.ai_key_enc:
+        return {}
+    try:
+        key = decrypt_api_key(user.ai_key_enc)
+    except Exception:
+        return {}
+
+    # Detect key type by prefix
+    if key.startswith("sk-ant-"):
+        return {"anthropic_key": key}
+    if key.startswith("AIza"):
+        return {"gemini_key": key}
+    if key.startswith("gsk_"):
+        return {"groq_key": key}
+    # Default: treat as OpenAI
+    return {"openai_key": key}
 
 
 @router.get("/ai/key_status", response_model=AIKeyStatus)
@@ -78,9 +110,9 @@ async def ai_summarize(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    api_key = user_key_or_400(current_user.ai_key_enc)
-
     ck = _cache_key("summarize", payload.title, payload.doi, payload.pmid, payload.pmcid)
+
+    # Check cache first
     cached = session.exec(
         select(AIResult).where(
             (AIResult.owner_username == current_user.username)
@@ -96,7 +128,6 @@ async def ai_summarize(
         "Write in clear plain English. Use short headings and bullet points. "
         "Do not invent results. If info is missing, say so."
     )
-
     user_msg = (
         f"Summarize this paper.\n\n"
         f"Title: {payload.title}\n"
@@ -108,19 +139,22 @@ async def ai_summarize(
         f"Abstract:\n{strip_html(payload.abstract or '')}"
     )
 
-    text = await call_openai(api_key, system, user_msg)
+    # Route through engine — BYOK if set, free tier if not
+    byok = _get_byok_keys(current_user)
+    result = await engine_run(system, user_msg, **byok)
 
+    # Cache the result
     rec = AIResult(
         owner_username=current_user.username,
         cache_key=ck,
         kind="summarize",
-        model_used="byok",
-        summary=text,
+        model_used=result.provider.value,
+        summary=result.text,
     )
     session.add(rec)
     session.commit()
 
-    return AISummarizeResponse(text=text)
+    return AISummarizeResponse(text=result.text)
 
 
 @router.post("/ai/ask", response_model=AIAskResponse)
@@ -129,9 +163,9 @@ async def ai_ask(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    api_key = user_key_or_400(current_user.ai_key_enc)
-
     ck = _cache_key("ask", payload.title, payload.doi, payload.pmid, payload.pmcid, payload.question)
+
+    # Check cache first
     cached = session.exec(
         select(AIResult).where(
             (AIResult.owner_username == current_user.username)
@@ -148,7 +182,6 @@ async def ai_ask(
         "If the abstract doesn't contain the answer, say what is missing and what to look for. "
         "Use concise bullet points when helpful."
     )
-
     user_msg = (
         f"Question: {payload.question}\n\n"
         f"Paper:\n"
@@ -161,17 +194,27 @@ async def ai_ask(
         f"Abstract:\n{strip_html(payload.abstract or '')}"
     )
 
-    text = await call_openai(api_key, system, user_msg)
+    # Route through engine — BYOK if set, free tier if not
+    byok = _get_byok_keys(current_user)
+    result = await engine_run(system, user_msg, **byok)
 
+    # Cache the result
     rec = AIResult(
         owner_username=current_user.username,
         cache_key=ck,
         kind="ask",
-        model_used="byok",
+        model_used=result.provider.value,
         question=payload.question,
-        summary=text,
+        summary=result.text,
     )
     session.add(rec)
     session.commit()
 
-    return AIAskResponse(text=text)
+    return AIAskResponse(text=result.text)
+
+
+@router.get("/ai/health")
+async def ai_health():
+    from backend.services.ai_engine import health_check
+    checks = await health_check()
+    return {"status": "ok", "router": "ai", "providers": checks}

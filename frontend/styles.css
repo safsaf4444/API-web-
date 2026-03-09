@@ -41,10 +41,9 @@ body{
 }
 
 /* ---------------- Shell ---------------- */
-/* IMPORTANT: isolation creates a clean stacking context */
 .appShell{
   display:grid;
-  grid-template-columns: 92px minmax(0, 1fr); /* minmax(0,1fr) prevents shrink/wrap bugs */
+  grid-template-columns: 92px minmax(0, 1fr);
   min-height:100vh;
   isolation: isolate;
 }
@@ -52,16 +51,12 @@ body{
 .sidebar{
   background: linear-gradient(180deg, var(--sidebar), var(--sidebar2));
   padding: 18px 12px;
-
   position: sticky;
   top: 0;
   height: 100vh;
-
   display:flex;
   flex-direction:column;
   gap: 14px;
-
-  /* CLICK FIX */
   z-index: 2000;
   pointer-events: auto;
 }
@@ -112,8 +107,6 @@ body{
 
 .mainArea{
   padding: 22px 26px 34px;
-
-  /* LAYOUT FIX */
   min-width: 0;
   position: relative;
   z-index: 1;
@@ -126,8 +119,6 @@ body{
   justify-content:space-between;
   gap: 16px;
   margin-bottom: 18px;
-
-  /* prevents squeeze weirdness on smaller widths */
   flex-wrap: wrap;
 }
 
@@ -141,7 +132,7 @@ body{
 .topSearch{
   flex: 1;
   max-width: 620px;
-  min-width: 240px; /* prevents collapsing into a tiny column */
+  min-width: 240px;
   display:flex;
   align-items:center;
   gap: 10px;
@@ -289,12 +280,10 @@ button.ghost{
   background: transparent;
 }
 
-/* ---------------- Paper layout helpers ---------------- */
+/* ---------------- Paper layout ---------------- */
 .split{ display:grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
 
-/* ===== Paper panel modes ===== */
 .split.drawerMode{ grid-template-columns: 1fr; }
-
 .split.drawerMode .paperRight{
   position: fixed;
   right: 18px;
@@ -336,7 +325,6 @@ button.ghost{
 }
 
 /* ---------------- Toast ---------------- */
-/* IMPORTANT: toast itself should not block page clicks unless you click the toast */
 #toastHost{ pointer-events: none; }
 #toastHost *{ pointer-events: auto; }
 
@@ -360,27 +348,17 @@ button.ghost{
 .toastTitle{ font-weight: 950; }
 .toastBody{ color: var(--muted); font-size: 13px; margin-top: 4px; }
 
-/* ===== Confirm Modal (Dashboard style) ===== */
+/* ---------------- Confirm Modal ---------------- */
 #meConfirmOverlay{
-  position: fixed;
-  inset: 0;
-  display:none;
-  place-items:center;
-  z-index: 5000;
-  pointer-events: none; /* hidden = never blocks */
+  position: fixed; inset: 0; display:none;
+  place-items:center; z-index: 5000; pointer-events: none;
 }
-#meConfirmOverlay.show{
-  display:grid;
-  pointer-events: auto; /* shown = capture clicks */
-}
-
+#meConfirmOverlay.show{ display:grid; pointer-events: auto; }
 .meConfirmBackdrop{
-  position:absolute;
-  inset:0;
-  background: rgba(2, 6, 23, .45);
+  position:absolute; inset:0;
+  background: rgba(2,6,23,.45);
   backdrop-filter: blur(6px);
 }
-
 .meConfirmCard{
   position: relative;
   width: min(520px, calc(100vw - 40px));
@@ -388,50 +366,24 @@ button.ghost{
   border: 1px solid var(--line);
   border-radius: 22px;
   box-shadow: var(--shadow);
-  padding: 18px 18px;
+  padding: 18px;
   transform: translateY(6px);
 }
+.meConfirmTitle{ font-weight: 950; font-size: 16px; margin-bottom: 8px; }
+.meConfirmBody{ color: var(--muted); font-size: 14px; line-height: 1.35; }
+.meConfirmActions{ display:flex; justify-content:flex-end; gap: 10px; margin-top: 16px; }
 
-.meConfirmTitle{
-  font-weight: 950;
-  font-size: 16px;
-  margin-bottom: 8px;
-}
-
-.meConfirmBody{
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-.meConfirmActions{
-  display:flex;
-  justify-content:flex-end;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-/* ===== Prompt Modal (Dashboard style) ===== */
+/* ---------------- Prompt Modal ---------------- */
 #mePromptOverlay{
-  position: fixed;
-  inset: 0;
-  display:none;
-  place-items:center;
-  z-index: 5000;
-  pointer-events: none; /* hidden = never blocks */
+  position: fixed; inset: 0; display:none;
+  place-items:center; z-index: 5000; pointer-events: none;
 }
-#mePromptOverlay.show{
-  display:grid;
-  pointer-events: auto; /* shown = capture clicks */
-}
-
+#mePromptOverlay.show{ display:grid; pointer-events: auto; }
 .mePromptBackdrop{
-  position:absolute;
-  inset:0;
-  background: rgba(2, 6, 23, .45);
+  position:absolute; inset:0;
+  background: rgba(2,6,23,.45);
   backdrop-filter: blur(6px);
 }
-
 .mePromptCard{
   position: relative;
   width: min(560px, calc(100vw - 40px));
@@ -439,41 +391,19 @@ button.ghost{
   border: 1px solid var(--line);
   border-radius: 22px;
   box-shadow: var(--shadow);
-  padding: 18px 18px;
+  padding: 18px;
   transform: translateY(6px);
 }
-
-.mePromptTitle{
-  font-weight: 950;
-  font-size: 16px;
-  margin-bottom: 8px;
-}
-
-.mePromptBody{
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.35;
-  margin-bottom: 12px;
-}
-
+.mePromptTitle{ font-weight: 950; font-size: 16px; margin-bottom: 8px; }
+.mePromptBody{ color: var(--muted); font-size: 14px; line-height: 1.35; margin-bottom: 12px; }
 .mePromptInput{
-  width:100%;
-  padding: 12px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--panel2);
-  outline: none;
-  color: var(--text);
+  width:100%; padding: 12px;
+  border-radius: 14px; border: 1px solid var(--line);
+  background: var(--panel2); outline: none; color: var(--text);
 }
+.mePromptActions{ display:flex; justify-content:flex-end; gap: 10px; margin-top: 14px; }
 
-.mePromptActions{
-  display:flex;
-  justify-content:flex-end;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-/* ---------------- Login/Auth ---------------- */
+/* ---------------- Auth ---------------- */
 .authBody{ background: var(--bg); }
 .authShell{ max-width: 980px; margin: 34px auto; padding: 0 16px; }
 .authCard{
@@ -486,15 +416,13 @@ button.ghost{
   box-shadow: var(--shadow);
 }
 @media (max-width: 900px){ .authCard{ grid-template-columns: 1fr; } }
-
 .authVisual{
   padding: 22px;
   background: radial-gradient(120% 120% at 30% 20%, rgba(109,94,252,.20), rgba(255,255,255,.0));
 }
 .authLogo{ display:flex; align-items:center; gap: 10px; }
 .authLogoMark{
-  width: 44px; height: 44px;
-  border-radius: 16px;
+  width: 44px; height: 44px; border-radius: 16px;
   display:grid; place-items:center;
   color:#fff; font-weight: 950;
   background: linear-gradient(180deg, var(--brand), var(--brand2));
@@ -509,55 +437,183 @@ button.ghost{
 .authSecondary{ width:100%; background: var(--panel2); box-shadow:none; }
 .authMsg{ min-height: 18px; font-weight: 900; color: var(--bad); }
 
-/* ===== Folder Chips & Menu ===== */
+/* ---------------- Folder Chips ---------------- */
 .folderChip{
-  display:flex;
-  align-items:center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel2);
+  display:flex; align-items:center; gap: 8px;
+  padding: 10px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel2);
 }
-.folderChip.active{
-  background: rgba(109,94,252,.12);
-  border-color: rgba(109,94,252,.22);
-}
-.folderChipName{
-  font-weight: 950;
-  cursor:pointer;
-}
+.folderChip.active{ background: rgba(109,94,252,.12); border-color: rgba(109,94,252,.22); }
+.folderChipName{ font-weight: 950; cursor:pointer; }
 .folderDots{
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  display:grid;
-  place-items:center;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  cursor:pointer;
+  width: 34px; height: 34px; border-radius: 999px;
+  display:grid; place-items:center;
+  border: 1px solid var(--line); background: var(--panel); cursor:pointer;
 }
 .folderDots:hover{ transform: translateY(-1px); }
-
 .folderMenu{
-  position:absolute;
-  min-width: 160px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow2);
-  padding: 6px;
-  z-index: 3000;
+  position:absolute; min-width: 160px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: var(--shadow2); padding: 6px; z-index: 3000;
 }
 .folderMenu button{
-  width:100%;
-  text-align:left;
-  background: transparent;
-  border: 0;
-  box-shadow:none;
-  padding: 10px 10px;
-  border-radius: 12px;
+  width:100%; text-align:left; background: transparent;
+  border: 0; box-shadow:none; padding: 10px; border-radius: 12px;
 }
 .folderMenu button:hover{ background: var(--panel2); }
 .folderMenu .dangerItem{ color: var(--bad); font-weight: 950; }
 
+/* ═══════════════════════════════════════════
+   AI CHAT UI
+═══════════════════════════════════════════ */
+.aiShell{
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.aiFeedWrap{
+  overflow-y: auto;
+  padding: 4px 2px;
+  max-height: 420px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  scroll-behavior: smooth;
+}
+
+.aiFeed{
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.aiEmpty{
+  color: var(--muted);
+  font-size: .84rem;
+  text-align: center;
+  padding: 16px 0;
+  line-height: 1.6;
+}
+
+/* User bubble */
+.aiMsg{ display: flex; gap: 8px; }
+.aiMsg--user{ justify-content: flex-end; }
+.aiMsg--user .aiMsgBubble{
+  background: linear-gradient(160deg, var(--brand), var(--brand2));
+  color: #fff;
+  border-radius: 18px 18px 4px 18px;
+  padding: 9px 14px;
+  font-size: .87rem;
+  max-width: 82%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  box-shadow: 0 4px 14px rgba(109,94,252,.25);
+}
+
+/* AI bubble */
+.aiMsg--ai{ align-items: flex-start; }
+.aiMsgAvatar{
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, var(--brand), var(--brand2));
+  color: #fff;
+  font-size: .65rem;
+  font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  box-shadow: 0 2px 8px rgba(109,94,252,.30);
+}
+.aiMsgBody{ display: flex; flex-direction: column; gap: 3px; max-width: 92%; }
+.aiMsg--ai .aiMsgBubble{
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 4px 18px 18px 18px;
+  padding: 11px 14px;
+  font-size: .86rem;
+  line-height: 1.65;
+  word-break: break-word;
+}
+
+/* Error bubble */
+.aiMsg--error{ justify-content: center; }
+.aiMsg--error .aiMsgBubble{
+  background: rgba(239,68,68,.06);
+  border: 1px solid rgba(239,68,68,.18);
+  color: var(--bad);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: .84rem;
+  font-weight: 700;
+  max-width: 94%;
+}
+
+.aiMsgMeta{
+  font-size: .72rem;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.aiMsg--user .aiMsgMeta{ text-align: right; }
+
+/* Markdown-lite */
+.aiHead{
+  font-weight: 900;
+  font-size: .87rem;
+  margin: 10px 0 4px;
+  color: var(--text);
+  letter-spacing: .1px;
+}
+.aiBullet{
+  padding-left: 2px;
+  margin: 3px 0;
+  font-size: .85rem;
+}
+
+/* Typing dots */
+.aiTyping{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+}
+.aiTyping span{
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--brand);
+  animation: aiDot 1.2s infinite;
+}
+.aiTyping span:nth-child(2){ animation-delay: .2s; }
+.aiTyping span:nth-child(3){ animation-delay: .4s; }
+@keyframes aiDot{
+  0%,80%,100%{ opacity:.2; transform:scale(.8); }
+  40%         { opacity:1;  transform:scale(1.1); }
+}
+
+/* Input area */
+.aiInputRow{
+  border-top: 1px solid var(--line);
+  padding: 10px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.aiInputRow textarea{
+  width: 100%;
+  min-height: 50px;
+  max-height: 120px;
+  resize: vertical;
+  font-size: .87rem;
+  box-sizing: border-box;
+  border-radius: 14px;
+}
+.aiActions{ display: flex; gap: 8px; }
+.aiFooter{
+  font-size: .73rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 3px 0 0;
+}
+.aiFooter a{ color: var(--brand); text-decoration: none; }
+.aiFooter a:hover{ text-decoration: underline; }

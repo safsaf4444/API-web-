@@ -37,7 +37,6 @@
       <div class="small" id="saveMsg" style="margin-top:10px;"></div>
     </div>
 
-    <!-- ✅ NEW: Authors card (only shows when present) -->
     <div class="card" id="authorsCard" style="display:none;">
       <div class="sectionLabel">AUTHORS</div>
       <div class="hr"></div>
@@ -55,16 +54,13 @@
     <div class="card">
       <div class="sectionLabel">FULL TEXT (OPEN ACCESS)</div>
       <div class="hr"></div>
-
       <div class="small" id="fullTextHint">
         If the paper has an Open Access full text (usually via PMCID in Europe PMC), you can load it here.
       </div>
-
       <div class="itemActions" style="margin-top:12px;">
         <button type="button" class="primary" id="loadFullBtn">Load full text (OA)</button>
         <button type="button" id="openFullBtn">Open provider page</button>
       </div>
-
       <div class="hr" style="margin-top:12px;"></div>
       <div class="prose" id="fullTextBox" style="max-height:520px;overflow:auto;">
         <div class="small">(not loaded)</div>
@@ -75,9 +71,9 @@
   <!-- RIGHT -->
   <div class="paperRight">
     <div class="card">
-      <div class="panelsTopRow" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <h3 style="margin:0;">PANELS</h3>
-        <div class="panelsButtons" style="display:flex;gap:10px;">
+        <div style="display:flex;gap:10px;">
           <button type="button" id="modeBtn">Mode: Side</button>
           <button type="button" id="closeBtn">Close</button>
         </div>
@@ -98,71 +94,70 @@
 <script src="app.js"></script>
 
 <script>
-/* ✅ prevent inline script init twice */
 if (window.__ME_PAPER_INIT__) {
-  // do nothing
+  // already initialised — do nothing
 } else {
 window.__ME_PAPER_INIT__ = true;
 
-/* ----------------- State ----------------- */
-let external = null;
-let savedStudy = null;
-let meUser = null;
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let external    = null;
+let savedStudy  = null;
+let meUser      = null;
 
-/* ✅ save guard */
-let __SAVE_IN_FLIGHT__ = false;
-
-/* ----------------- Thread guards ----------------- */
-let __THREAD_IN_FLIGHT__ = false;
+let __SAVE_IN_FLIGHT__       = false;
+let __THREAD_IN_FLIGHT__     = false;
 let __THREAD_LAST_FETCH_AT__ = 0;
 const THREAD_FETCH_THROTTLE_MS = 700;
-let __THREAD_SHELL_READY__ = false;
+let __THREAD_SHELL_READY__   = false;
 
-/* ----------------- DOM helpers ----------------- */
-function setSaveMsg(html){ qs("saveMsg").innerHTML = html || ""; }
-function setPanel(html){ qs("panel").innerHTML = html || ""; }
+/* AI chat state — lives outside showAI so tab switches preserve history */
+let __AI_MESSAGES__ = [];
+let __AI_BASE__     = null;
+let __AI_WIRED__    = false;
+
+/* ═══════════════════════════════════════════
+   DOM HELPERS
+═══════════════════════════════════════════ */
+function setSaveMsg(html) { qs("saveMsg").innerHTML = html || ""; }
+function setPanel(html)   { qs("panel").innerHTML   = html || ""; }
 function setFullText(html){ qs("fullTextBox").innerHTML = html || ""; }
 
-/* ----------------- Paper selection ----------------- */
-function getCurrentPaper(){
+/* ═══════════════════════════════════════════
+   PAPER SELECTION
+═══════════════════════════════════════════ */
+function getCurrentPaper() {
   const ext = sessionStorage.getItem("last_external");
-  if (ext){
-    try{
-      return { mode:"external", paper: JSON.parse(ext) };
-    }catch{
-      sessionStorage.removeItem("last_external");
-    }
+  if (ext) {
+    try { return { mode:"external", paper: JSON.parse(ext) }; }
+    catch { sessionStorage.removeItem("last_external"); }
   }
-
   const id = sessionStorage.getItem("open_study_id");
   if (id) return { mode:"saved", id: parseInt(id, 10) };
-
   return { mode:"none" };
 }
 
-async function ensureMe(){
+async function ensureMe() {
   if (!getToken()) return null;
   if (meUser) return meUser;
-  try{ meUser = await fetchJson("/me"); }
-  catch{ meUser = null; }
+  try { meUser = await fetchJson("/me"); } catch { meUser = null; }
   return meUser;
 }
 
-async function ensureSavedStudy(){
+async function ensureSavedStudy() {
   if (savedStudy) return savedStudy;
-
   const id = sessionStorage.getItem("open_study_id");
-  if (id && getToken()){
-    try{
+  if (id && getToken()) {
+    try {
       savedStudy = await fetchJson(`/studies/${parseInt(id,10)}`);
       return savedStudy;
-    }catch{
+    } catch {
       sessionStorage.removeItem("open_study_id");
       savedStudy = null;
     }
   }
-
-  if (external && getToken()){
+  if (external && getToken()) {
     const saved = await fetchJson("/external/import", { method:"POST", body: external });
     savedStudy = saved;
     sessionStorage.setItem("open_study_id", String(saved.id));
@@ -172,14 +167,15 @@ async function ensureSavedStudy(){
     setSaveMsg(`<span class="badge green">Saved</span>`);
     return savedStudy;
   }
-
   return null;
 }
 
-/* ----------------- Identifier helpers ----------------- */
-function normStr(x){ return (x || "").toString().trim(); }
+/* ═══════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════ */
+function normStr(x) { return (x || "").toString().trim(); }
 
-function stripHtml(s){
+function stripHtml(s) {
   return (s || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -188,7 +184,7 @@ function stripHtml(s){
     .trim();
 }
 
-function shortTitleKeywords(title){
+function shortTitleKeywords(title) {
   const stop = new Set(["the","and","or","of","to","in","for","a","an","with","on","by","from","at","as","is","are"]);
   return (title || "")
     .toLowerCase()
@@ -199,452 +195,372 @@ function shortTitleKeywords(title){
     .join(" ");
 }
 
-function hasUsefulAbstract(p){
+function hasUsefulAbstract(p) {
   const a = stripHtml(p?.abstract || "");
-  if(!a) return false;
-  if(a.length < 60) return false;
-  return true;
+  return a && a.length >= 60;
 }
 
-function normalizeAuthors(p){
+function normalizeAuthors(p) {
   if (!p) return [];
-  // external papers: authors is array; saved: authors is CSV string
   const a = p.authors;
   if (!a) return [];
   if (Array.isArray(a)) return a.map(x => (x ?? "").toString().trim()).filter(Boolean);
-  if (typeof a === "string") {
-    return a.split(",").map(x => x.trim()).filter(Boolean);
-  }
+  if (typeof a === "string") return a.split(",").map(x => x.trim()).filter(Boolean);
   return [];
 }
 
-/* ----------------- Best link helpers ----------------- */
-function looksLikeApiUrl(u){
-  if(!u) return false;
+/* ═══════════════════════════════════════════
+   LINK HELPERS
+═══════════════════════════════════════════ */
+function looksLikeApiUrl(u) {
+  if (!u) return false;
   const s = String(u).toLowerCase();
-  if (s.startsWith("https://api.") || s.startsWith("http://api.")) return true;
-  if (s.includes("api.elsevier.com")) return true;
-  if (s.includes("/content/")) return true;
-  if (s.endsWith(".xml") || s.includes(".xml?") || s.endsWith("/xml")) return true;
-  return false;
+  return s.startsWith("https://api.") || s.startsWith("http://api.")
+    || s.includes("api.elsevier.com") || s.includes("/content/")
+    || s.endsWith(".xml") || s.includes(".xml?") || s.endsWith("/xml");
 }
 
-function doiUrl(p){
+function doiUrl(p) {
   const doi = normStr(p?.doi);
-  if(!doi) return "";
-  return `https://doi.org/${encodeURIComponent(doi)}`;
+  return doi ? `https://doi.org/${encodeURIComponent(doi)}` : "";
 }
 
-function providerUrl(p){
+function providerUrl(p) {
   if (p && p.url && !looksLikeApiUrl(p.url)) return p.url;
-
-  const src = (p.source || "").toLowerCase();
+  const src   = (p.source || "").toLowerCase();
   const pmcid = normStr(p.pmcid);
   const pmid  = normStr(p.pmid);
   const doi   = normStr(p.doi);
-
   if (src === "europepmc") {
     if (pmcid) return `https://europepmc.org/article/PMC/${encodeURIComponent(pmcid)}`;
     if (pmid)  return `https://europepmc.org/article/MED/${encodeURIComponent(pmid)}`;
     if (doi)   return `https://europepmc.org/article/DOI/${encodeURIComponent(doi)}`;
   }
-
   if (doi) return `https://doi.org/${encodeURIComponent(doi)}`;
   return "";
 }
 
-function bestHumanLink(p){
+function bestHumanLink(p) {
   const d = doiUrl(p);
   if (d) return d;
-
   const u = providerUrl(p);
-  if (u && !looksLikeApiUrl(u)) return u;
-
-  return "";
+  return (u && !looksLikeApiUrl(u)) ? u : "";
 }
 
-function canLoadOAFullText(p){
-  return !!normStr(p?.pmcid);
-}
+function canLoadOAFullText(p) { return !!normStr(p?.pmcid); }
 
-/* ----------------- Presentable formatting ----------------- */
-function formatAbstractHtml(raw){
+/* ═══════════════════════════════════════════
+   FORMATTING
+═══════════════════════════════════════════ */
+function formatAbstractHtml(raw) {
   const clean = stripHtml(raw);
-  if(!clean) return `<div class="small">(no abstract)</div>`;
+  if (!clean) return `<div class="small">(no abstract)</div>`;
 
   const re = /(Background|Objective|Objectives|Methods|Method|Design|Participants|Interventions|Main outcome measures|Results|Conclusion|Conclusions|Discussion|Interpretation|Funding)\s*:\s*/ig;
   const hits = [];
   let m;
   while ((m = re.exec(clean)) !== null) hits.push({ idx: m.index, label: m[1] });
 
-  if(hits.length){
+  if (hits.length) {
     const parts = [];
-    for(let i=0;i<hits.length;i++){
-      const start = hits[i].idx;
-      const label = hits[i].label;
-      const end = (i+1 < hits.length) ? hits[i+1].idx : clean.length;
-      const colonPos = clean.indexOf(":", start);
+    for (let i = 0; i < hits.length; i++) {
+      const start      = hits[i].idx;
+      const label      = hits[i].label;
+      const end        = (i+1 < hits.length) ? hits[i+1].idx : clean.length;
+      const colonPos   = clean.indexOf(":", start);
       const contentStart = colonPos >= 0 ? colonPos+1 : start;
-      const content = clean.slice(contentStart, end).trim();
-      if(content) parts.push({ label, content });
+      const content    = clean.slice(contentStart, end).trim();
+      if (content) parts.push({ label, content });
     }
     return parts.map(s => `
       <div style="margin:10px 0;">
         <div style="font-weight:900;">${escapeHtml(s.label)}:</div>
         <div>${escapeHtml(s.content)}</div>
-      </div>
-    `).join("");
+      </div>`).join("");
   }
 
   const sentences = clean.split(/(?<=\.)\s+/).filter(Boolean);
-  if(sentences.length <= 2) return `<div>${escapeHtml(clean)}</div>`;
-
+  if (sentences.length <= 2) return `<div>${escapeHtml(clean)}</div>`;
   const out = [];
   let chunk = [];
-  for(const s of sentences){
+  for (const s of sentences) {
     chunk.push(s);
-    if(chunk.length >= 3){
-      out.push(chunk.join(" "));
-      chunk = [];
-    }
+    if (chunk.length >= 3) { out.push(chunk.join(" ")); chunk = []; }
   }
-  if(chunk.length) out.push(chunk.join(" "));
-
+  if (chunk.length) out.push(chunk.join(" "));
   return out.map(p => `<p>${escapeHtml(p)}</p>`).join("");
 }
 
-function formatFullTextHtml(text){
+function formatFullTextHtml(text) {
   const clean = stripHtml(text);
-  if(!clean) return `<div class="small">(no full text returned)</div>`;
-
+  if (!clean) return `<div class="small">(no full text returned)</div>`;
   const paras = clean.split(/\n{2,}|\.\s{2,}/g).map(x => x.trim()).filter(Boolean);
-  if(paras.length <= 1){
-    const sentences = clean.split(/(?<=\.)\s+/).filter(Boolean);
-    const limited = sentences.slice(0, 120);
+  if (paras.length <= 1) {
+    const limited = clean.split(/(?<=\.)\s+/).filter(Boolean).slice(0, 120);
     return `<p>${escapeHtml(limited.join(" "))}</p>`;
   }
-
   const limited = paras.slice(0, 180);
-  return limited.map(p => `<p>${escapeHtml(p)}</p>`).join("") +
-    (paras.length > limited.length ? `<div class="small" style="opacity:.8;">(truncated for readability)</div>` : "");
+  return limited.map(p => `<p>${escapeHtml(p)}</p>`).join("")
+    + (paras.length > limited.length ? `<div class="small" style="opacity:.8;">(truncated for readability)</div>` : "");
 }
 
-/* ----------------- Enrichment via Europe PMC ----------------- */
-async function enrichFromEuropePMC(p){
-  const doi = normStr(p.doi);
-  const pmid = normStr(p.pmid);
+/* ═══════════════════════════════════════════
+   ENRICHMENT
+═══════════════════════════════════════════ */
+async function enrichFromEuropePMC(p) {
+  const doi   = normStr(p.doi);
+  const pmid  = normStr(p.pmid);
   const title = normStr(p.title);
 
-  async function epmcSearch(query){
+  async function epmcSearch(query) {
     const r = await fetchJson(
       `/external/search?q=${encodeURIComponent(query)}&source=europepmc&limit=5&cursor_mark=*`,
       { auth:false }
     );
-    const items = r?.items || [];
-    if(!items.length) return null;
-    return items[0];
+    return (r?.items || [])[0] || null;
   }
 
-  if(doi){
-    const hit = await epmcSearch(doi);
-    if(hit) return hit;
-  }
-  if(pmid){
-    const hit = await epmcSearch(pmid);
-    if(hit) return hit;
-  }
-  if(title){
+  if (doi)   { const h = await epmcSearch(doi);   if (h) return h; }
+  if (pmid)  { const h = await epmcSearch(pmid);  if (h) return h; }
+  if (title) {
     const q = shortTitleKeywords(title);
-    if(q){
-      const hit = await epmcSearch(q);
-      if(hit) return hit;
-    }
+    if (q) { const h = await epmcSearch(q); if (h) return h; }
   }
   return null;
 }
 
-async function ensureAbstractAndPMC(p){
+async function ensureAbstractAndPMC(p) {
   const out = { ...p };
-
   const needAbstract = !hasUsefulAbstract(out);
-  const needPMCID = !normStr(out.pmcid);
-  if(!needAbstract && !needPMCID) return out;
-
-  try{
+  const needPMCID    = !normStr(out.pmcid);
+  if (!needAbstract && !needPMCID) return out;
+  try {
     const epmc = await enrichFromEuropePMC(out);
-    if(epmc){
-      if(needAbstract && hasUsefulAbstract(epmc)) out.abstract = epmc.abstract;
-      if(needPMCID && normStr(epmc.pmcid)) out.pmcid = epmc.pmcid;
-      if(!normStr(out.pmid) && normStr(epmc.pmid)) out.pmid = epmc.pmid;
-      if(!normStr(out.doi) && normStr(epmc.doi)) out.doi = epmc.doi;
-      if(!normStr(out.url) && normStr(epmc.url)) out.url = epmc.url;
-
-      // ✅ also fill authors if missing
+    if (epmc) {
+      if (needAbstract && hasUsefulAbstract(epmc)) out.abstract = epmc.abstract;
+      if (needPMCID    && normStr(epmc.pmcid))     out.pmcid    = epmc.pmcid;
+      if (!normStr(out.pmid) && normStr(epmc.pmid)) out.pmid = epmc.pmid;
+      if (!normStr(out.doi)  && normStr(epmc.doi))  out.doi  = epmc.doi;
+      if (!normStr(out.url)  && normStr(epmc.url))  out.url  = epmc.url;
       const curAuthors = normalizeAuthors(out);
-      const epAuthors = normalizeAuthors(epmc);
-      if(!curAuthors.length && epAuthors.length) out.authors = epAuthors;
+      const epAuthors  = normalizeAuthors(epmc);
+      if (!curAuthors.length && epAuthors.length) out.authors = epAuthors;
     }
-  }catch{}
-
+  } catch {}
   return out;
 }
 
-/* ----------------- Rendering ----------------- */
-function renderAuthors(p){
+/* ═══════════════════════════════════════════
+   RENDER
+═══════════════════════════════════════════ */
+function renderAuthors(p) {
   const authors = normalizeAuthors(p);
   const card = qs("authorsCard");
-  const box = qs("authorsBox");
-  if(!card || !box) return;
-
-  if(!authors.length){
-    card.style.display = "none";
-    box.innerHTML = "";
-    return;
-  }
-
+  const box  = qs("authorsBox");
+  if (!card || !box) return;
+  if (!authors.length) { card.style.display = "none"; box.innerHTML = ""; return; }
   card.style.display = "";
   box.innerHTML = `<div>${escapeHtml(authors.join(", "))}</div>`;
 }
 
-function renderPaper(p){
+function renderPaper(p) {
   qs("title").textContent = (p.title || "(untitled)").toUpperCase();
 
-  const authors = normalizeAuthors(p);
-  const authorsMeta = authors.length ? `authors: ${authors.slice(0,8).join(", ")}${authors.length>8 ? "…" : ""}` : null;
+  const authors     = normalizeAuthors(p);
+  const authorsMeta = authors.length
+    ? `authors: ${authors.slice(0,8).join(", ")}${authors.length>8 ? "…" : ""}`
+    : null;
 
   const meta = [
-    p.year ? `year: ${p.year}` : null,
-    p.venue ? `venue: ${p.venue}` : null,
+    p.year      ? `year: ${p.year}`           : null,
+    p.venue     ? `venue: ${p.venue}`         : null,
     authorsMeta,
-    p.source ? `source: ${p.source}` : null,
+    p.source    ? `source: ${p.source}`       : null,
     p.source_id ? `source_id: ${p.source_id}` : null,
     `pmcid: ${p.pmcid || "n/a"}`,
-    `pmid: ${p.pmid || "n/a"}`,
-    `doi: ${p.doi || "n/a"}`
+    `pmid: ${p.pmid   || "n/a"}`,
+    `doi: ${p.doi     || "n/a"}`
   ].filter(Boolean).join(" • ");
 
   qs("meta").textContent = meta;
   qs("abstract").innerHTML = formatAbstractHtml(p.abstract || "");
-
   renderAuthors(p);
 
   const best = bestHumanLink(p);
   qs("openBtn").disabled = !best;
-  qs("openBtn").onclick = () => { if (best) window.open(best, "_blank"); };
+  qs("openBtn").onclick  = () => { if (best) window.open(best, "_blank"); };
 
-  const prov = providerUrl(p);
+  const prov  = providerUrl(p);
   const canOA = canLoadOAFullText(p);
-
   qs("loadFullBtn").disabled = !canOA;
   qs("openFullBtn").disabled = !prov;
-  qs("openFullBtn").onclick = () => { if (prov) window.open(prov, "_blank"); };
+  qs("openFullBtn").onclick  = () => { if (prov) window.open(prov, "_blank"); };
 
   qs("fullTextHint").innerHTML = canOA
     ? `<span class="small">Open Access full text may be available (PMCID detected). You can load it inline.</span>`
-    : `<span class="small">No PMCID detected yet. We’ll try to find one automatically (via Europe PMC) for inline OA full text.</span>`;
+    : `<span class="small">No PMCID detected yet. We'll try to find one automatically (via Europe PMC) for inline OA full text.</span>`;
 }
 
-/* ----------------- Full text loading ----------------- */
-async function loadOAFullTextForPaper(p){
+/* ═══════════════════════════════════════════
+   FULL TEXT
+═══════════════════════════════════════════ */
+async function loadOAFullTextForPaper(p) {
   const pmcid = normStr(p.pmcid);
-  if(!pmcid){
-    setFullText(`<div class="small">No PMCID available. Cannot load OA full text inline.</div>`);
-    return;
-  }
-
+  if (!pmcid) { setFullText(`<div class="small">No PMCID available.</div>`); return; }
   setFullText(`<div class="small">Loading…</div>`);
-
-  try{
+  try {
     const r = await fetchJson(
       `/external/fulltext?source=europepmc&pmcid=${encodeURIComponent(pmcid)}`,
       { auth:false }
     );
-
-    if (r && r.available === false){
+    if (r && r.available === false) {
       setFullText(`<div class="small">${escapeHtml(r.message || "Full text not available.")}</div>`);
       return;
     }
-
-    if (r && r.html){
-      setFullText(String(r.html));
-      return;
-    }
-
+    if (r && r.html) { setFullText(String(r.html)); return; }
     const text = (r && (r.text || r.full_text || "")) || "";
-    if(!text){
-      setFullText(`<div class="small">No OA full text returned. The article may not have fullTextXML available.</div>`);
-      return;
-    }
-
+    if (!text) { setFullText(`<div class="small">No OA full text returned.</div>`); return; }
     setFullText(formatFullTextHtml(String(text)));
-  }catch(e){
+  } catch(e) {
     setFullText(`<div class="small" style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</div>`);
     showToast("Full text failed", e.message, "error");
   }
 }
 
-qs("loadFullBtn").onclick = async ()=> {
+qs("loadFullBtn").onclick = async () => {
   const p = savedStudy || external;
-  if(!p) return;
-  await withBtnLoading(qs("loadFullBtn"), ()=>loadOAFullTextForPaper(p), "Loading…");
+  if (!p) return;
+  await withBtnLoading(qs("loadFullBtn"), () => loadOAFullTextForPaper(p), "Loading…");
 };
 
-/* ----------------- Save helpers ----------------- */
-async function fillSaveFolderPick(){
+/* ═══════════════════════════════════════════
+   SAVE
+═══════════════════════════════════════════ */
+async function fillSaveFolderPick() {
   if (!getToken()) return;
-  try{
+  try {
     const folders = await fetchJson("/folders");
     const sel = qs("saveFolderPick");
-    if(!sel) return;
+    if (!sel) return;
     sel.innerHTML = `<option value="">No folder</option>`;
-    for(const f of folders){
+    for (const f of folders) {
       const opt = document.createElement("option");
       opt.value = f.id;
       opt.textContent = f.name;
       sel.appendChild(opt);
     }
-  }catch{}
+  } catch {}
 }
 
-function paperMatchByDoi(study, p){
+function paperMatchByDoi(study, p) {
   const d1 = normStr(study?.doi).toLowerCase();
   const d2 = normStr(p?.doi).toLowerCase();
-  if(!d1 || !d2) return false;
-  return d1 === d2;
+  return d1 && d2 && d1 === d2;
 }
 
-function paperMatchBySource(study, p){
-  const s1 = normStr(study?.source).toLowerCase();
-  const s2 = normStr(p?.source).toLowerCase();
+function paperMatchBySource(study, p) {
+  const s1  = normStr(study?.source).toLowerCase();
+  const s2  = normStr(p?.source).toLowerCase();
   const id1 = normStr(study?.source_id);
   const id2 = normStr(p?.source_id);
-  if(!s1 || !s2 || !id1 || !id2) return false;
-  return s1 === s2 && id1 === id2;
+  return s1 && s2 && id1 && id2 && s1 === s2 && id1 === id2;
 }
 
-async function tryFindSavedInLibrary(p){
-  if(!getToken()) return null;
-  try{
+async function tryFindSavedInLibrary(p) {
+  if (!getToken()) return null;
+  try {
     const list = await fetchJson("/studies");
-    if(!Array.isArray(list)) return null;
-
-    const byDoi = list.find(x => paperMatchByDoi(x, p));
-    if(byDoi) return byDoi;
-
-    const bySrc = list.find(x => paperMatchBySource(x, p));
-    if(bySrc) return bySrc;
-
-    return null;
-  }catch{
-    return null;
-  }
+    if (!Array.isArray(list)) return null;
+    return list.find(x => paperMatchByDoi(x, p)) || list.find(x => paperMatchBySource(x, p)) || null;
+  } catch { return null; }
 }
 
-function markSavedUI(saved){
+function markSavedUI(saved) {
   savedStudy = saved;
   sessionStorage.setItem("open_study_id", String(saved.id));
   sessionStorage.removeItem("last_external");
-
   setSaveMsg(`<span class="badge green">Saved</span>`);
   qs("saveBtn").textContent = "Saved";
   qs("saveBtn").disabled = true;
 }
 
-/* ----------------- Save ----------------- */
-function isProbablyNetworkError(e){
+function isProbablyNetworkError(e) {
   const msg = String(e?.message || "").toLowerCase();
-  if (msg.includes("failed to fetch")) return true;
-  if (msg.includes("networkerror")) return true;
-  if (msg.includes("load failed")) return true;
-  if (msg.includes("cors")) return true;
-  return false;
+  return msg.includes("failed to fetch") || msg.includes("networkerror")
+    || msg.includes("load failed") || msg.includes("cors");
 }
 
-async function doSave(){
+async function doSave() {
   if (__SAVE_IN_FLIGHT__) return;
   if (!requireAuthOrRedirect()) return;
   if (!external) return;
-
   __SAVE_IN_FLIGHT__ = true;
-
   setSaveMsg("");
   await withBtnLoading(qs("saveBtn"), async () => {
-    try{
+    try {
       const saved = await fetchJson("/external/import", { method:"POST", body: external });
       markSavedUI(saved);
-
       const folderId = qs("saveFolderPick")?.value || "";
-      if (folderId){
+      if (folderId) {
         await fetchJson(`/studies/${saved.id}`, { method:"PATCH", body:{ folder_id: parseInt(folderId,10) }});
       }
-
       showToast("Saved", "Added to your library.", "success");
-    }catch(e){
-      // ✅ if it was a network hiccup, try confirm by listing studies
-      if (isProbablyNetworkError(e) || e?.isNetwork){
-        setSaveMsg(`<span class="small">Network/CORS hiccup… checking library…</span>`);
+    } catch(e) {
+      if (isProbablyNetworkError(e) || e?.isNetwork) {
+        setSaveMsg(`<span class="small">Checking library…</span>`);
         const found = await tryFindSavedInLibrary(external);
-        if(found){
-          markSavedUI(found);
-          showToast("Saved", "It saved successfully (network hiccup).", "success");
-          return;
-        }
+        if (found) { markSavedUI(found); showToast("Saved", "Saved (network hiccup).", "success"); return; }
         setSaveMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
         showToast("Save uncertain", "Could not confirm. Try refresh Library.", "error");
         return;
       }
-
       setSaveMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
       showToast("Save failed", e.message, "error");
     }
   }, "Saving...");
-
   __SAVE_IN_FLIGHT__ = false;
 }
 qs("saveBtn").onclick = doSave;
 
-/* ----------------- Tabs ----------------- */
-function setActiveTab(tab){
+/* ═══════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════ */
+function setActiveTab(tab) {
   document.querySelectorAll(".tabPill").forEach(x => x.classList.remove("active"));
   const el = document.querySelector(`.tabPill[data-tab="${tab}"]`);
   if (el) el.classList.add("active");
 }
 
-/* ✅ stable tab switching (delegation) */
-(function wireTabs(){
+(function wireTabs() {
   const pills = document.querySelector(".tabPills");
-  if(!pills) return;
-  if(pills.dataset.wired === "1") return;
+  if (!pills || pills.dataset.wired === "1") return;
   pills.dataset.wired = "1";
-  pills.addEventListener("click", (e)=>{
+  pills.addEventListener("click", (e) => {
     const pill = e.target.closest(".tabPill");
-    if(!pill) return;
+    if (!pill) return;
     const tab = pill.getAttribute("data-tab");
-    if(tab === "thread") return showThread(true);
-    if(tab === "ai") return showAI();
-    if(tab === "related") return showRelated();
+    if (tab === "thread")  return showThread(true);
+    if (tab === "ai")      return showAI();
+    if (tab === "related") return showRelated();
   });
 })();
 
-/* ----------------- THREAD (Comments) ----------------- */
-function isThreadShellPresent(){
-  const panel = qs("panel");
-  if(!panel) return false;
+/* ═══════════════════════════════════════════
+   THREAD
+═══════════════════════════════════════════ */
+function isThreadShellPresent() {
   return !!(qs("commentList") && qs("commentBox") && qs("postBtn") && qs("threadHint"));
 }
 
-function renderThreadShell(){
-  if(__THREAD_SHELL_READY__ && isThreadShellPresent()) return;
-
+function renderThreadShell() {
+  if (__THREAD_SHELL_READY__ && isThreadShellPresent()) return;
   __THREAD_SHELL_READY__ = false;
 
   setPanel(`
     <div class="small" style="font-weight:900;">Comments</div>
     <div class="small" id="threadHint">Loading…</div>
     <div class="hr"></div>
-    <div class="list" id="commentList">
-      <div class="item small">Loading…</div>
-    </div>
+    <div class="list" id="commentList"><div class="item small">Loading…</div></div>
     <div class="hr"></div>
     <textarea id="commentBox" placeholder="Write a comment..."></textarea>
     <div style="margin-top:10px;">
@@ -654,66 +570,44 @@ function renderThreadShell(){
   `);
 
   const panel = qs("panel");
-  if(panel && panel.dataset.threadWired !== "1"){
+  if (panel && panel.dataset.threadWired !== "1") {
     panel.dataset.threadWired = "1";
-
-    panel.addEventListener("click", async (e)=>{
-      const del = e.target.closest("[data-del]");
-      const edit = e.target.closest("[data-edit]");
-      const saveEdit = e.target.closest("[data-save-edit]");
+    panel.addEventListener("click", async (e) => {
+      const del        = e.target.closest("[data-del]");
+      const edit       = e.target.closest("[data-edit]");
+      const saveEdit   = e.target.closest("[data-save-edit]");
       const cancelEdit = e.target.closest("[data-cancel-edit]");
 
-      if(del){
+      if (del) {
         const id = parseInt(del.getAttribute("data-del"), 10);
-        const ok = await confirmModal({
-          title: "Delete comment?",
-          message: "This will delete the comment (and its replies).",
-          okText: "Delete",
-          cancelText: "Cancel",
-          danger: true
-        });
-        if(!ok) return;
-        try{
-          await fetchJson(`/comments/${id}`, { method:"DELETE" });
-          await showThread(true);
-        }catch(err){
-          showToast("Delete failed", err.message, "error");
-        }
+        const ok = await confirmModal({ title:"Delete comment?", message:"This will delete the comment (and its replies).", okText:"Delete", cancelText:"Cancel", danger:true });
+        if (!ok) return;
+        try { await fetchJson(`/comments/${id}`, { method:"DELETE" }); await showThread(true); }
+        catch(err) { showToast("Delete failed", err.message, "error"); }
         return;
       }
-
-      if(edit){
-        const id = parseInt(edit.getAttribute("data-edit"), 10);
+      if (edit) {
+        const id     = parseInt(edit.getAttribute("data-edit"), 10);
         const bodyEl = panel.querySelector(`[data-body="${id}"]`);
-        if(!bodyEl) return;
+        if (!bodyEl) return;
         const cur = bodyEl.textContent || "";
         bodyEl.innerHTML = `
           <textarea id="editBox_${id}">${escapeHtml(cur)}</textarea>
           <div class="itemActions" style="margin-top:10px;">
             <button type="button" class="btn primary" data-save-edit="${id}">Save</button>
             <button type="button" class="btn" data-cancel-edit="${id}">Cancel</button>
-          </div>
-        `;
+          </div>`;
         return;
       }
-
-      if(cancelEdit){
-        await showThread(true);
-        return;
-      }
-
-      if(saveEdit){
-        const id = parseInt(saveEdit.getAttribute("data-save-edit"), 10);
-        const box = qs(`editBox_${id}`);
-        if(!box) return;
+      if (cancelEdit) { await showThread(true); return; }
+      if (saveEdit) {
+        const id     = parseInt(saveEdit.getAttribute("data-save-edit"), 10);
+        const box    = qs(`editBox_${id}`);
+        if (!box) return;
         const newBody = box.value.trim();
-        if(!newBody) return;
-        try{
-          await fetchJson(`/comments/${id}`, { method:"PATCH", body:{ body:newBody }});
-          await showThread(true);
-        }catch(err){
-          showToast("Edit failed", err.message, "error");
-        }
+        if (!newBody) return;
+        try { await fetchJson(`/comments/${id}`, { method:"PATCH", body:{ body:newBody }}); await showThread(true); }
+        catch(err) { showToast("Edit failed", err.message, "error"); }
         return;
       }
     });
@@ -721,15 +615,14 @@ function renderThreadShell(){
 
   qs("postBtn").onclick = async () => {
     const body = qs("commentBox").value.trim();
-    if(!body) return;
-
-    await withBtnLoading(qs("postBtn"), async ()=>{
-      try{
-        if(!savedStudy) await ensureSavedStudy();
+    if (!body) return;
+    await withBtnLoading(qs("postBtn"), async () => {
+      try {
+        if (!savedStudy) await ensureSavedStudy();
         await fetchJson(`/studies/${savedStudy.id}/comments`, { method:"POST", body:{ body }});
         qs("commentBox").value = "";
         await showThread(true);
-      }catch(err){
+      } catch(err) {
         qs("threadMsg").innerHTML = `<span style="color:var(--bad);font-weight:900;">${escapeHtml(err.message)}</span>`;
         showToast("Comment failed", err.message, "error");
       }
@@ -739,33 +632,32 @@ function renderThreadShell(){
   __THREAD_SHELL_READY__ = true;
 }
 
-function commentActionsHtml(canEdit, id){
-  if(!canEdit) return "";
+function commentActionsHtml(canEdit, id) {
+  if (!canEdit) return "";
   return `
     <div class="itemActions" style="margin-top:10px;">
       <button type="button" class="btn" data-edit="${id}">Edit</button>
       <button type="button" class="btn danger" data-del="${id}">Delete</button>
-    </div>
-  `;
+    </div>`;
 }
 
-function renderCommentList(comments){
-  const list = qs("commentList");
+function renderCommentList(comments) {
+  const list  = qs("commentList");
   const panel = qs("panel");
-  if(!list || !panel) return;
+  if (!list || !panel) return;
 
-  const prevTop = panel.scrollTop;
+  const prevTop    = panel.scrollTop;
   const prevHeight = panel.scrollHeight;
   const wasNearBottom = (prevTop + panel.clientHeight) >= (prevHeight - 40);
 
-  if(!comments || !comments.length){
+  if (!comments || !comments.length) {
     list.innerHTML = `<div class="item small">No comments yet.</div>`;
-    requestAnimationFrame(()=>{ panel.scrollTop = prevTop; });
+    requestAnimationFrame(() => { panel.scrollTop = prevTop; });
     return;
   }
 
   let html = "";
-  for(const c of comments){
+  for (const c of comments) {
     const canEdit = meUser && c.author === meUser.username;
     html += `
       <div class="item" data-cwrap="${c.id}">
@@ -773,182 +665,249 @@ function renderCommentList(comments){
         <div class="small" style="margin-top:6px;color:var(--text);" data-body="${c.id}">${escapeHtml(c.body)}</div>
         ${commentActionsHtml(canEdit, c.id)}
         <div class="small" data-msg="${c.id}" style="margin-top:8px;"></div>
-      </div>
-    `;
+      </div>`;
   }
   list.innerHTML = html;
 
-  requestAnimationFrame(()=>{
-    if(wasNearBottom){
-      panel.scrollTop = panel.scrollHeight;
-    } else {
-      const newHeight = panel.scrollHeight;
-      panel.scrollTop = Math.max(0, prevTop + (newHeight - prevHeight));
-    }
+  requestAnimationFrame(() => {
+    panel.scrollTop = wasNearBottom
+      ? panel.scrollHeight
+      : Math.max(0, prevTop + (panel.scrollHeight - prevHeight));
   });
 }
 
-async function showThread(force=false){
+async function showThread(force = false) {
   setActiveTab("thread");
   renderThreadShell();
 
   if (__THREAD_IN_FLIGHT__) return;
   __THREAD_IN_FLIGHT__ = true;
 
-  try{
-    if (!getToken()){
+  try {
+    if (!getToken()) {
       qs("threadHint").textContent = "Login required to view/post comments.";
-      qs("commentList").innerHTML = `<div class="item small">Login required.</div>`;
-      qs("commentBox").disabled = true;
-      qs("postBtn").disabled = true;
+      qs("commentList").innerHTML  = `<div class="item small">Login required.</div>`;
+      qs("commentBox").disabled    = true;
+      qs("postBtn").disabled       = true;
       return;
     }
 
-    try{ await ensureMe(); }catch{}
+    try { await ensureMe(); } catch {}
 
-    if (!getToken()){
-      qs("threadHint").textContent = "Your session expired. Please log in again.";
-      qs("commentList").innerHTML = `<div class="item small"><a class="btn" href="login.html">Login</a></div>`;
-      qs("commentBox").disabled = true;
-      qs("postBtn").disabled = true;
+    if (!getToken()) {
+      qs("threadHint").textContent = "Session expired. Please log in again.";
+      qs("commentList").innerHTML  = `<div class="item small"><a class="btn" href="login.html">Login</a></div>`;
+      qs("commentBox").disabled    = true;
+      qs("postBtn").disabled       = true;
       return;
     }
 
     qs("commentBox").disabled = false;
-    qs("postBtn").disabled = false;
+    qs("postBtn").disabled    = false;
 
     let s = savedStudy;
-    const openId = sessionStorage.getItem("open_study_id");
-    if (!s && openId){
-      s = await ensureSavedStudy();
-    }
+    if (!s && sessionStorage.getItem("open_study_id")) s = await ensureSavedStudy();
 
-    qs("threadHint").textContent = s ? "Thread is active." : "This paper is not saved yet. Posting will auto-save first.";
+    qs("threadHint").textContent = s
+      ? "Thread is active."
+      : "This paper is not saved yet. Posting will auto-save first.";
 
-    const now = Date.now();
+    const now      = Date.now();
     const canFetch = force || (now - __THREAD_LAST_FETCH_AT__ > THREAD_FETCH_THROTTLE_MS);
-    if(!s){
-      renderCommentList([]);
-      return;
-    }
-    if(!canFetch) return;
+    if (!s)         { renderCommentList([]); return; }
+    if (!canFetch)  return;
     __THREAD_LAST_FETCH_AT__ = now;
 
     const comments = await fetchJson(`/studies/${s.id}/comments`);
     renderCommentList(comments);
-
-  } catch (e){
+  } catch(e) {
     qs("threadHint").textContent = "Failed to load comments.";
-    qs("commentList").innerHTML = `<div class="item small" style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</div>`;
+    qs("commentList").innerHTML  = `<div class="item small" style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</div>`;
   } finally {
     __THREAD_IN_FLIGHT__ = false;
   }
 }
 
-/* ----------------- AI ----------------- */
-async function showAI(){
-  __THREAD_SHELL_READY__ = false;
+/* ═══════════════════════════════════════════
+   AI CHAT
+═══════════════════════════════════════════ */
+function _aiMsgHtml(msg) {
+  const time = new Date(msg.ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
 
+  if (msg.role === "user") return `
+    <div class="aiMsg aiMsg--user">
+      <div>
+        <div class="aiMsgBubble">${escapeHtml(msg.text)}</div>
+        <div class="aiMsgMeta">${time}</div>
+      </div>
+    </div>`;
+
+  if (msg.role === "error") return `
+    <div class="aiMsg aiMsg--error">
+      <div class="aiMsgBubble">⚠ ${escapeHtml(msg.text)}</div>
+    </div>`;
+
+  // AI response — markdown-lite
+  const html = escapeHtml(msg.text)
+    .replace(/\*\*(.+?)\*\*/g,  '<strong>$1</strong>')
+    .replace(/^### (.+)$/gm,    '<div class="aiHead">$1</div>')
+    .replace(/^## (.+)$/gm,     '<div class="aiHead">$1</div>')
+    .replace(/^\* (.+)$/gm,     '<div class="aiBullet">• $1</div>')
+    .replace(/^- (.+)$/gm,      '<div class="aiBullet">• $1</div>')
+    .replace(/\n/g, '<br>');
+
+  return `
+    <div class="aiMsg aiMsg--ai">
+      <div class="aiMsgAvatar">AI</div>
+      <div class="aiMsgBody">
+        <div class="aiMsgBubble">${html}</div>
+        <div class="aiMsgMeta">${time}</div>
+      </div>
+    </div>`;
+}
+
+function _aiRender() {
+  const feed = document.getElementById("aiFeed");
+  if (!feed) return;
+  if (!__AI_MESSAGES__.length) {
+    feed.innerHTML = `<div class="aiEmpty">Summarize the paper or ask a question below.</div>`;
+    return;
+  }
+  feed.innerHTML = __AI_MESSAGES__.map(_aiMsgHtml).join("");
+  const wrap = document.getElementById("aiFeedWrap");
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
+}
+
+function _aiPush(role, text) {
+  __AI_MESSAGES__.push({ role, text, ts: Date.now() });
+  _aiRender();
+}
+
+function _aiTyping(on) {
+  const t    = document.getElementById("aiTyping");
+  const wrap = document.getElementById("aiFeedWrap");
+  if (t) t.style.display = on ? "flex" : "none";
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
+}
+
+function _aiSetBusy(on) {
+  ["aiSumBtn","aiAskBtn"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = on;
+  });
+  _aiTyping(on);
+}
+
+async function showAI() {
+  __THREAD_SHELL_READY__ = false;
   setActiveTab("ai");
 
-  if (!getToken()){
+  if (!getToken()) {
     setPanel(`
       <div class="small">Login required to use AI.</div>
       <div class="hr"></div>
-      <a class="btn" href="login.html">Login</a>
-    `);
+      <a class="btn" href="login.html">Login</a>`);
     return;
   }
 
   const p = savedStudy || external;
-
-  setPanel(`
-    <div class="small">Uses your BYOK OpenAI key. Abstract-only context.</div>
-    <div class="itemActions" style="margin-top:10px;">
-      <button type="button" class="primary" id="sumBtn">Summarize</button>
-      <button type="button" id="askBtn">Ask</button>
-    </div>
-    <label style="margin-top:10px;">Question</label>
-    <textarea id="qBox" placeholder="Ask a question..."></textarea>
-    <div class="hr"></div>
-    <div class="small" id="aiOut">(output)</div>
-  `);
-
-  const base = {
-    title: p.title,
-    abstract: p.abstract,
-    venue: p.venue,
-    year: p.year,
-    pmid: p.pmid,
-    pmcid: p.pmcid,
-    doi: p.doi,
+  __AI_BASE__ = {
+    title: p.title, abstract: p.abstract, venue: p.venue,
+    year: p.year, pmid: p.pmid, pmcid: p.pmcid, doi: p.doi,
   };
 
-  qs("sumBtn").onclick = async () => {
-    const out = qs("aiOut");
-    out.textContent = "Working...";
-    await withBtnLoading(qs("sumBtn"), async () => {
-      try{
-        const r = await fetchJson("/ai/summarize", { method:"POST", body: base });
-        out.textContent = r.text || "(no output)";
-      }catch(e){
-        out.innerHTML = `<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`;
+  /* Only build shell once — tab switches preserve history */
+  if (!__AI_WIRED__ || !document.getElementById("aiFeed")) {
+    setPanel(`
+      <div class="aiShell">
+        <div class="aiFeedWrap" id="aiFeedWrap">
+          <div class="aiFeed" id="aiFeed"></div>
+          <div class="aiTyping" id="aiTyping" style="display:none;">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="aiInputRow">
+          <textarea id="aiQBox" placeholder="Ask a question… (Ctrl+Enter to send)" rows="2"></textarea>
+          <div class="aiActions">
+            <button type="button" class="primary" id="aiSumBtn">Summarize</button>
+            <button type="button" id="aiAskBtn">Ask</button>
+          </div>
+        </div>
+        <div class="aiFooter">Free AI included · <a href="ai.html">Add BYOK key</a> for your preferred model</div>
+      </div>`);
+
+    __AI_WIRED__ = true;
+    _aiRender();
+
+    document.getElementById("aiSumBtn").onclick = async () => {
+      _aiSetBusy(true);
+      try {
+        const r = await fetchJson("/ai/summarize", { method:"POST", body: __AI_BASE__ });
+        _aiPush("ai", r.text || "(no output)");
+      } catch(e) {
+        _aiPush("error", e.message);
         showToast("AI unavailable", e.message, "error");
+      } finally {
+        _aiSetBusy(false);
       }
-    }, "Summarizing...");
-  };
+    };
 
-  qs("askBtn").onclick = async () => {
-    const q = qs("qBox").value.trim();
-    if (!q) {
-      showToast("Ask", "Type a question first.", "info");
-      return;
-    }
-    const out = qs("aiOut");
-    out.textContent = "Working...";
-    await withBtnLoading(qs("askBtn"), async () => {
-      try{
-        const r = await fetchJson("/ai/ask", { method:"POST", body: { ...base, question:q }});
-        out.textContent = r.text || "(no output)";
-      }catch(e){
-        out.innerHTML = `<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`;
+    document.getElementById("aiAskBtn").onclick = async () => {
+      const box = document.getElementById("aiQBox");
+      const q   = (box?.value || "").trim();
+      if (!q) { showToast("Ask", "Type a question first.", "info"); return; }
+      _aiPush("user", q);
+      box.value = "";
+      _aiSetBusy(true);
+      try {
+        const r = await fetchJson("/ai/ask", { method:"POST", body: { ...__AI_BASE__, question: q }});
+        _aiPush("ai", r.text || "(no output)");
+      } catch(e) {
+        _aiPush("error", e.message);
         showToast("AI unavailable", e.message, "error");
+      } finally {
+        _aiSetBusy(false);
       }
-    }, "Asking...");
-  };
+    };
+
+    document.getElementById("aiQBox").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        document.getElementById("aiAskBtn").click();
+      }
+    });
+
+  } else {
+    /* Tab switched back — re-render messages only, shell preserved */
+    _aiRender();
+  }
 }
 
-/* ----------------- RELATED ----------------- */
-async function showRelated(){
+/* ═══════════════════════════════════════════
+   RELATED
+═══════════════════════════════════════════ */
+async function showRelated() {
   __THREAD_SHELL_READY__ = false;
-
   setActiveTab("related");
 
   const p = savedStudy || external;
   const q = shortTitleKeywords(p?.title || "");
-  if(!q){
-    setPanel(`<div class="small">No keywords available to find related papers.</div>`);
-    return;
-  }
+  if (!q) { setPanel(`<div class="small">No keywords available to find related papers.</div>`); return; }
 
   setPanel(`<div class="small">Finding related papers…</div>`);
 
-  try{
+  try {
     const src = (p?.source || "europepmc");
-    const r = await fetchJson(
+    const r   = await fetchJson(
       `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(src)}&limit=10&cursor_mark=*`,
       { auth:false }
     );
+    const items = (r.items || []).filter(x => x.source_id !== p.source_id).slice(0, 10);
 
-    const items = (r.items || []).filter(x => (x.source_id !== p.source_id)).slice(0, 10);
-
-    if(!items.length){
-      setPanel(`<div class="small">No related results found for: <b>${escapeHtml(q)}</b></div>`);
-      return;
-    }
+    if (!items.length) { setPanel(`<div class="small">No related results found for: <b>${escapeHtml(q)}</b></div>`); return; }
 
     let html = `<div class="small">Related results for: <b>${escapeHtml(q)}</b></div><div class="hr"></div><div class="list">`;
-    for(const it of items){
+    for (const it of items) {
       html += `
         <div class="item">
           <div class="itemTitle">${escapeHtml(it.title)}</div>
@@ -959,84 +918,71 @@ async function showRelated(){
           <div class="itemActions">
             <button type="button" class="primary" data-open-rel="1">Open</button>
           </div>
-        </div>
-      `;
+        </div>`;
     }
     html += `</div>`;
-
     setPanel(html);
 
-    const btns = Array.from(qs("panel").querySelectorAll('[data-open-rel="1"]'));
-    btns.forEach((b, idx)=>{
-      b.onclick = ()=>{
-        const it = items[idx];
-        sessionStorage.setItem("last_external", JSON.stringify(it));
+    Array.from(qs("panel").querySelectorAll('[data-open-rel="1"]')).forEach((b, idx) => {
+      b.onclick = () => {
+        sessionStorage.setItem("last_external", JSON.stringify(items[idx]));
         sessionStorage.removeItem("open_study_id");
         location.href = "paper.html";
       };
     });
-
-  }catch(e){
+  } catch(e) {
     setPanel(`<div class="small" style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</div>`);
     showToast("Related failed", e.message, "error");
   }
 }
 
-/* ----------------- Panel mode + close ----------------- */
-function setMode(mode){
-  const split = qs("paperSplit");
-  split.classList.toggle("drawerMode", mode === "drawer");
+/* ═══════════════════════════════════════════
+   PANEL MODE + CLOSE
+═══════════════════════════════════════════ */
+function setMode(mode) {
+  qs("paperSplit").classList.toggle("drawerMode", mode === "drawer");
   qs("modeBtn").textContent = `Mode: ${mode === "drawer" ? "Drawer" : "Side"}`;
   sessionStorage.setItem("paper_panel_mode", mode);
 }
 
-qs("modeBtn").onclick = ()=>{
+qs("modeBtn").onclick  = () => {
   const cur = sessionStorage.getItem("paper_panel_mode") || "side";
   setMode(cur === "side" ? "drawer" : "side");
 };
-
-qs("closeBtn").onclick = ()=>{
-  const split = qs("paperSplit");
-  const closed = split.classList.toggle("panelClosed");
+qs("closeBtn").onclick = () => {
+  const closed = qs("paperSplit").classList.toggle("panelClosed");
   qs("closeBtn").textContent = closed ? "Open" : "Close";
 };
 
-/* ----------------- Init ----------------- */
-(async function init(){
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+(async function init() {
   const ref = getCurrentPaper();
-
-  const m = sessionStorage.getItem("paper_panel_mode") || "side";
-  setMode(m);
+  setMode(sessionStorage.getItem("paper_panel_mode") || "side");
 
   let p = null;
 
   if (ref.mode === "saved") {
-    if (requireAuthOrRedirect()){
-      try{
+    if (requireAuthOrRedirect()) {
+      try {
         savedStudy = await fetchJson(`/studies/${ref.id}`);
         p = savedStudy;
         qs("saveBtn").textContent = "Saved";
-        qs("saveBtn").disabled = true;
+        qs("saveBtn").disabled    = true;
         external = null;
-      }catch(e){
+      } catch(e) {
         sessionStorage.removeItem("open_study_id");
         savedStudy = null;
-
         const ext = sessionStorage.getItem("last_external");
-        if(ext){
-          try{
-            external = JSON.parse(ext);
-            p = external;
-            qs("saveBtn").disabled = !getToken();
-          }catch{
-            sessionStorage.removeItem("last_external");
-          }
+        if (ext) {
+          try { external = JSON.parse(ext); p = external; qs("saveBtn").disabled = !getToken(); }
+          catch { sessionStorage.removeItem("last_external"); }
         }
-
-        if(!p){
-          qs("title").textContent = "NO PAPER SELECTED";
-          qs("saveBtn").disabled = true;
-          qs("openBtn").disabled = true;
+        if (!p) {
+          qs("title").textContent    = "NO PAPER SELECTED";
+          qs("saveBtn").disabled     = true;
+          qs("openBtn").disabled     = true;
           qs("loadFullBtn").disabled = true;
           qs("openFullBtn").disabled = true;
           setFullText(`<div class="small">(not loaded)</div>`);
@@ -1051,9 +997,9 @@ qs("closeBtn").onclick = ()=>{
     p = external;
     qs("saveBtn").disabled = !getToken();
   } else {
-    qs("title").textContent = "NO PAPER SELECTED";
-    qs("saveBtn").disabled = true;
-    qs("openBtn").disabled = true;
+    qs("title").textContent    = "NO PAPER SELECTED";
+    qs("saveBtn").disabled     = true;
+    qs("openBtn").disabled     = true;
     qs("loadFullBtn").disabled = true;
     qs("openFullBtn").disabled = true;
     setFullText(`<div class="small">(not loaded)</div>`);
@@ -1076,12 +1022,10 @@ qs("closeBtn").onclick = ()=>{
 
   renderPaper(enriched);
   qs("loadFullBtn").disabled = !canLoadOAFullText(enriched);
-
   await fillSaveFolderPick();
-
-  // default to thread
   showThread(true);
 })();
+
 } // end init guard
 </script>
 </body>
