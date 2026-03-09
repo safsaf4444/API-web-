@@ -1,0 +1,3567 @@
+﻿
+
+===== FILE: C:\Users\safad\API-web-\backend\__init__.py =====
+# backend package
+
+
+
+===== FILE: C:\Users\safad\API-web-\backend\ai_secure.py =====
+from __future__ import annotations
+
+import base64
+import os
+
+from cryptography.fernet import Fernet
+
+
+def _get_fernet() -> Fernet:
+    key = os.getenv("AI_ENCRYPTION_KEY")
+    if key and key.strip():
+        return Fernet(key.strip().encode("utf-8"))
+
+    # Dev fallback: derive deterministic 32-byte key from SECRET_KEY (not for prod).
+    secret = (os.getenv("SECRET_KEY") or "dev-secret-change-me").encode("utf-8")
+    raw = (secret * 4)[:32]
+    fkey = base64.urlsafe_b64encode(raw)
+    return Fernet(fkey)
+
+
+def encrypt_api_key(plain: str) -> str:
+    f = _get_fernet()
+    return f.encrypt(plain.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_api_key(enc: str) -> str:
+    f = _get_fernet()
+    return f.decrypt(enc.encode("utf-8")).decode("utf-8")
+
+
+def mask_key(k: str) -> str:
+    k = (k or "").strip()
+    if len(k) <= 8:
+        return "********"
+    return k[:3] + "â€¦" + k[-4:]
+
+
+
+===== FILE: C:\Users\safad\API-web-\backend\app.py =====
+from __future__ import annotations
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from backend.db import init_db
+from backend.routers.ai import router as ai_router
+from backend.routers.auth import router as auth_router
+from backend.routers.comments import router as comments_router
+from backend.routers.external import router as external_router
+from backend.routers.folders import router as folders_router
+from backend.routers.health import router as health_router  # âœ… NEW
+from backend.routers.metrics import router as metrics_router
+from backend.routers.studies import router as studies_router
+
+app = FastAPI(title="Medical Evidence API")
+
+# DEV CORS:
+# - Explicit allow list (common)
+# - Regex fallback (any localhost/127.0.0.1 port)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
+)
+
+app.include_router(auth_router)
+app.include_router(folders_router)
+app.include_router(studies_router)
+app.include_router(comments_router)
+app.include_router(external_router)
+app.include_router(ai_router)
+app.include_router(metrics_router)
+app.include_router(health_router)  # âœ… NEW
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
+
+
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "Medical Evidence backend running"}
+
+
+===== FILE: C:\Users\safad\API-web-\backend\auth.py =====
+from __future__ import annotations
+
+import os
+from datetime import datetime, timedelta, timezone
+
+from fastapi import HTTPException
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+SECRET_KEY = os.getenv("SECRET_KEY") or "dev-secret-change-me"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS") or "24")
+
+# Use PBKDF2 instead of bcrypt to avoid:
+# - bcrypt 72-byte password limit
+# - bcrypt/passlib version weirdness (bcrypt.__about__ errors)
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    password = (password or "").strip()
+    if not password:
+        raise HTTPException(status_code=400, detail="Password required.")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    return pwd_context.hash(password)
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    try:
+        return pwd_context.verify(password or "", hashed or "")
+    except Exception:
+        return False
+
+
+def create_access_token(subject: str) -> str:
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    payload = {"sub": subject, "iat": int(now.timestamp()), "exp": int(exp.timestamp())}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        sub = payload.get("sub")
+        if not sub:
+            raise HTTPException(status_code=401, detail="Invalid token (missing sub)")
+        return str(sub)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+===== FILE: C:\Users\safad\API-web-\backend\core\config.py =====
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+
+
+def _bool(v: str | None, default: bool = False) -> bool:
+    if v is None:
+        return default
+    return v.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@dataclass(frozen=True)
+class Settings:
+    env: str = os.getenv("APP_ENV", "dev")  # dev|prod
+    secret_key: str = os.getenv("SECRET_KEY", "dev-secret-change-me")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    # CORS
+    cors_allow_origins: str = os.getenv("CORS_ALLOW_ORIGINS", "*")  # comma-separated or "*"
+
+    # Rate limit (requests per window per IP)
+    rate_limit_enabled: bool = _bool(os.getenv("RATE_LIMIT_ENABLED"), default=True)
+    rate_limit_window_sec: int = int(os.getenv("RATE_LIMIT_WINDOW_SEC", "60"))
+    rate_limit_max_requests: int = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "120"))
+
+
+settings = Settings()
+
+
+
+===== FILE: C:\Users\safad\API-web-\backend\core\errors.py =====
+from __future__ import annotations
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+
+def _shape_error(status_code: int, code: str, message: str, details=None):
+    payload = {"error": {"code": code, "message": message}}
+    if details is not None:
+        payload["error"]["details"] = details
+    return JSONResponse(status_code=status_code, content=payload)
+
+
+def install_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(_: Request, exc: HTTPException):
+        # preserve FastAPI status codes, standardize payload
+        msg = exc.detail if isinstance(exc.detail, str) else "Request failed"
+        return _shape_error(exc.status_code, "http_error", msg, details=exc.detail)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(_: Request, exc: RequestValidationError):
+        return _shape_error(422, "validation_error", "Invalid request", details=exc.errors())
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(_: Request, exc: Exception):
+        # donâ€™t leak internals to clients
+        return _shape_error(500, "server_error", "Internal server error")
+    
+
+
+===== FILE: C:\Users\safad\API-web-\backend\core\logging.py =====
+from __future__ import annotations
+
+import logging
+import time
+from uuid import uuid4
+
+from fastapi import FastAPI, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+def init_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        logger = logging.getLogger("api")
+        req_id = request.headers.get("x-request-id") or str(uuid4())
+        start = time.time()
+
+        response = await call_next(request)
+
+        ms = int((time.time() - start) * 1000)
+        logger.info(
+            "%s %s -> %s (%sms) req_id=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            ms,
+            req_id,
+        )
+        response.headers["x-request-id"] = req_id
+        response.headers["x-response-ms"] = str(ms)
+        return response
+
+
+def install_logging(app: FastAPI) -> None:
+    init_logging()
+    app.add_middleware(RequestLoggingMiddleware)
+    
+
+
+===== FILE: C:\Users\safad\API-web-\backend\core\rate_limit.py =====
+from __future__ import annotations
+
+import time
+from collections import defaultdict, deque
+
+from fastapi import FastAPI, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+
+from backend.core.config import settings
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app):
+        super().__init__(app)
+        self.hits = defaultdict(deque)  # ip -> deque[timestamps]
+
+    async def dispatch(self, request: Request, call_next):
+        if not settings.rate_limit_enabled:
+            return await call_next(request)
+
+        # allow health/root without limiting if you want
+        if request.url.path in {"/", "/docs", "/openapi.json"}:
+            return await call_next(request)
+
+        ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        window = settings.rate_limit_window_sec
+        max_req = settings.rate_limit_max_requests
+
+        q = self.hits[ip]
+        # drop old hits
+        while q and q[0] <= now - window:
+            q.popleft()
+
+        if len(q) >= max_req:
+            return JSONResponse(
+                status_code=429,
+                content={"error": {"code": "rate_limited", "message": "Too many requests. Try again soon."}},
+            )
+
+        q.append(now)
+        return await call_next(request)
+
+
+def install_rate_limit(app: FastAPI) -> None:
+    app.add_middleware(RateLimitMiddleware)
+
+
+===== FILE: C:\Users\safad\API-web-\backend\db.py =====
+from __future__ import annotations
+
+import os
+from sqlmodel import SQLModel, Session, create_engine
+
+DB_URL = os.getenv("DATABASE_URL") or "sqlite:///./app.db"
+
+connect_args = {}
+if DB_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(DB_URL, echo=False, connect_args=connect_args)
+
+
+def init_db() -> None:
+    SQLModel.metadata.create_all(engine)
+
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+
+
+===== FILE: C:\Users\safad\API-web-\backend\deps\__init__.py =====
+
+
+
+===== FILE: C:\Users\safad\API-web-\backend\deps\auth.py =====
+# backend/deps/auth.py
+
+from fastapi import Depends, Header, HTTPException
+from sqlmodel import Session, select
+
+from backend.db import get_session
+from backend.auth import decode_token
+from backend.models import User
+
+
+def get_current_user(
+    session: Session = Depends(get_session),
+    authorization: str | None = Header(default=None),
+) -> User:
+    """
+    JWT Bearer dependency.
+    Expects: Authorization: Bearer <token>
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+
+    username = decode_token(parts[1])
+    user = session.exec(select(User).where(User.username == username)).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return user
+
+
+
+===== FILE: C:\Users\safad\API-web-\backend\external_providers.py =====
+from __future__ import annotations
+
+import asyncio
+import os
+import re
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Protocol, Tuple
+
+import httpx
+
+
+@dataclass
+class ExternalPaper:
+    source: str
+    source_id: str
+    title: str
+    year: Optional[int] = None
+    authors: Optional[List[str]] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    url: Optional[str] = None
+    abstract: Optional[str] = None
+    pmid: Optional[str] = None
+    pmcid: Optional[str] = None
+    raw: Optional[Dict[str, Any]] = None
+
+
+SearchResult = Tuple[List[ExternalPaper], Optional[str], int]
+
+
+class Provider(Protocol):
+    source_name: str
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        ...
+
+
+def _clean_doi(doi: Optional[str]) -> Optional[str]:
+    if not doi:
+        return None
+    d = str(doi).strip()
+    d = re.sub(r"^https?://(dx\.)?doi\.org/", "", d, flags=re.I)
+    d = d.strip()
+    return d or None
+
+
+class ProviderError(Exception):
+    def __init__(self, message: str, status_code: int = 502):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+def _normalize_source(source: str) -> str:
+    s = (source or "").strip().lower()
+    s = re.sub(r"[\s\-]+", "_", s)
+    return s
+
+
+def _clamp_limit(limit: int, max_allowed: int = 100) -> int:
+    try:
+        n = int(limit)
+    except Exception:
+        n = 10
+    return max(1, min(n, max_allowed))
+
+
+def _int_or_none(x: Any) -> Optional[int]:
+    try:
+        if x is None:
+            return None
+        return int(x)
+    except Exception:
+        return None
+
+
+def _year_bounds(year_from: Optional[int], year_to: Optional[int]) -> Tuple[Optional[int], Optional[int]]:
+    yf = _int_or_none(year_from)
+    yt = _int_or_none(year_to)
+    if yf is not None and (yf < 1000 or yf > 3000):
+        yf = None
+    if yt is not None and (yt < 1000 or yt > 3000):
+        yt = None
+    # If reversed, swap
+    if yf is not None and yt is not None and yf > yt:
+        yf, yt = yt, yf
+    return yf, yt
+
+
+async def _request_with_retries(
+    method: str,
+    url: str,
+    *,
+    params: Optional[dict] = None,
+    headers: Optional[dict] = None,
+    timeout: float = 20.0,
+    max_retries: int = 3,
+    retry_base_sleep: float = 0.8,
+) -> httpx.Response:
+    for attempt in range(max_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                r = await client.request(method, url, params=params, headers=headers)
+
+            # Retry on rate-limit and transient 5xx
+            if r.status_code in (429,) or (500 <= r.status_code <= 599):
+                if attempt < max_retries:
+                    ra = r.headers.get("Retry-After")
+                    if ra and ra.isdigit():
+                        await asyncio.sleep(float(ra))
+                    else:
+                        await asyncio.sleep(retry_base_sleep * (2 ** attempt))
+                    continue
+            return r
+
+        except (httpx.TimeoutException, httpx.NetworkError):
+            if attempt < max_retries:
+                await asyncio.sleep(retry_base_sleep * (2 ** attempt))
+                continue
+            raise
+
+    raise RuntimeError("Retry loop failed unexpectedly")
+
+
+class EuropePMCProvider:
+    source_name = "europepmc"
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 100)
+
+        yf, yt = _year_bounds(year_from, year_to)
+        query = q
+        # Apply year bounds at source level to avoid "page filtered down to 1/25"
+        if yf is not None or yt is not None:
+            yf2 = yf if yf is not None else 1000
+            yt2 = yt if yt is not None else 3000
+            query = f"({q}) AND PUB_YEAR:[{yf2} TO {yt2}]"
+
+        params = {
+            "query": query,
+            "format": "json",
+            "pageSize": str(page_size),
+            "resultType": "core",
+            "cursorMark": cursor_mark or "*",
+        }
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (EuropePMC)",
+        }
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+                params=params,
+                headers=headers,
+                timeout=20.0,
+                max_retries=2,
+            )
+        except Exception as e:
+            raise ProviderError(f"Europe PMC error: {type(e).__name__}: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError("Europe PMC rate-limited (429). Try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"Europe PMC HTTP {r.status_code}. {(r.text or '')[:200]}", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("Europe PMC returned non-JSON response.", status_code=502)
+
+        results = (data.get("resultList") or {}).get("result") or []
+        next_cursor = data.get("nextCursorMark")
+        hit_count = _int_or_none(data.get("hitCount")) or 0
+
+        out: List[ExternalPaper] = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            if not title:
+                continue
+
+            pmid = item.get("pmid")
+            pmcid = item.get("pmcid")
+            doi = item.get("doi")
+
+            source_id = item.get("id") or pmid or pmcid or doi
+            if not source_id:
+                continue
+
+            year = _int_or_none(item.get("pubYear"))
+
+            author_str = item.get("authorString")
+            authors = None
+            if isinstance(author_str, str) and author_str.strip():
+                authors = [a.strip() for a in author_str.split(",") if a.strip()]
+
+            journal = item.get("journalTitle") or (item.get("journalInfo", {}) or {}).get("journal", {}).get("title")
+
+            url = None
+            if pmid:
+                url = f"https://europepmc.org/article/MED/{pmid}"
+            elif pmcid:
+                url = f"https://europepmc.org/article/PMC/{pmcid}"
+            elif doi:
+                url = f"https://doi.org/{doi}"
+
+            abstract = item.get("abstractText")
+
+            out.append(
+                ExternalPaper(
+                    source=self.source_name,
+                    source_id=str(source_id),
+                    title=title,
+                    year=year,
+                    authors=authors,
+                    venue=journal,
+                    doi=str(doi) if doi else None,
+                    url=url,
+                    abstract=abstract,
+                    pmid=str(pmid) if pmid else None,
+                    pmcid=str(pmcid) if pmcid else None,
+                    raw=item,
+                )
+            )
+
+        return out, next_cursor, int(hit_count)
+
+
+class SemanticScholarProvider:
+    source_name = "semantic_scholar"
+    BASE = "https://api.semanticscholar.org/graph/v1"
+
+    def __init__(self):
+        self.api_key = (os.getenv("SEMANTIC_SCHOLAR_API_KEY") or "").strip()
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "0",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 100)
+
+        offset = 0
+        try:
+            if cursor_mark is not None and str(cursor_mark).strip() != "":
+                offset = max(0, int(str(cursor_mark)))
+        except Exception:
+            offset = 0
+
+        params = {
+            "query": q,
+            "limit": page_size,
+            "offset": offset,
+            "fields": "paperId,title,abstract,year,venue,authors,url,externalIds",
+        }
+
+        # Apply year bounds at source level if user set them.
+        yf, yt = _year_bounds(year_from, year_to)
+        if yf is not None or yt is not None:
+            # Semantic Scholar supports a "year" query parameter using "YYYY-", "-YYYY", or "YYYY-YYYY" syntax.
+            # Example: year=2023- for >= 2023. :contentReference[oaicite:3]{index=3}
+            if yf is not None and yt is not None:
+                params["year"] = f"{yf}-{yt}"
+            elif yf is not None:
+                params["year"] = f"{yf}-"
+            else:
+                params["year"] = f"-{yt}"
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (SemanticScholar)",
+        }
+        if self.api_key:
+            headers["x-api-key"] = self.api_key
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                f"{self.BASE}/paper/search",
+                params=params,
+                headers=headers,
+                timeout=25.0,
+                max_retries=3,
+            )
+        except Exception as e:
+            raise ProviderError(f"Semantic Scholar error: {type(e).__name__}: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError(
+                "Semantic Scholar rate-limited (429). Add SEMANTIC_SCHOLAR_API_KEY or try again later.",
+                status_code=429,
+            )
+        if r.status_code == 401:
+            raise ProviderError("Semantic Scholar auth failed (401). Check SEMANTIC_SCHOLAR_API_KEY.", status_code=502)
+        if r.status_code == 403:
+            raise ProviderError("Semantic Scholar blocked the request (403).", status_code=502)
+        if r.status_code >= 400:
+            raise ProviderError(f"Semantic Scholar HTTP {r.status_code}. {(r.text or '')[:250]}", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("Semantic Scholar returned non-JSON response.", status_code=502)
+
+        total = _int_or_none(data.get("total")) or 0
+        raw_results = data.get("data") or []
+        if not isinstance(raw_results, list):
+            raw_results = []
+
+        out: List[ExternalPaper] = []
+        for item in raw_results:
+            if not isinstance(item, dict):
+                continue
+
+            title = (item.get("title") or "").strip()
+            paper_id = item.get("paperId")
+            if not paper_id or not title:
+                continue
+
+            ext = item.get("externalIds") or {}
+            if not isinstance(ext, dict):
+                ext = {}
+
+            doi = ext.get("DOI")
+            pmid = ext.get("PubMed")
+            pmcid = ext.get("PubMedCentral")
+
+            authors = None
+            a_in = item.get("authors")
+            if isinstance(a_in, list):
+                authors = [a.get("name") for a in a_in if isinstance(a, dict) and a.get("name")]
+
+            venue = item.get("venue")
+            url = item.get("url") or f"https://www.semanticscholar.org/paper/{paper_id}"
+            abstract = item.get("abstract")
+            year = _int_or_none(item.get("year"))
+
+            out.append(
+                ExternalPaper(
+                    source=self.source_name,
+                    source_id=str(paper_id),
+                    title=title,
+                    year=year,
+                    authors=authors,
+                    venue=venue,
+                    doi=str(doi) if doi else None,
+                    url=url,
+                    abstract=abstract,
+                    pmid=str(pmid) if pmid else None,
+                    pmcid=str(pmcid) if pmcid else None,
+                    raw=item,
+                )
+            )
+
+        next_cursor: Optional[str] = None
+        if total > 0 and (offset + page_size) < total:
+            next_cursor = str(offset + page_size)
+
+        return out, next_cursor, int(total)
+
+
+class OpenAlexProvider:
+    """OpenAlex is a broad, open index of scholarly works.
+
+    We keep it metadata-first (title/year/authors/venue/doi/url/abstract when available).
+    """
+
+    source_name = "openalex"
+    BASE = "https://api.openalex.org"
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 200)
+
+        cursor = (cursor_mark or "*").strip() or "*"
+
+        params = {
+            "search": q,
+            "per_page": str(page_size),
+            "cursor": cursor,
+        }
+
+        # Apply year bounds at source level using OpenAlex filters.
+        # OpenAlex supports from_publication_date/to_publication_date. :contentReference[oaicite:4]{index=4}
+        yf, yt = _year_bounds(year_from, year_to)
+        filters: List[str] = []
+        if yf is not None:
+            filters.append(f"from_publication_date:{yf}-01-01")
+        if yt is not None:
+            filters.append(f"to_publication_date:{yt}-12-31")
+        if filters:
+            params["filter"] = ",".join(filters)
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (OpenAlex)",
+        }
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                f"{self.BASE}/works",
+                params=params,
+                headers=headers,
+                timeout=25.0,
+                max_retries=3,
+            )
+        except Exception as e:
+            raise ProviderError(f"OpenAlex error: {type(e).__name__}: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError("OpenAlex rate-limited (429). Try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"OpenAlex HTTP {r.status_code}. {(r.text or '')[:250]}", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("OpenAlex returned non-JSON response.", status_code=502)
+
+        results = data.get("results") or []
+        meta = data.get("meta") or {}
+        hit_count = _int_or_none(meta.get("count")) or 0
+        next_cursor = None
+        if isinstance(meta, dict) and meta.get("next_cursor"):
+            next_cursor = str(meta.get("next_cursor"))
+
+        out: List[ExternalPaper] = []
+        if not isinstance(results, list):
+            results = []
+
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            work_id = item.get("id")
+            if not title or not work_id:
+                continue
+
+            year = _int_or_none(item.get("publication_year"))
+
+            authors = None
+            al = item.get("authorships")
+            if isinstance(al, list):
+                names: List[str] = []
+                for a in al:
+                    if not isinstance(a, dict):
+                        continue
+                    au = a.get("author") or {}
+                    if isinstance(au, dict) and au.get("display_name"):
+                        names.append(str(au.get("display_name")))
+                if names:
+                    authors = names
+
+            venue = None
+            host = item.get("host_venue") or {}
+            if isinstance(host, dict):
+                venue = host.get("display_name")
+
+            doi = None
+            ids = item.get("ids") or {}
+            if isinstance(ids, dict):
+                doi = ids.get("doi")
+            doi = _clean_doi(doi)
+
+            url = None
+            if doi:
+                url = f"https://doi.org/{doi}"
+            elif item.get("id"):
+                url = str(item.get("id"))
+
+            abstract = None
+            aii = item.get("abstract_inverted_index")
+            if isinstance(aii, dict) and aii:
+                try:
+                    positions: Dict[int, str] = {}
+                    for token, poss in aii.items():
+                        if not isinstance(poss, list):
+                            continue
+                        for p in poss:
+                            if isinstance(p, int):
+                                positions[p] = str(token)
+                    if positions:
+                        abstract = " ".join(positions[i] for i in sorted(positions.keys()))
+                except Exception:
+                    abstract = None
+
+            out.append(
+                ExternalPaper(
+                    source=self.source_name,
+                    source_id=str(work_id),
+                    title=title,
+                    year=year,
+                    authors=authors,
+                    venue=str(venue) if venue else None,
+                    doi=doi,
+                    url=url,
+                    abstract=abstract,
+                    raw=item,
+                )
+            )
+
+        return out, next_cursor, int(hit_count)
+
+
+class CrossrefProvider:
+    """Crossref is a DOI metadata backbone. Abstracts are rare; use for breadth."""
+
+    source_name = "crossref"
+    BASE = "https://api.crossref.org"
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 100)
+        offset = 0
+        try:
+            if cursor_mark is not None and str(cursor_mark).strip() != "":
+                offset = max(0, int(str(cursor_mark)))
+        except Exception:
+            offset = 0
+
+        params = {
+            "query": q,
+            "rows": str(page_size),
+            "offset": str(offset),
+            "select": "DOI,title,author,issued,container-title,URL,abstract",
+        }
+
+        # Apply year bounds at source level using Crossref filters.
+        # Crossref supports from-pub-date / until-pub-date. :contentReference[oaicite:5]{index=5}
+        yf, yt = _year_bounds(year_from, year_to)
+        filt_parts: List[str] = []
+        if yf is not None:
+            filt_parts.append(f"from-pub-date:{yf}-01-01")
+        if yt is not None:
+            filt_parts.append(f"until-pub-date:{yt}-12-31")
+        if filt_parts:
+            params["filter"] = ",".join(filt_parts)
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (Crossref)",
+        }
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                f"{self.BASE}/works",
+                params=params,
+                headers=headers,
+                timeout=25.0,
+                max_retries=3,
+            )
+        except Exception as e:
+            raise ProviderError(f"Crossref error: {type(e).__name__}: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError("Crossref rate-limited (429). Try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"Crossref HTTP {r.status_code}. {(r.text or '')[:250]}", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("Crossref returned non-JSON response.", status_code=502)
+
+        msg = data.get("message") or {}
+        items = msg.get("items") or []
+        total = _int_or_none(msg.get("total-results")) or 0
+
+        out: List[ExternalPaper] = []
+        if not isinstance(items, list):
+            items = []
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            doi = _clean_doi(item.get("DOI"))
+            title_list = item.get("title")
+            title = None
+            if isinstance(title_list, list) and title_list:
+                title = str(title_list[0]).strip()
+            elif isinstance(title_list, str):
+                title = title_list.strip()
+            if not title:
+                continue
+
+            source_id = doi or item.get("URL") or title
+
+            year = None
+            issued = item.get("issued") or {}
+            if isinstance(issued, dict):
+                dp = issued.get("date-parts")
+                if isinstance(dp, list) and dp and isinstance(dp[0], list) and dp[0]:
+                    year = _int_or_none(dp[0][0])
+
+            venue = None
+            ct = item.get("container-title")
+            if isinstance(ct, list) and ct:
+                venue = str(ct[0])
+
+            authors = None
+            au = item.get("author")
+            if isinstance(au, list):
+                names: List[str] = []
+                for a in au:
+                    if not isinstance(a, dict):
+                        continue
+                    given = (a.get("given") or "").strip()
+                    family = (a.get("family") or "").strip()
+                    nm = (given + " " + family).strip()
+                    if nm:
+                        names.append(nm)
+                if names:
+                    authors = names
+
+            url = None
+            if doi:
+                url = f"https://doi.org/{doi}"
+            elif item.get("URL"):
+                url = str(item.get("URL"))
+
+            abstract = item.get("abstract")
+
+            out.append(
+                ExternalPaper(
+                    source=self.source_name,
+                    source_id=str(source_id),
+                    title=title,
+                    year=year,
+                    authors=authors,
+                    venue=venue,
+                    doi=doi,
+                    url=url,
+                    abstract=str(abstract) if isinstance(abstract, str) and abstract.strip() else None,
+                    raw=item,
+                )
+            )
+
+        next_cursor: Optional[str] = None
+        if total > 0 and (offset + page_size) < total:
+            next_cursor = str(offset + page_size)
+
+        return out, next_cursor, int(total)
+
+
+PROVIDERS: Dict[str, Provider] = {
+    EuropePMCProvider.source_name: EuropePMCProvider(),
+    SemanticScholarProvider.source_name: SemanticScholarProvider(),
+    OpenAlexProvider.source_name: OpenAlexProvider(),
+    CrossrefProvider.source_name: CrossrefProvider(),
+}
+
+ALIASES: Dict[str, str] = {
+    "europe_pmc": "europepmc",
+    "europepmc": "europepmc",
+    "semantic": "semantic_scholar",
+    "semantic_scholar": "semantic_scholar",
+    "semanticscholar": "semantic_scholar",
+    "open_alex": "openalex",
+    "openalex": "openalex",
+    "cross_ref": "crossref",
+    "crossref": "crossref",
+}
+
+
+def list_sources() -> List[str]:
+    return sorted(PROVIDERS.keys())
+
+
+def get_provider(source: str) -> Provider:
+    key = _normalize_source(source)
+    key = ALIASES.get(key, key)
+    if key not in PROVIDERS:
+        raise ValueError(f"Unknown source '{source}'. Available: {', '.join(list_sources())}")
+    return PROVIDERS[key]
+
+
+===== FILE: C:\Users\safad\API-web-\backend\models.py =====
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import UniqueConstraint
+from sqlmodel import Field, SQLModel
+
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    email: str = Field(index=True, unique=True)
+    hashed_password: str
+    ai_key_enc: Optional[str] = Field(default=None)  # encrypted OpenAI key (BYOK)
+
+
+class Folder(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("owner_username", "name", name="uq_folder_owner_name"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_username: str = Field(index=True)
+    name: str = Field(index=True)
+
+
+class Study(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("owner_username", "source", "source_id", name="uq_study_owner_source_id"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    owner_username: str = Field(index=True)
+    folder_id: Optional[int] = Field(default=None, foreign_key="folder.id", index=True)
+
+    source: str = Field(index=True)  # europepmc / semantic_scholar / openalex / crossref
+    source_id: str = Field(index=True)  # provider record id
+
+    title: str
+    year: Optional[int] = Field(default=None, index=True)
+    venue: Optional[str] = None
+    authors: Optional[str] = None
+
+    doi: Optional[str] = Field(default=None, index=True)
+    url: Optional[str] = None
+
+    abstract: Optional[str] = None
+    pmid: Optional[str] = Field(default=None, index=True)
+    pmcid: Optional[str] = Field(default=None, index=True)
+
+    # v1 enrichment fields (safe for Phase 1 and Phase 2)
+    notes: Optional[str] = None
+    study_type: Optional[str] = None
+    tags: Optional[str] = None
+
+    ai_summary: Optional[str] = None
+    ai_summary_updated_at: Optional[datetime] = None
+
+
+class StudyExternalRef(SQLModel, table=True):
+    """
+    Tracks additional external IDs for a saved Study so one saved paper can be linked to
+    multiple providers (Europe PMC, OpenAlex, Crossref, Semantic Scholar, etc).
+
+    This avoids duplicates while still preserving provenance + alternative IDs.
+    """
+
+    __table_args__ = (
+        UniqueConstraint("owner_username", "source", "source_id", name="uq_studyext_owner_source_sourceid"),
+        UniqueConstraint("study_id", "source", name="uq_studyext_study_source"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    owner_username: str = Field(index=True)
+    study_id: int = Field(foreign_key="study.id", index=True)
+
+    source: str = Field(index=True)
+    source_id: str = Field(index=True)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class StudyMetrics(SQLModel, table=True):
+    """
+    Optional evidence-scoring / quality assessment record.
+    Kept minimal so Phase 1 boots cleanly.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    owner_username: str = Field(index=True)
+    study_id: int = Field(foreign_key="study.id", index=True)
+
+    # Core metrics (extend later)
+    study_type: Optional[str] = Field(default=None, index=True)  # RCT / Meta-analysis / Observational / etc
+    evidence_strength: Optional[int] = Field(default=None, ge=0, le=5)  # 0..5
+    risk_of_bias: Optional[int] = Field(default=None, ge=0, le=5)  # 0..5
+    sample_size: Optional[int] = Field(default=None, ge=0)
+
+    notes: Optional[str] = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Comment(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    study_id: int = Field(foreign_key="study.id", index=True)
+    parent_id: Optional[int] = Field(default=None, index=True)
+
+    author: str = Field(index=True)
+    body: str
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+===== FILE: C:\Users\safad\API-web-\backend\routers\ai.py =====
+from __future__ import annotations
+
+import hashlib
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session, select
+
+from backend.ai_secure import decrypt_api_key, encrypt_api_key, mask_key
+from backend.db import get_session
+from backend.deps.auth import get_current_user
+from backend.models import User
+from backend.schemas import (
+    AIAskRequest,
+    AIAskResponse,
+    AIKeySetRequest,
+    AIKeyStatus,
+    AISummarizeRequest,
+    AISummarizeResponse,
+)
+from backend.services.ai_service import call_openai, strip_html, user_key_or_400
+
+router = APIRouter(tags=["ai"])
+
+
+def _cache_key(kind: str, title: str, doi: str | None, pmid: str | None, pmcid: str | None, question: str | None = None) -> str:
+    base = {
+        "kind": kind,
+        "title": (title or "").strip().lower(),
+        "doi": (doi or "").strip().lower(),
+        "pmid": (pmid or "").strip().lower(),
+        "pmcid": (pmcid or "").strip().lower(),
+        "question": (question or "").strip().lower(),
+    }
+    raw = "|".join([f"{k}={base[k]}" for k in sorted(base.keys())])
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+@router.get("/ai/key_status", response_model=AIKeyStatus)
+def ai_key_status(current_user: User = Depends(get_current_user)):
+    if not current_user.ai_key_enc:
+        return AIKeyStatus(has_key=False, masked=None)
+    try:
+        key = decrypt_api_key(current_user.ai_key_enc)
+        return AIKeyStatus(has_key=True, masked=mask_key(key))
+    except Exception:
+        return AIKeyStatus(has_key=False, masked=None)
+
+
+@router.post("/ai/set_key")
+def ai_set_key(
+    payload: AIKeySetRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    k = (payload.api_key or "").strip()
+    if not k or len(k) < 20:
+        raise HTTPException(status_code=400, detail="Invalid API key format.")
+    current_user.ai_key_enc = encrypt_api_key(k)
+    session.add(current_user)
+    session.commit()
+    return {"status": "ok"}
+
+
+@router.delete("/ai/clear_key")
+def ai_clear_key(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.ai_key_enc = None
+    session.add(current_user)
+    session.commit()
+    return {"status": "cleared"}
+
+
+@router.post("/ai/summarize", response_model=AISummarizeResponse)
+async def ai_summarize(
+    payload: AISummarizeRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    api_key = user_key_or_400(current_user.ai_key_enc)
+
+    ck = _cache_key("summarize", payload.title, payload.doi, payload.pmid, payload.pmcid)
+    cached = session.exec(
+        select(AIResult).where(
+            (AIResult.owner_username == current_user.username)
+            & (AIResult.cache_key == ck)
+            & (AIResult.kind == "summarize")
+        )
+    ).first()
+    if cached and cached.summary:
+        return AISummarizeResponse(text=cached.summary)
+
+    system = (
+        "You are a careful medical evidence assistant. "
+        "Write in clear plain English. Use short headings and bullet points. "
+        "Do not invent results. If info is missing, say so."
+    )
+
+    user_msg = (
+        f"Summarize this paper.\n\n"
+        f"Title: {payload.title}\n"
+        f"Venue: {payload.venue or 'n/a'}\n"
+        f"Year: {payload.year or 'n/a'}\n"
+        f"PMID: {payload.pmid or 'n/a'}\n"
+        f"PMCID: {payload.pmcid or 'n/a'}\n"
+        f"DOI: {payload.doi or 'n/a'}\n\n"
+        f"Abstract:\n{strip_html(payload.abstract or '')}"
+    )
+
+    text = await call_openai(api_key, system, user_msg)
+
+    rec = AIResult(
+        owner_username=current_user.username,
+        cache_key=ck,
+        kind="summarize",
+        model_used="byok",
+        summary=text,
+    )
+    session.add(rec)
+    session.commit()
+
+    return AISummarizeResponse(text=text)
+
+
+@router.post("/ai/ask", response_model=AIAskResponse)
+async def ai_ask(
+    payload: AIAskRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    api_key = user_key_or_400(current_user.ai_key_enc)
+
+    ck = _cache_key("ask", payload.title, payload.doi, payload.pmid, payload.pmcid, payload.question)
+    cached = session.exec(
+        select(AIResult).where(
+            (AIResult.owner_username == current_user.username)
+            & (AIResult.cache_key == ck)
+            & (AIResult.kind == "ask")
+        )
+    ).first()
+    if cached and cached.summary:
+        return AIAskResponse(text=cached.summary)
+
+    system = (
+        "You are a medical evidence assistant. "
+        "Answer the user's question using ONLY the provided title/abstract context. "
+        "If the abstract doesn't contain the answer, say what is missing and what to look for. "
+        "Use concise bullet points when helpful."
+    )
+
+    user_msg = (
+        f"Question: {payload.question}\n\n"
+        f"Paper:\n"
+        f"Title: {payload.title}\n"
+        f"Venue: {payload.venue or 'n/a'}\n"
+        f"Year: {payload.year or 'n/a'}\n"
+        f"PMID: {payload.pmid or 'n/a'}\n"
+        f"PMCID: {payload.pmcid or 'n/a'}\n"
+        f"DOI: {payload.doi or 'n/a'}\n\n"
+        f"Abstract:\n{strip_html(payload.abstract or '')}"
+    )
+
+    text = await call_openai(api_key, system, user_msg)
+
+    rec = AIResult(
+        owner_username=current_user.username,
+        cache_key=ck,
+        kind="ask",
+        model_used="byok",
+        question=payload.question,
+        summary=text,
+    )
+    session.add(rec)
+    session.commit()
+
+    return AIAskResponse(text=text)
+
+
+===== FILE: C:\Users\safad\API-web-\backend\routers\auth.py =====
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from jose import JWTError, jwt
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
+
+from backend.auth import (
+    ALGORITHM,
+    SECRET_KEY,
+    create_access_token,
+    hash_password,
+    verify_password,
+)
+from backend.db import get_session
+from backend.deps.auth import get_current_user
+from backend.models import User
+from backend.schemas import (
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserPublic,
+)
+
+router = APIRouter(tags=["auth"])
+
+
+@router.post("/auth/register", response_model=UserPublic)
+def register(payload: RegisterRequest, session: Session = Depends(get_session)):
+    existing = session.exec(
+        select(User).where((User.username == payload.username) | (User.email == payload.email))
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username or email already exists")
+
+    user = User(
+        username=payload.username.strip(),
+        email=payload.email.strip().lower(),
+        hashed_password=hash_password(payload.password),
+    )
+
+    session.add(user)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Username or email already exists")
+
+    session.refresh(user)
+    return UserPublic(id=user.id, username=user.username, email=user.email)
+
+
+@router.post("/auth/login", response_model=TokenResponse)
+def login(payload: LoginRequest, session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.username == payload.username)).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    if not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    token = create_access_token(subject=user.username)
+    return TokenResponse(access_token=token)
+
+
+@router.get("/me", response_model=UserPublic)
+def me(current_user: User = Depends(get_current_user)):
+    return UserPublic(id=current_user.id, username=current_user.username, email=current_user.email)
+
+
+@router.get("/auth/token_status")
+def token_status(
+    token: str | None = Query(default=None, description="Optional token if not using Authorization header"),
+    authorization: str | None = Header(default=None),
+):
+    """
+    Accepts token from either:
+    - Authorization: Bearer <token>   (preferred)
+    - ?token=<token>                  (fallback for frontend)
+    """
+    raw_token: str | None = None
+
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            raw_token = parts[1]
+
+    if not raw_token and token:
+        raw_token = token.strip()
+
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="Missing token (Authorization header or ?token=)")
+
+    try:
+        payload = jwt.decode(raw_token, SECRET_KEY, algorithms=[ALGORITHM])
+        exp = payload.get("exp")
+        sub = payload.get("sub")
+
+        now = datetime.now(timezone.utc).timestamp()
+        exp_ts = float(exp) if exp is not None else None
+        seconds_left = int(exp_ts - now) if exp_ts else None
+
+        return {"valid": True, "sub": sub, "exp": exp_ts, "seconds_left": seconds_left}
+    except JWTError:
+        return {"valid": False}
+
+
+===== FILE: C:\Users\safad\API-web-\backend\routers\comments.py =====
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlmodel import Session, select
+
+from backend.db import get_session
+from backend.deps.auth import get_current_user
+from backend.models import Comment, Study, User
+from backend.schemas import CommentCreate, CommentPatch
+
+router = APIRouter(tags=["comments"])
+
+
+@router.get("/studies/{study_id}/comments")
+def list_comments(
+    study_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(default=200, ge=1, le=500, description="Max comments to return"),
+    offset: int = Query(default=0, ge=0, le=100000, description="Offset for pagination"),
+):
+    """List comments for a study.
+
+    Backwards compatible: still returns a plain list.
+
+    Notes:
+    - v1 ordering: oldest -> newest (id asc)
+    - pagination: limit/offset are applied to the full ordered list
+    """
+
+    study = session.get(Study, study_id)
+    if not study:
+        raise HTTPException(status_code=404, detail="Study not found")
+    if study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    stmt = (
+        select(Comment)
+        .where(Comment.study_id == study_id)
+        .order_by(Comment.id.asc())
+        .offset(offset)
+        .limit(limit)
+    )
+
+    return session.exec(stmt).all()
+
+
+@router.post("/studies/{study_id}/comments")
+def add_comment(
+    study_id: int,
+    payload: CommentCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    study = session.get(Study, study_id)
+    if not study:
+        raise HTTPException(status_code=404, detail="Study not found")
+    if study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    parent_id = payload.parent_id
+    if parent_id is not None:
+        parent = session.get(Comment, parent_id)
+        if not parent or parent.study_id != study_id:
+            raise HTTPException(status_code=400, detail="Invalid parent_id")
+
+    comment = Comment(
+        study_id=study_id,
+        parent_id=parent_id,
+        author=current_user.username,
+        body=payload.body,
+    )
+    session.add(comment)
+    session.commit()
+    session.refresh(comment)
+    return comment
+
+
+@router.patch("/comments/{comment_id}")
+def edit_comment(
+    comment_id: int,
+    payload: CommentPatch,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    c = session.get(Comment, comment_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    study = session.get(Study, c.study_id)
+    if not study or study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    if c.author != current_user.username:
+        raise HTTPException(status_code=403, detail="Only the author can edit this comment")
+
+    c.body = payload.body
+    session.add(c)
+    session.commit()
+    session.refresh(c)
+    return c
+
+
+@router.delete("/comments/{comment_id}")
+def delete_comment(
+    comment_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    c = session.get(Comment, comment_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    study = session.get(Study, c.study_id)
+    if not study or study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    if c.author != current_user.username:
+        raise HTTPException(status_code=403, detail="Only the author can delete this comment")
+
+    # delete replies recursively (simple approach for v1: delete all descendants by repeated passes)
+    to_delete = [c.id]
+    changed = True
+    while changed:
+        changed = False
+        kids = session.exec(select(Comment).where(Comment.parent_id.in_(to_delete))).all()
+        for k in kids:
+            if k.id not in to_delete:
+                to_delete.append(k.id)
+                changed = True
+
+    for cid in reversed(to_delete):
+        obj = session.get(Comment, cid)
+        if obj:
+            session.delete(obj)
+
+    session.commit()
+    return {"status": "deleted", "comment_id": comment_id}
+
+
+===== FILE: C:\Users\safad\API-web-\backend\routers\external.py =====
+from __future__ import annotations
+
+import html as html_lib
+import re
+import time
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlmodel import Session, select
+
+from backend.db import get_session
+from backend.deps.auth import get_current_user
+from backend.external_providers import ProviderError, get_provider, list_sources
+from backend.models import Study, StudyExternalRef, User
+from backend.schemas import ExternalImportRequest, ExternalPaperOut, FullTextResponse, StudyRead
+from backend.services.study_analysis import detect_study_type_and_tags
+
+router = APIRouter(tags=["external"])
+
+
+def normalize_source(src: str) -> str:
+    return (src or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _clean_doi(doi: Optional[str]) -> Optional[str]:
+    if not doi:
+        return None
+    d = str(doi).strip()
+    d = re.sub(r"^doi:\s*", "", d, flags=re.I)
+    d = re.sub(r"^https?://(dx\.)?doi\.org/", "", d, flags=re.I)
+    d = d.strip()
+    return d or None
+
+
+def _merge_str_keep_existing(existing: Optional[str], incoming: Optional[str]) -> Optional[str]:
+    """Only fill empty existing values; never overwrite."""
+    if existing and str(existing).strip():
+        return existing
+    if incoming and str(incoming).strip():
+        return str(incoming).strip()
+    return existing
+
+
+def _ensure_external_ref(
+    *,
+    session: Session,
+    owner_username: str,
+    study_id: int,
+    source: str,
+    source_id: str,
+) -> None:
+    """
+    Store the "also seen on" mapping.
+    Safe to call repeatedly: it will no-op if already exists.
+    """
+    src = normalize_source(source)
+    sid = (source_id or "").strip()
+    if not src or not sid:
+        return
+
+    existing = session.exec(
+        select(StudyExternalRef).where(
+            (StudyExternalRef.owner_username == owner_username)
+            & (StudyExternalRef.source == src)
+            & (StudyExternalRef.source_id == sid)
+        )
+    ).first()
+    if existing:
+        # ensure it points at the right study (should, but keep safe)
+        if existing.study_id != study_id:
+            existing.study_id = study_id
+            session.add(existing)
+        return
+
+    ref = StudyExternalRef(
+        owner_username=owner_username,
+        study_id=study_id,
+        source=src,
+        source_id=sid,
+    )
+    session.add(ref)
+
+
+# -----------------------------
+# Tiny in-memory cache (dev / single-process)
+# -----------------------------
+@dataclass
+class _CacheEntry:
+    expires_at: float
+    value: dict
+
+
+# âœ… include year_from/year_to in cache key
+_EXTERNAL_SEARCH_CACHE: dict[Tuple[str, str, int, str, Optional[int], Optional[int]], _CacheEntry] = {}
+_EXTERNAL_SEARCH_TTL_SECONDS = 600  # 10 minutes
+
+
+def _cache_get(key: Tuple[str, str, int, str, Optional[int], Optional[int]]) -> Optional[dict]:
+    ent = _EXTERNAL_SEARCH_CACHE.get(key)
+    if not ent:
+        return None
+    if ent.expires_at < time.time():
+        _EXTERNAL_SEARCH_CACHE.pop(key, None)
+        return None
+    return ent.value
+
+
+def _cache_set(key: Tuple[str, str, int, str, Optional[int], Optional[int]], value: dict) -> None:
+    _EXTERNAL_SEARCH_CACHE[key] = _CacheEntry(expires_at=time.time() + _EXTERNAL_SEARCH_TTL_SECONDS, value=value)
+
+
+@router.get("/external/sources")
+def external_sources():
+    return {"sources": list_sources()}
+
+
+@router.get("/external/search")
+async def external_search(
+    q: str = Query(..., min_length=2),
+    source: str = Query("europepmc"),
+    limit: int = Query(25, ge=1, le=100),
+    cursor_mark: Optional[str] = Query(default=None),
+    # âœ… NEW: year range filters (optional)
+    year_from: Optional[int] = Query(default=None, ge=1000, le=3000),
+    year_to: Optional[int] = Query(default=None, ge=1000, le=3000),
+):
+    src = normalize_source(source)
+
+    if cursor_mark is None or str(cursor_mark).strip() == "":
+        cursor_mark = "0" if src in ("semantic_scholar", "semanticscholar") else "*"
+
+    cursor = str(cursor_mark)
+
+    # Cache only the common first pages (keeps UX snappy, reduces provider calls).
+    # - europepmc: cursor_mark == "*" is the first page
+    # - semantic_scholar: offset "0" is the first page
+    cacheable = (src == "europepmc" and cursor == "*") or (
+        src in ("semantic_scholar", "semanticscholar") and cursor == "0"
+    )
+
+    # âœ… include year bounds in cache key
+    key = (src, q.strip().lower(), int(limit), cursor, year_from, year_to)
+    if cacheable:
+        cached = _cache_get(key)
+        if cached is not None:
+            return cached
+
+    try:
+        provider = get_provider(src)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        # âœ… pass year bounds to providers (providers must accept these kwargs)
+        papers, next_cursor, hit_count = await provider.search(
+            q=q,
+            limit=limit,
+            cursor_mark=cursor,
+            year_from=year_from,
+            year_to=year_to,
+        )
+    except ProviderError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except TypeError as e:
+        # Helpful error if providers weren't updated yet
+        raise HTTPException(
+            status_code=500,
+            detail=f"Provider search() does not support year filters yet. Update external_providers.py. ({e})",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"External provider error: {type(e).__name__}: {e}")
+
+    items = [
+        ExternalPaperOut(
+            source=p.source,
+            source_id=p.source_id,
+            title=p.title,
+            year=p.year,
+            authors=p.authors,
+            venue=p.venue,
+            doi=p.doi,
+            url=p.url,
+            abstract=p.abstract,
+            pmid=p.pmid,
+            pmcid=p.pmcid,
+        )
+        for p in papers
+    ]
+
+    out = {"items": items, "next_cursor_mark": next_cursor, "hit_count": hit_count}
+
+    if cacheable:
+        _cache_set(key, out)
+
+    return out
+
+
+@router.post("/external/import", response_model=StudyRead)
+def external_import(
+    payload: ExternalImportRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    owner = current_user.username
+    src = normalize_source(payload.source)
+    sid = (payload.source_id or "").strip()
+    doi_clean = _clean_doi(payload.doi)
+
+    # 1) Dedupe by DOI (cross-source), if DOI exists
+    existing_by_doi = None
+    if doi_clean:
+        existing_by_doi = session.exec(
+            select(Study).where((Study.owner_username == owner) & (Study.doi == doi_clean))
+        ).first()
+
+    if existing_by_doi:
+        # Record that we also saw it on this provider
+        _ensure_external_ref(
+            session=session,
+            owner_username=owner,
+            study_id=existing_by_doi.id,
+            source=src,
+            source_id=sid,
+        )
+
+        # Fill missing fields (donâ€™t overwrite)
+        existing_by_doi.title = _merge_str_keep_existing(existing_by_doi.title, payload.title)
+        existing_by_doi.abstract = _merge_str_keep_existing(existing_by_doi.abstract, payload.abstract)
+        existing_by_doi.url = _merge_str_keep_existing(existing_by_doi.url, payload.url)
+        existing_by_doi.pmid = _merge_str_keep_existing(existing_by_doi.pmid, payload.pmid)
+        existing_by_doi.pmcid = _merge_str_keep_existing(existing_by_doi.pmcid, payload.pmcid)
+        existing_by_doi.venue = _merge_str_keep_existing(existing_by_doi.venue, payload.venue)
+
+        if existing_by_doi.year is None and payload.year is not None:
+            existing_by_doi.year = payload.year
+
+        if not (existing_by_doi.authors and str(existing_by_doi.authors).strip()) and payload.authors:
+            existing_by_doi.authors = ", ".join([a for a in payload.authors if a])
+
+        # Keep DOI cleaned
+        existing_by_doi.doi = doi_clean
+
+        session.add(existing_by_doi)
+        session.commit()
+        session.refresh(existing_by_doi)
+        return existing_by_doi
+
+    # 2) Fallback: same provider identity for this user
+    existing = session.exec(
+        select(Study).where((Study.owner_username == owner) & (Study.source == src) & (Study.source_id == sid))
+    ).first()
+    if existing:
+        # Record that we also saw it on this provider (still useful)
+        _ensure_external_ref(session=session, owner_username=owner, study_id=existing.id, source=src, source_id=sid)
+        session.commit()
+        return existing
+
+    authors_str = None
+    if payload.authors:
+        authors_str = ", ".join([a for a in payload.authors if a])
+
+    study_type, tags = detect_study_type_and_tags(payload.title or "", payload.abstract)
+    tags_str = ", ".join(tags) if tags else None
+
+    study = Study(
+        owner_username=owner,
+        source=src,
+        source_id=sid,
+        title=payload.title,
+        year=payload.year,
+        venue=payload.venue,
+        abstract=payload.abstract,
+        doi=doi_clean,
+        url=payload.url,
+        authors=authors_str,
+        pmid=payload.pmid,
+        pmcid=payload.pmcid,
+        study_type=study_type,
+        tags=tags_str,
+    )
+    session.add(study)
+    session.commit()
+    session.refresh(study)
+
+    # Record external ref for the newly-created study
+    _ensure_external_ref(session=session, owner_username=owner, study_id=study.id, source=src, source_id=sid)
+    session.commit()
+
+    return study
+
+
+# -----------------------------
+# Fulltext OA (Public) - Europe PMC PMCID XML only
+# -----------------------------
+
+def _strip_ns(tag: str) -> str:
+    return tag.split("}", 1)[1] if "}" in tag else tag
+
+
+def _xml_to_safe_html_paragraphs(xml_text: str, max_paragraphs: int = 250) -> str:
+    try:
+        root = ET.fromstring(xml_text)
+    except Exception:
+        return ""
+
+    paras: list[str] = []
+    for el in root.iter():
+        tag = el.tag
+        if not isinstance(tag, str):
+            continue
+        if _strip_ns(tag).lower() != "p":
+            continue
+
+        txt = "".join(el.itertext()).strip()
+        txt = re.sub(r"\s+", " ", txt)
+
+        if len(txt) >= 40:
+            paras.append(txt)
+            if len(paras) >= max_paragraphs:
+                break
+
+    if not paras:
+        return ""
+
+    return "\n".join([f"<p>{html_lib.escape(p)}</p>" for p in paras])
+
+
+@router.get("/external/fulltext", response_model=FullTextResponse)
+async def external_fulltext(source: str = Query("europepmc"), pmcid: Optional[str] = Query(default=None)):
+    src = normalize_source(source)
+    if src not in ("europepmc", "europe_pmc"):
+        return FullTextResponse(available=False, kind="not_available", message="Only europepmc supported (v1).")
+
+    if not pmcid:
+        return FullTextResponse(available=False, kind="not_available", message="No PMCID available for this record.")
+
+    pmcid = pmcid.strip()
+    if not pmcid.upper().startswith("PMC"):
+        return FullTextResponse(available=False, kind="not_available", message="Invalid PMCID.")
+
+    url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            r = await client.get(url, headers={"Accept": "application/xml"})
+
+        if r.status_code == 404:
+            return FullTextResponse(
+                available=False,
+                kind="not_available",
+                message="No OA full text found for this PMCID on Europe PMC.",
+            )
+
+        if r.status_code != 200 or not r.text:
+            return FullTextResponse(
+                available=False,
+                kind="not_available",
+                message=f"Full text not available via Europe PMC (HTTP {r.status_code}).",
+            )
+
+        html = _xml_to_safe_html_paragraphs(r.text)
+        if not html:
+            return FullTextResponse(
+                available=True,
+                kind="pmc_xml",
+                message="Full text XML exists, but no readable paragraphs were extracted.",
+                html=None,
+            )
+
+        return FullTextResponse(
+            available=True,
+            kind="pmc_xml",
+            message=f"Open-access full text loaded from Europe PMC ({pmcid}).",
+            html=html,
+        )
+
+    except Exception as e:
+        return FullTextResponse(available=False, kind="error", message=f"{type(e).__name__}: {e}")
+
+
+===== FILE: C:\Users\safad\API-web-\backend\routers\folders.py =====
+from __future__ import annotations
+
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
+
+from backend.db import get_session
+from backend.deps.auth import get_current_user
+from backend.models import Folder, Study, User
+from backend.schemas import FolderCreate, FolderPatch, FolderRead
+
+router = APIRouter(tags=["folders"])
+
+
+@router.get("/folders", response_model=List[FolderRead])
+def list_folders(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return session.exec(
+        select(Folder).where(Folder.owner_username == current_user.username).order_by(Folder.name.asc())
+    ).all()
+
+
+@router.post("/folders", response_model=FolderRead)
+def create_folder(
+    payload: FolderCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Folder name required")
+
+    f = Folder(owner_username=current_user.username, name=name)
+    session.add(f)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Folder already exists")
+
+    session.refresh(f)
+    return f
+
+
+@router.patch("/folders/{folder_id}", response_model=FolderRead)
+def rename_folder(
+    folder_id: int,
+    payload: FolderPatch,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    f = session.get(Folder, folder_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if f.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Folder name required")
+
+    existing = session.exec(
+        select(Folder).where(Folder.owner_username == current_user.username, Folder.name == name, Folder.id != folder_id)
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Folder already exists")
+
+    f.name = name
+    session.add(f)
+    session.commit()
+    session.refresh(f)
+    return f
+
+
+@router.delete("/folders/{folder_id}")
+def delete_folder(folder_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    f = session.get(Folder, folder_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if f.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    # unassign folder from user's studies
+    studies = session.exec(
+        select(Study).where(Study.owner_username == current_user.username, Study.folder_id == folder_id)
+    ).all()
+    for s in studies:
+        s.folder_id = None
+        session.add(s)
+
+    session.delete(f)
+    session.commit()
+    return {"status": "deleted", "folder_id": folder_id}
+
+
+===== FILE: C:\Users\safad\API-web-\backend\routers\health.py =====
+from fastapi import APIRouter
+
+router = APIRouter(tags=["health"])
+
+@router.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+===== FILE: C:\Users\safad\API-web-\backend\routers\metrics.py =====
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Query
+from sqlmodel import Session, select
+
+from backend.db import get_session
+from backend.deps.auth import get_current_user
+from backend.models import Study, StudyMetrics, User
+
+router = APIRouter(tags=["metrics"])
+
+
+def score(m: StudyMetrics) -> float:
+    return (
+        (m.save_count * 2.0)
+        + (m.folder_count * 1.5)
+        + (m.comment_count * 1.0)
+        + (m.ai_runs * 1.2)
+    )
+
+
+@router.get("/metrics/trending")
+def trending(
+    limit: int = Query(20, ge=1, le=100),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    # Phase 2 baseline: trending is per-user library.
+    studies = session.exec(select(Study).where(Study.owner_username == current_user.username)).all()
+
+    rows = []
+    for s in studies:
+        m = session.exec(select(StudyMetrics).where(StudyMetrics.study_id == s.id)).first()
+        if not m:
+            continue
+        rows.append(
+            {
+                "study_id": s.id,
+                "title": s.title,
+                "source": s.source,
+                "year": s.year,
+                "score": score(m),
+                "metrics": {
+                    "save_count": m.save_count,
+                    "folder_count": m.folder_count,
+                    "comment_count": m.comment_count,
+                    "ai_runs": m.ai_runs,
+                    "last_accessed": m.last_accessed,
+                },
+            }
+        )
+
+    rows.sort(key=lambda x: x["score"], reverse=True)
+    return {"items": rows[:limit]}
+
+
+===== FILE: C:\Users\safad\API-web-\backend\routers\studies.py =====
+from __future__ import annotations
+
+import logging
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
+from sqlmodel import Session, select
+
+from backend.db import get_session
+from backend.deps.auth import get_current_user
+from backend.models import Comment, Folder, Study, StudyMetrics, User
+from backend.schemas import StudyPatch, StudyRead
+
+# These are optional Phase-2 helpers. They must NEVER break Phase-1 reads.
+try:
+    from backend.services.metrics_service import sync_folder_count, touch_metrics
+except Exception:  # pragma: no cover
+    sync_folder_count = None
+    touch_metrics = None
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["studies"])
+
+
+@router.get("/studies", response_model=List[StudyRead])
+def list_studies(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    q: Optional[str] = Query(default=None, description="Search title + abstract"),
+    sort: str = Query(default="newest", description="newest|oldest|year_desc|year_asc|title_asc|title_desc"),
+    folder_id: Optional[int] = Query(default=None),
+):
+    stmt = select(Study).where(Study.owner_username == current_user.username)
+
+    if folder_id is not None:
+        stmt = stmt.where(Study.folder_id == folder_id)
+
+    if q and q.strip():
+        needle = f"%{q.strip()}%"
+        stmt = stmt.where(or_(Study.title.ilike(needle), Study.abstract.ilike(needle)))
+
+    sort_key = (sort or "newest").strip().lower()
+    if sort_key == "oldest":
+        stmt = stmt.order_by(Study.id.asc())
+    elif sort_key == "year_desc":
+        stmt = stmt.order_by(Study.year.desc().nullslast(), Study.id.desc())
+    elif sort_key == "year_asc":
+        stmt = stmt.order_by(Study.year.asc().nullsfirst(), Study.id.desc())
+    elif sort_key == "title_asc":
+        stmt = stmt.order_by(Study.title.asc(), Study.id.desc())
+    elif sort_key == "title_desc":
+        stmt = stmt.order_by(Study.title.desc(), Study.id.desc())
+    else:
+        stmt = stmt.order_by(Study.id.desc())
+
+    return session.exec(stmt).all()
+
+
+@router.get("/studies/{study_id}", response_model=StudyRead)
+def get_study(
+    study_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    study = session.get(Study, study_id)
+    if not study:
+        raise HTTPException(status_code=404, detail="Study not found")
+    if study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    # Phase 2 metrics: NEVER allow this to crash core reads.
+    if touch_metrics is not None:
+        try:
+            touch_metrics(session, study.id)
+        except Exception as e:
+            logger.warning("touch_metrics failed (non-fatal) for study_id=%s: %s", study.id, e)
+
+    return study
+
+
+@router.patch("/studies/{study_id}", response_model=StudyRead)
+def patch_study(
+    study_id: int,
+    payload: StudyPatch,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    study = session.get(Study, study_id)
+    if not study:
+        raise HTTPException(status_code=404, detail="Study not found")
+    if study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    fields_set = getattr(payload, "model_fields_set", set())
+
+    if "notes" in fields_set:
+        study.notes = payload.notes
+
+    if "folder_id" in fields_set:
+        if payload.folder_id is None:
+            study.folder_id = None
+        else:
+            f = session.get(Folder, payload.folder_id)
+            if not f or f.owner_username != current_user.username:
+                raise HTTPException(status_code=400, detail="Invalid folder_id")
+            study.folder_id = payload.folder_id
+
+    session.add(study)
+    session.commit()
+    session.refresh(study)
+
+    # Phase 2 metrics: NEVER allow this to crash core edits.
+    if sync_folder_count is not None:
+        try:
+            sync_folder_count(session, study)
+        except Exception as e:
+            logger.warning("sync_folder_count failed (non-fatal) for study_id=%s: %s", study.id, e)
+
+    return study
+
+
+@router.delete("/studies/{study_id}")
+def delete_study(
+    study_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    study = session.get(Study, study_id)
+    if not study:
+        raise HTTPException(status_code=404, detail="Study not found")
+    if study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    # delete comments
+    comments = session.exec(select(Comment).where(Comment.study_id == study_id)).all()
+    for c in comments:
+        session.delete(c)
+
+    # delete metrics row if exists
+    try:
+        m = session.exec(select(StudyMetrics).where(StudyMetrics.study_id == study_id)).first()
+        if m:
+            session.delete(m)
+    except Exception as e:
+        # If metrics table isn't present / migrations not done, deletion should still succeed.
+        logger.warning("StudyMetrics delete cleanup failed (non-fatal) for study_id=%s: %s", study_id, e)
+
+    session.delete(study)
+    session.commit()
+    return {"status": "deleted", "study_id": study_id}
+
+
+===== FILE: C:\Users\safad\API-web-\backend\schemas.py =====
+from __future__ import annotations
+
+from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, ConfigDict
+
+
+# ---------- Auth ----------
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+
+
+class UserPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    email: str
+
+
+# ---------- Folder ----------
+class FolderCreate(BaseModel):
+    name: str
+
+
+class FolderRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    owner_username: str
+    name: str
+
+
+class FolderPatch(BaseModel):
+    name: str
+
+
+# ---------- Study ----------
+class StudyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    owner_username: str
+    folder_id: Optional[int]
+
+    source: str
+    source_id: str
+    title: str
+    year: Optional[int]
+    venue: Optional[str]
+    authors: Optional[str]
+    doi: Optional[str]
+    url: Optional[str]
+    abstract: Optional[str]
+    pmid: Optional[str]
+    pmcid: Optional[str]
+
+    notes: Optional[str]
+    study_type: Optional[str]
+    tags: Optional[str]
+
+    ai_summary: Optional[str]
+    ai_summary_updated_at: Optional[datetime]
+
+
+class StudyPatch(BaseModel):
+    notes: Optional[str] = None
+    folder_id: Optional[int] = None
+
+
+# ---------- Comments ----------
+class CommentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    study_id: int
+    parent_id: Optional[int] = None
+    author: str
+    body: str
+    created_at: datetime
+
+
+class CommentCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=5000)
+    parent_id: Optional[int] = None
+
+
+class CommentPatch(BaseModel):
+    body: str = Field(min_length=1, max_length=5000)
+
+
+# ---------- External ----------
+class ExternalPaperOut(BaseModel):
+    source: str
+    source_id: str
+    title: str
+    year: Optional[int] = None
+    authors: Optional[List[str]] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    url: Optional[str] = None
+    abstract: Optional[str] = None
+    pmid: Optional[str] = None
+    pmcid: Optional[str] = None
+
+
+class ExternalImportRequest(BaseModel):
+    source: str
+    source_id: str
+    title: str
+    year: Optional[int] = None
+    authors: Optional[List[str]] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    url: Optional[str] = None
+    abstract: Optional[str] = None
+    pmid: Optional[str] = None
+    pmcid: Optional[str] = None
+
+
+class FullTextResponse(BaseModel):
+    available: bool
+    kind: str
+    message: str
+    html: Optional[str] = None
+
+
+# ---------- AI ----------
+class AIKeySetRequest(BaseModel):
+    api_key: str
+
+
+class AIKeyStatus(BaseModel):
+    has_key: bool
+    masked: Optional[str] = None
+
+
+class AISummarizeRequest(BaseModel):
+    title: str
+    abstract: Optional[str] = None
+    venue: Optional[str] = None
+    year: Optional[int] = None
+    pmid: Optional[str] = None
+    pmcid: Optional[str] = None
+    doi: Optional[str] = None
+
+
+class AISummarizeResponse(BaseModel):
+    text: str
+
+
+class AIAskRequest(BaseModel):
+    question: str
+    title: str
+    abstract: Optional[str] = None
+    venue: Optional[str] = None
+    year: Optional[int] = None
+    pmid: Optional[str] = None
+    pmcid: Optional[str] = None
+    doi: Optional[str] = None
+
+
+class AIAskResponse(BaseModel):
+    text: str
+
+
+===== FILE: C:\Users\safad\API-web-\backend\services\__init__.py =====
+
+
+
+===== FILE: C:\Users\safad\API-web-\backend\services\ai_service.py =====
+from __future__ import annotations
+
+import os
+import re
+
+import httpx
+from fastapi import HTTPException
+
+from backend.ai_secure import decrypt_api_key
+
+
+def get_openai_model() -> str:
+    return (os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
+
+
+def strip_html(text: str) -> str:
+    return re.sub(r"<[^>]+>", " ", text or "")
+
+
+async def call_openai(user_api_key: str, system: str, user: str) -> str:
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {user_api_key}", "Content-Type": "application/json"}
+    payload = {
+        "model": get_openai_model(),
+        "temperature": 0.3,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
+
+    async with httpx.AsyncClient(timeout=40.0) as client:
+        r = await client.post(url, headers=headers, json=payload)
+
+    if r.status_code == 401:
+        raise HTTPException(status_code=401, detail="AI key rejected (401). Set a valid key in AI settings.")
+    if r.status_code == 429:
+        raise HTTPException(status_code=429, detail="AI rate limit hit (429). Try again soon.")
+    if r.status_code >= 400:
+        raise HTTPException(status_code=400, detail=f"AI error HTTP {r.status_code}: {r.text[:300]}")
+
+    data = r.json()
+    try:
+        return (data["choices"][0]["message"]["content"] or "").strip()
+    except Exception:
+        raise HTTPException(status_code=500, detail="AI response parse error")
+
+
+def user_key_or_400(ai_key_enc: str | None) -> str:
+    if not ai_key_enc:
+        raise HTTPException(status_code=400, detail="No AI key set. Go to Info page and add your key.")
+    try:
+        return decrypt_api_key(ai_key_enc)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Stored AI key cannot be decrypted. Clear and re-set your key.")
+    
+
+
+===== FILE: C:\Users\safad\API-web-\backend\services\metrics_service.py =====
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlmodel import Session, select
+
+from backend.models import Study, StudyMetrics
+
+
+def get_or_create_metrics(session: Session, study_id: int) -> StudyMetrics:
+    m = session.exec(select(StudyMetrics).where(StudyMetrics.study_id == study_id)).first()
+    if m:
+        return m
+    m = StudyMetrics(study_id=study_id)
+    session.add(m)
+    session.commit()
+    session.refresh(m)
+    return m
+
+
+def touch_metrics(session: Session, study_id: int) -> None:
+    m = get_or_create_metrics(session, study_id)
+    m.last_accessed = datetime.utcnow()
+    session.add(m)
+    session.commit()
+
+
+def sync_folder_count(session: Session, study: Study) -> None:
+    """Derived: 1 if folder_id set else 0 (Phase 2 baseline)."""
+    m = get_or_create_metrics(session, study.id)
+    m.folder_count = 1 if study.folder_id is not None else 0
+    session.add(m)
+    session.commit()
+
+
+===== FILE: C:\Users\safad\API-web-\backend\services\study_analysis.py =====
+# backend/services/study_analysis.py
+
+import re
+from typing import Optional
+
+
+_STUDY_RULES = [
+    ("Systematic Review", [r"\bsystematic review\b", r"\bmeta-analys(is|es)\b"]),
+    ("Randomized Controlled Trial", [r"\brandomi[sz]ed\b", r"\bcontrolled trial\b", r"\bdouble[- ]blind\b"]),
+    ("Cohort", [r"\bcohort\b", r"\bprospective\b", r"\bretrospective\b"]),
+    ("Case-Control", [r"\bcase-control\b"]),
+    ("Cross-Sectional", [r"\bcross-sectional\b"]),
+    ("Case Report", [r"\bcase report\b", r"\bcase series\b"]),
+    ("Guideline", [r"\bguideline\b", r"\bconsensus\b", r"\brecommendations\b"]),
+    ("Protocol", [r"\bprotocol\b", r"\btrial registration\b"]),
+]
+
+_TAG_RULES = [
+    ("covid-19", [r"\bcovid-19\b", r"\bsars-cov-2\b"]),
+    ("pediatrics", [r"\bpediatric\b", r"\bchildren\b", r"\badolescent\b"]),
+    ("elderly", [r"\belderly\b", r"\bolder adults\b", r"\bgeriatric\b"]),
+    ("pregnancy", [r"\bpregnan(t|cy)\b", r"\bprenatal\b"]),
+    ("mortality", [r"\bmortality\b", r"\bdeath\b"]),
+    ("safety", [r"\badverse events?\b", r"\bsafety\b", r"\btoxicity\b"]),
+]
+
+
+def detect_study_type_and_tags(title: str, abstract: Optional[str]):
+    text = f"{title}\n{abstract or ''}".lower()
+
+    study_type = None
+    for label, patterns in _STUDY_RULES:
+        if any(re.search(p, text) for p in patterns):
+            study_type = label
+            break
+
+    tags = []
+    for tag, patterns in _TAG_RULES:
+        if any(re.search(p, text) for p in patterns):
+            tags.append(tag)
+
+    return study_type, tags
+
+
+
+===== FILE: C:\Users\safad\API-web-\frontend\api.js =====
+// frontend/api.js
+// Global helpers for ALL pages (no modules). Must be loaded before app.js.
+
+(() => {
+  const API_BASE = window.API_BASE || "http://127.0.0.1:8000"; // backend
+
+  function qs(id) { return document.getElementById(id); }
+  function $(id) { return qs(id); }
+
+  // ---- Auth storage ----
+  function getToken() { return localStorage.getItem("token") || ""; }
+  function getUsername() { return localStorage.getItem("username") || ""; }
+
+  function _emitAuthChanged() {
+    window.dispatchEvent(new CustomEvent("auth:changed"));
+  }
+
+  // prevent auth:changed storms (esp. 401 bursts)
+  function _emitAuthChangedOncePer(ms = 1500) {
+    const now = Date.now();
+    const last = window.__ME_LAST_AUTH_EMIT_AT__ || 0;
+    if (now - last < ms) return;
+    window.__ME_LAST_AUTH_EMIT_AT__ = now;
+    _emitAuthChanged();
+  }
+
+  function setToken(token) {
+    const prev = getToken();
+    if (token) localStorage.setItem("token", token);
+    else localStorage.removeItem("token");
+    const next = getToken();
+    if (prev !== next) _emitAuthChanged();
+  }
+
+  function clearToken() {
+    const had = !!getToken();
+    localStorage.removeItem("token");
+    if (had) _emitAuthChanged();
+  }
+
+  function setUsername(u) {
+    const prev = getUsername();
+    if (u) localStorage.setItem("username", u);
+    else localStorage.removeItem("username");
+    const next = getUsername();
+    return prev !== next;
+  }
+
+  // ---- HTML escaping ----
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  // ---- Toast ----
+  function ensureToastHost() {
+    let host = document.getElementById("toastHost");
+    if (host) return host;
+
+    host = document.createElement("div");
+    host.id = "toastHost";
+    host.style.position = "fixed";
+    host.style.right = "16px";
+    host.style.bottom = "16px";
+    host.style.zIndex = "9999";
+    host.style.display = "flex";
+    host.style.flexDirection = "column";
+    host.style.gap = "10px";
+    document.body.appendChild(host);
+    return host;
+  }
+
+  function showToast(title, body = "", type = "info", ms = 2600) {
+    const host = ensureToastHost();
+
+    const card = document.createElement("div");
+    card.style.padding = "10px 12px";
+    card.style.borderRadius = "14px";
+    card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.18)";
+    card.style.background = "#0b1220";
+    card.style.color = "white";
+    card.style.border = "1px solid rgba(255,255,255,0.08)";
+    card.style.maxWidth = "380px";
+    card.style.opacity = "0";
+    card.style.transform = "translateY(6px)";
+    card.style.transition = "all .14s ease";
+
+    const tag =
+      type === "error" ? "Error" :
+      type === "success" ? "Success" :
+      "Info";
+
+    card.innerHTML = `
+      <div style="font-weight:900; margin-bottom:2px;">${escapeHtml(tag)} — ${escapeHtml(title)}</div>
+      ${body ? `<div style="opacity:.9; line-height:1.25;">${escapeHtml(body)}</div>` : ""}
+    `;
+
+    host.appendChild(card);
+    requestAnimationFrame(() => {
+      card.style.opacity = "1";
+      card.style.transform = "translateY(0)";
+    });
+
+    setTimeout(() => {
+      card.style.opacity = "0";
+      card.style.transform = "translateY(6px)";
+      setTimeout(() => card.remove(), 200);
+    }, ms);
+  }
+
+  // ---- Robust JSON parsing ----
+  async function safeParseJson(res) {
+    try { return await res.json(); } catch { return null; }
+  }
+
+  function extractErrorMessage(data, res) {
+    if (data?.error?.message) return data.error.message;
+    if (data?.detail) {
+      if (typeof data.detail === "string") return data.detail;
+      return "Invalid request";
+    }
+    return `HTTP ${res.status} ${res.statusText}`.trim();
+  }
+
+  function makeNetworkError(original) {
+    const err = new Error(
+      "Network/CORS error (request reached server or was blocked). If it actually saved, refresh Library to confirm."
+    );
+    err.isNetwork = true;
+    err.cause = original;
+    err.status = 0;
+    return err;
+  }
+
+  /* ======================================================
+     request dedupe + endpoint throttling
+     ====================================================== */
+
+  const __INFLIGHT__ = new Map();   // key -> Promise
+  const __THROTTLE__ = new Map();   // pathKey -> last timestamp (ms)
+
+  function __fullUrl(path) {
+    return path.startsWith("http") ? path : API_BASE + path;
+  }
+
+  function __pathKeyFromUrl(url) {
+    try {
+      const u = new URL(url, API_BASE);
+      return u.pathname;
+    } catch {
+      return url;
+    }
+  }
+
+  function __throttleMsFor(pathname) {
+    if (pathname === "/me") return 4000;
+    if (pathname === "/auth/token_status") return 4000;
+    if (pathname === "/folders") return 2500;
+    if (/^\/studies\/\d+\/comments$/.test(pathname)) return 1500;
+    return 0;
+  }
+
+  async function fetchJson(path, opts = {}) {
+    const url = __fullUrl(path);
+
+    const method = String(opts.method || "GET").toUpperCase();
+    const authOn = opts.auth !== false;
+
+    let body = opts.body;
+    const isPlainObject =
+      body && typeof body === "object" && !(body instanceof FormData) && !(body instanceof Blob);
+
+    const bodyKey = isPlainObject
+      ? JSON.stringify(body)
+      : (typeof body === "string" ? body : "");
+
+    const headersKey = (() => {
+      const h = opts.headers || {};
+      const ct = (h["Content-Type"] || h["content-type"] || "");
+      return `${authOn ? "auth" : "noauth"}|ct:${ct}`;
+    })();
+
+    const dedupeKey = `${method} ${url} ${headersKey} ${bodyKey}`;
+
+    if (__INFLIGHT__.has(dedupeKey)) {
+      return __INFLIGHT__.get(dedupeKey);
+    }
+
+    const p = (async () => {
+      const pathname = __pathKeyFromUrl(url);
+      const tMs = (method === "GET") ? __throttleMsFor(pathname) : 0;
+      if (tMs) {
+        const last = __THROTTLE__.get(pathname) || 0;
+        const now = Date.now();
+        const wait = tMs - (now - last);
+        if (wait > 0) await new Promise(r => setTimeout(r, wait));
+        __THROTTLE__.set(pathname, Date.now());
+      }
+
+      const headers = new Headers(opts.headers || {});
+      if (!headers.has("Accept")) headers.set("Accept", "application/json");
+
+      if (isPlainObject) {
+        if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+        body = JSON.stringify(body);
+      } else if (typeof body === "string" && !headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+
+      // Track whether we actually sent Authorization.
+      let sentAuth = false;
+
+      if (authOn && !headers.has("Authorization")) {
+        const t = getToken();
+        if (t) {
+          headers.set("Authorization", "Bearer " + t);
+          sentAuth = true;
+        }
+      } else if (headers.has("Authorization")) {
+        sentAuth = true;
+      }
+
+      let res;
+      try {
+        res = await fetch(url, {
+          method,
+          headers,
+          body,
+          credentials: "omit",
+          signal: opts.signal, // optional AbortController support
+        });
+      } catch (e) {
+        // Network / CORS / connection reset
+        throw makeNetworkError(e);
+      }
+
+      if (res.status === 204) return { ok: true };
+
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      let data = null;
+
+      if (ct.includes("application/json")) {
+        data = await safeParseJson(res);
+      } else {
+        const text = await res.text().catch(() => "");
+        data = text ? { detail: text } : null;
+      }
+
+      if (!res.ok) {
+        const msg = extractErrorMessage(data, res);
+
+        // Only auto-clear token if we actually sent auth.
+        if (res.status === 401 && getToken() && sentAuth) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("username");
+          _emitAuthChangedOncePer(1500);
+        }
+
+        const err = new Error(msg || "Request failed");
+        err.status = res.status;
+        err.data = data;
+        throw err;
+      }
+
+      return data;
+    })();
+
+    __INFLIGHT__.set(dedupeKey, p);
+    try {
+      return await p;
+    } finally {
+      __INFLIGHT__.delete(dedupeKey);
+    }
+  }
+
+  // ---- confirmModal / promptModal ----
+  function ensureConfirmModal() {
+    if (document.getElementById("meConfirmOverlay")) return;
+
+    const el = document.createElement("div");
+    el.id = "meConfirmOverlay";
+    el.innerHTML = `
+      <div class="meConfirmBackdrop"></div>
+      <div class="meConfirmCard" role="dialog" aria-modal="true">
+        <div class="meConfirmTitle" id="meConfirmTitle">Confirm</div>
+        <div class="meConfirmBody" id="meConfirmBody">Are you sure?</div>
+        <div class="meConfirmActions">
+          <button class="btn" id="meConfirmCancel">Cancel</button>
+          <button class="btn danger" id="meConfirmOk">Delete</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(el);
+
+    el.querySelector(".meConfirmBackdrop").addEventListener("click", () => {
+      const cancel = document.getElementById("meConfirmCancel");
+      cancel && cancel.click();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!el.classList.contains("show")) return;
+      const cancel = document.getElementById("meConfirmCancel");
+      cancel && cancel.click();
+    });
+  }
+
+  function confirmModal({
+    title = "Confirm",
+    message = "Are you sure?",
+    okText = "Delete",
+    cancelText = "Cancel",
+    danger = true,
+  } = {}) {
+    ensureConfirmModal();
+
+    const overlay = document.getElementById("meConfirmOverlay");
+    const t = document.getElementById("meConfirmTitle");
+    const b = document.getElementById("meConfirmBody");
+    const ok = document.getElementById("meConfirmOk");
+    const cancel = document.getElementById("meConfirmCancel");
+
+    t.textContent = title;
+    b.textContent = message;
+
+    ok.textContent = okText;
+    cancel.textContent = cancelText;
+
+    ok.classList.toggle("danger", !!danger);
+    overlay.classList.add("show");
+
+    return new Promise((resolve) => {
+      const cleanup = () => {
+        ok.onclick = null;
+        cancel.onclick = null;
+        overlay.classList.remove("show");
+      };
+
+      ok.onclick = () => { cleanup(); resolve(true); };
+      cancel.onclick = () => { cleanup(); resolve(false); };
+
+      setTimeout(() => ok.focus(), 0);
+    });
+  }
+
+  function ensurePromptModal() {
+    if (document.getElementById("mePromptOverlay")) return;
+
+    const el = document.createElement("div");
+    el.id = "mePromptOverlay";
+    el.innerHTML = `
+      <div class="mePromptBackdrop"></div>
+      <div class="mePromptCard" role="dialog" aria-modal="true">
+        <div class="mePromptTitle" id="mePromptTitle">Input</div>
+        <div class="mePromptBody" id="mePromptBody">Enter a value</div>
+
+        <input class="mePromptInput" id="mePromptInput" placeholder="Type here..." />
+
+        <div class="mePromptActions">
+          <button class="btn" id="mePromptCancel">Cancel</button>
+          <button class="btn primary" id="mePromptOk">OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(el);
+
+    el.querySelector(".mePromptBackdrop").addEventListener("click", () => {
+      const cancel = document.getElementById("mePromptCancel");
+      cancel && cancel.click();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      const overlay = document.getElementById("mePromptOverlay");
+      if (!overlay || !overlay.classList.contains("show")) return;
+      if (e.key === "Escape") {
+        const cancel = document.getElementById("mePromptCancel");
+        cancel && cancel.click();
+      }
+      if (e.key === "Enter") {
+        const ok = document.getElementById("mePromptOk");
+        ok && ok.click();
+      }
+    });
+  }
+
+  function promptModal({
+    title = "Folder name?",
+    message = "Enter a name",
+    placeholder = "e.g. Cardiology",
+    okText = "OK",
+    cancelText = "Cancel",
+    initialValue = "",
+  } = {}) {
+    ensurePromptModal();
+
+    const overlay = document.getElementById("mePromptOverlay");
+    const t = document.getElementById("mePromptTitle");
+    const b = document.getElementById("mePromptBody");
+    const input = document.getElementById("mePromptInput");
+    const ok = document.getElementById("mePromptOk");
+    const cancel = document.getElementById("mePromptCancel");
+
+    t.textContent = title;
+    b.textContent = message;
+    input.placeholder = placeholder;
+    input.value = initialValue || "";
+
+    ok.textContent = okText;
+    cancel.textContent = cancelText;
+
+    overlay.classList.add("show");
+
+    return new Promise((resolve) => {
+      const cleanup = () => {
+        ok.onclick = null;
+        cancel.onclick = null;
+        overlay.classList.remove("show");
+      };
+
+      ok.onclick = () => {
+        const v = (input.value || "").trim();
+        cleanup();
+        resolve(v || null);
+      };
+      cancel.onclick = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      setTimeout(() => input.focus(), 0);
+    });
+  }
+
+  async function withBtnLoading(btn, fn, loadingText = "Loading...") {
+    if (!btn) return fn();
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = loadingText;
+    try {
+      return await fn();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  }
+
+  // expose globally
+  window.API_BASE = API_BASE;
+  window.qs = qs;
+  window.$ = $;
+  window.getToken = getToken;
+  window.setToken = setToken;
+  window.clearToken = clearToken;
+  window.getUsername = getUsername;
+  window.setUsername = setUsername;
+  window.escapeHtml = escapeHtml;
+  window.fetchJson = fetchJson;
+
+  window.showToast = showToast;
+  window.withBtnLoading = withBtnLoading;
+  window.confirmModal = confirmModal;
+  window.promptModal = promptModal;
+})();
+
+
+===== FILE: C:\Users\safad\API-web-\frontend\app.js =====
+// frontend/app.js
+// Dashboard shell (sidebar + topbar) + token pill + guest gating.
+// Requires api.js (qs/getToken/setToken/fetchJson etc.)
+
+/* ===========================
+   ✅ PATCH: hard global guard
+   Prevents this file from wiring twice (Live Server / injection / re-eval).
+   =========================== */
+if (window.__ME_APPJS_WIRED__) {
+  // already wired
+} else {
+  window.__ME_APPJS_WIRED__ = true;
+
+  const API_LABEL = window.API_BASE || "http://127.0.0.1:8000"; // display only
+
+  function esc(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function icon(name){
+    const m = {
+      search: '⌕',
+      library: '▦',
+      paper: '▤',
+      ai: '✦',
+      info: 'i',
+      login: '⎆',
+      logout: '⟲'
+    };
+    return m[name] || '•';
+  }
+
+  function currentPage(){
+    const p = (location.pathname.split('/').pop() || '').toLowerCase();
+    if(p.includes('search')) return 'search';
+    if(p.includes('library')) return 'library';
+    if(p.includes('ai')) return 'ai';
+    if(p.includes('info')) return 'info';
+    if(p.includes('paper')) return 'paper';
+    if(p.includes('login')) return 'login';
+    return 'search';
+  }
+
+  function pageTitle(){
+    const t = (document.title || 'Medical Evidence').split('-')[0].trim();
+    return t || 'Medical Evidence';
+  }
+
+  function requireAuthOrRedirect(target="login.html"){
+    if (getToken()) return true;
+    try { sessionStorage.setItem("after_login", location.pathname.split('/').pop() || "search.html"); } catch {}
+    window.location.href = target;
+    return false;
+  }
+
+  window.requireAuthOrRedirect = requireAuthOrRedirect;
+
+  function setTokenPill(state, text, tooltip=""){
+    const dot = document.getElementById('tokenDot');
+    const label = document.getElementById('tokenPillText');
+    if(!dot || !label) return;
+    dot.classList.remove('ok','bad','warn');
+    if(state === 'ok') dot.classList.add('ok');
+    else if(state === 'bad') dot.classList.add('bad');
+    else dot.classList.add('warn');
+    label.textContent = text;
+    dot.title = tooltip || '';
+    label.title = tooltip || '';
+  }
+
+  function ensureDashboardShell(){
+    if(currentPage() === 'login') return;
+    if(document.querySelector('.appShell')) return;
+
+    const bodyKids = Array.from(document.body.children);
+    const header = document.querySelector('header');
+    const main = document.querySelector('main');
+
+    const shell = document.createElement('div');
+    shell.className = 'appShell';
+
+    const side = document.createElement('aside');
+    side.className = 'sidebar';
+
+    const area = document.createElement('div');
+    area.className = 'mainArea';
+
+    const top = document.createElement('div');
+    top.className = 'topbar';
+    top.id = 'topbar';
+
+    const content = document.createElement('div');
+    content.className = 'content';
+    content.id = 'content';
+
+    if(main){
+      content.appendChild(main);
+    } else {
+      bodyKids.forEach(el=>{
+        if(el.tagName === 'SCRIPT') return;
+        if(el.id === 'toastHost') return;
+        content.appendChild(el);
+      });
+    }
+
+    if(header) header.remove();
+
+    area.appendChild(top);
+    area.appendChild(content);
+    shell.appendChild(side);
+    shell.appendChild(area);
+
+    document.body.prepend(shell);
+  }
+
+  function wireSidebarDelegation(){
+    const side = document.querySelector('.sidebar');
+    if(!side) return;
+
+    if(side.dataset.navWired === "1") return;
+    side.dataset.navWired = "1";
+
+    side.addEventListener("click", (e) => {
+      const a = e.target.closest("a.sideBtn");
+      if(!a) return;
+
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+      const href = (a.getAttribute("href") || "").trim();
+
+      if(href === "#" || href === ""){
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+
+      if(a.classList.contains("requiresLogin") && !getToken()){
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        showToast("Login required","Please login to use this feature.","error");
+        return;
+      }
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      window.location.assign(href);
+    }, true);
+  }
+
+  function renderShellNav(){
+    if(currentPage() === 'login') return;
+    ensureDashboardShell();
+
+    const token = getToken();
+    const username = getUsername();
+    const isGuest = !token;
+    const page = currentPage();
+
+    const side = document.querySelector('.sidebar');
+    const top = document.getElementById('topbar');
+    if(!side || !top) return;
+
+    side.innerHTML = `
+      <div class="brandMark">ME</div>
+      <div class="sideGroup">
+        <a class="sideBtn ${page==='search'?'active':''}" href="search.html" title="Search"><span class="i">${icon('search')}</span></a>
+        <a class="sideBtn ${page==='library'?'active':''} ${isGuest?'requiresLogin':''}" href="library.html" title="${isGuest?'Login required':'Saved papers'}"><span class="i">${icon('library')}</span></a>
+        <a class="sideBtn ${page==='ai'?'active':''} ${isGuest?'requiresLogin':''}" href="ai.html" title="${isGuest?'Login required':'AI'}"><span class="i">${icon('ai')}</span></a>
+        <a class="sideBtn ${page==='info'?'active':''}" href="info.html" title="Info"><span class="i">${icon('info')}</span></a>
+      </div>
+      <div class="sideSpacer"></div>
+      ${
+        token
+          ? `<a class="sideBtn" href="#" id="logoutSide" title="Logout"><span class="i">${icon('logout')}</span></a>`
+          : `<a class="sideBtn" href="login.html" title="Login"><span class="i">${icon('login')}</span></a>`
+      }
+    `;
+
+    top.innerHTML = `
+      <div class="topLeft">
+        <div class="pageTitle">${esc(pageTitle())}</div>
+      </div>
+
+      <div class="topSearch">
+        <span class="searchIcon">⌕</span>
+        <input id="topSearchInput" placeholder="Search…" autocomplete="off" />
+      </div>
+
+      <div class="topRight">
+        <div class="pill">API: <span class="mono">${esc(API_LABEL)}</span></div>
+        <div class="pill">User: <b id="userPill">${esc(username || (token?'…':'guest'))}</b></div>
+        <div class="pill"><span class="dot" id="tokenDot"></span><span id="tokenPillText">token: ?</span></div>
+        ${token ? `<button class="btn danger" id="logoutBtn">Logout</button>` : `<a class="btn" href="login.html">Login</a>`}
+      </div>
+    `;
+
+    function doLogout(e){
+      if(e) e.preventDefault();
+      clearToken();
+      setUsername('');
+      sessionStorage.removeItem('last_external');
+      sessionStorage.removeItem('open_study_id');
+      window.location.href = 'search.html';
+    }
+
+    const lo1 = document.getElementById('logoutBtn');
+    const lo2 = document.getElementById('logoutSide');
+    if(lo1) lo1.onclick = doLogout;
+    if(lo2) lo2.onclick = doLogout;
+
+    const topInput = document.getElementById('topSearchInput');
+    const q = document.getElementById('q');
+    if(topInput){
+      if(q){
+        topInput.value = q.value || '';
+        topInput.addEventListener('input', ()=>{ q.value = topInput.value; });
+        topInput.addEventListener('keydown', (e)=>{
+          if(e.key !== 'Enter') return;
+          const btn = document.getElementById('searchBtn');
+          if(btn) btn.click();
+        });
+      } else {
+        topInput.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter') showToast('Search','Go to the Search page to run a query.','info');
+        });
+      }
+    }
+
+    wireSidebarDelegation();
+  }
+
+  let __ME_PILL_IN_FLIGHT__ = false;
+  let __TOKEN_PILL_IN_FLIGHT__ = false;
+  let __ME_PILL_LAST_AT__ = 0;
+  let __TOKEN_PILL_LAST_AT__ = 0;
+  const PILL_THROTTLE_MS = 5000;
+
+  async function refreshUserPill(){
+    const el = document.getElementById('userPill');
+    if(!el) return;
+
+    const token = getToken();
+    if(!token){
+      el.textContent = getUsername() || 'guest';
+      return;
+    }
+
+    const now = Date.now();
+    if(__ME_PILL_IN_FLIGHT__) return;
+    if(now - __ME_PILL_LAST_AT__ < PILL_THROTTLE_MS) return;
+    __ME_PILL_LAST_AT__ = now;
+    __ME_PILL_IN_FLIGHT__ = true;
+
+    try{
+      const me = await fetchJson('/me');
+      if(me && me.username){
+        setUsername(me.username);
+        el.textContent = me.username;
+      }
+    }catch{
+      el.textContent = getUsername() || 'guest';
+    }finally{
+      __ME_PILL_IN_FLIGHT__ = false;
+    }
+  }
+
+  async function refreshTokenPill(){
+    const token = getToken();
+    if(!token){
+      setTokenPill('warn','token: guest','Guest mode: login only needed to save/comment/AI.');
+      return;
+    }
+
+    const now = Date.now();
+    if(__TOKEN_PILL_IN_FLIGHT__) return;
+    if(now - __TOKEN_PILL_LAST_AT__ < PILL_THROTTLE_MS) return;
+    __TOKEN_PILL_LAST_AT__ = now;
+    __TOKEN_PILL_IN_FLIGHT__ = true;
+
+    try{
+      const res = await fetchJson('/auth/token_status');
+      if(res && res.valid){
+        const secs = typeof res.seconds_left === 'number' ? res.seconds_left : 0;
+        const mins = Math.max(0, Math.floor(secs/60));
+        setTokenPill('ok', `token: ok (${mins}m)`);
+      } else {
+        setTokenPill('bad','token: bad','Token invalid/expired. Login again.');
+      }
+    }catch(e){
+      setTokenPill('warn','token: err', e?.message || String(e));
+    }finally{
+      __TOKEN_PILL_IN_FLIGHT__ = false;
+    }
+  }
+
+  function wireContinueAsGuest(){
+    const ids = ['continueGuest','continueGuest2','guestBtn','guestBtn2'];
+    const btns = ids.map(id=>document.getElementById(id)).filter(Boolean);
+    btns.forEach(b=>b.addEventListener('click', (e)=>{
+      e.preventDefault();
+      clearToken();
+      setUsername('');
+      sessionStorage.removeItem('last_external');
+      sessionStorage.removeItem('open_study_id');
+      window.location.href = 'search.html';
+    }));
+  }
+
+  async function boot(){
+    renderShellNav();
+    wireContinueAsGuest();
+    await refreshUserPill();
+    await refreshTokenPill();
+  }
+
+  if (!window.__ME_AUTH_CHANGED_WIRED__) {
+    window.__ME_AUTH_CHANGED_WIRED__ = true;
+    window.addEventListener("auth:changed", () => {
+      renderShellNav();
+      refreshUserPill();
+      refreshTokenPill();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.__ME_DID_BOOT__) return;
+    window.__ME_DID_BOOT__ = true;
+    boot();
+  });
+}
+
+
+===== FILE: C:\Users\safad\API-web-\frontend\ui.js =====
+// frontend/ui.js
+export function qs(sel, root = document) {
+  return root.querySelector(sel);
+}
+export function qsa(sel, root = document) {
+  return Array.from(root.querySelectorAll(sel));
+}
+
+export function setText(el, text) {
+  if (!el) return;
+  el.textContent = text;
+}
+
+export function show(el) {
+  if (!el) return;
+  el.style.display = "";
+}
+export function hide(el) {
+  if (!el) return;
+  el.style.display = "none";
+}
+
+export function toast(message, type = "info", ms = 3500) {
+  let host = document.getElementById("toast-host");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "toast-host";
+    host.style.position = "fixed";
+    host.style.right = "16px";
+    host.style.bottom = "16px";
+    host.style.zIndex = "9999";
+    host.style.display = "flex";
+    host.style.flexDirection = "column";
+    host.style.gap = "8px";
+    document.body.appendChild(host);
+  }
+
+  const t = document.createElement("div");
+  t.style.padding = "10px 12px";
+  t.style.borderRadius = "12px";
+  t.style.boxShadow = "0 10px 30px rgba(0,0,0,0.12)";
+  t.style.fontSize = "14px";
+  t.style.maxWidth = "360px";
+  t.style.background = "#111827";
+  t.style.color = "white";
+  t.style.opacity = "0";
+  t.style.transform = "translateY(6px)";
+  t.style.transition = "all .15s ease";
+
+  const tag = type === "error" ? "Error" : type === "success" ? "Success" : "Info";
+  t.innerHTML = `<div style="font-weight:700;margin-bottom:2px;">${tag}</div>
+                 <div style="opacity:.9;line-height:1.25;">${escapeHtml(message)}</div>`;
+
+  host.appendChild(t);
+  requestAnimationFrame(() => {
+    t.style.opacity = "1";
+    t.style.transform = "translateY(0)";
+  });
+
+  setTimeout(() => {
+    t.style.opacity = "0";
+    t.style.transform = "translateY(6px)";
+    setTimeout(() => t.remove(), 250);
+  }, ms);
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+export async function withButtonLoading(btn, fn, loadingText = "Loading...") {
+  if (!btn) return fn();
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = loadingText;
+  try {
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
