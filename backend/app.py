@@ -20,57 +20,54 @@ from backend.routers.health import router as health_router
 from backend.routers.metrics import router as metrics_router
 from backend.routers.studies import router as studies_router
 
-# Setup basic logging to ensure we see startup messages in Railway logs
 logger = logging.getLogger("uvicorn")
 
 def _check_production_secrets() -> None:
     env = os.getenv("ENV", "dev").lower()
     secret = os.getenv("SECRET_KEY", "dev-secret-change-me")
     
-    logger.info(f"Starting app in {env} mode")
+    logger.info(f"🚀 Starting app in {env} mode")
     
-    if env == "production" and secret == "dev-secret-change-me":
-        logger.error("CRITICAL: Default SECRET_KEY used in production!")
-        raise RuntimeError(
-            "SECRET_KEY is still the default dev value in a production environment. "
-            "Set a real SECRET_KEY environment variable before deploying."
-        )
+    # Validation for Railway Production
+    if (env == "production" or os.getenv("RAILWAY_ENVIRONMENT")) and secret == "dev-secret-change-me":
+        logger.error("❌ CRITICAL: Default SECRET_KEY used in production!")
+        raise RuntimeError("Set a real SECRET_KEY environment variable in Railway Settings.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Run safety checks
     _check_production_secrets()
-    # 2. Initialize Database
-    logger.info("Initializing database connection...")
+    logger.info("📡 Initializing database connection...")
     init_db()
-    logger.info("Database initialized successfully.")
     yield
-    logger.info("Shutting down...")
+    logger.info("🛑 Shutting down...")
 
 app = FastAPI(
     title="Medical Evidence API", 
     lifespan=lifespan,
-    # This ensures the docs are always available at /docs
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# Wire middleware
+# 1. Install Core Services
 install_error_handlers(app)
 install_logging(app)
 install_rate_limit(app)
 
+# 2. Configure CORS (Crucial for your Frontend to talk to Railway)
+# allow_credentials must be True if you are sending JWTs via Cookies or Auth Headers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["*"], # For production, replace with your frontend URL
+    allow_credentials=True, 
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
+    expose_headers=["Authorization"],
     max_age=86400,
 )
 
-# Include routers
+
+
+# 3. Include Routers
 app.include_router(auth_router)
 app.include_router(folders_router)
 app.include_router(studies_router)
@@ -85,5 +82,6 @@ def root():
     return {
         "status": "ok", 
         "message": "Medical Evidence backend running",
-        "environment": os.getenv("ENV", "dev")
+        "environment": os.getenv("ENV", "dev"),
+        "docs": "/docs"
     }
