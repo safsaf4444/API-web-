@@ -2,8 +2,18 @@
 // Global helpers for ALL pages (no modules). Must be loaded before app.js.
 
 (() => {
-  const API_BASE = window.API_BASE || "http://127.0.0.1:8000"; // backend
+  // --- CONFIGURATION ---
+  const RAILWAY_URL = "https://api-web-production-89b9.up.railway.app";
+  const LOCAL_URL = "http://127.0.0.1:8000";
 
+  // AUTO-DETECT: Use Railway if on the web, otherwise use local
+  const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
+    ? LOCAL_URL 
+    : RAILWAY_URL;
+
+  console.log(`🔌 Seren API: Connecting to ${API_BASE}`);
+
+  // --- HELPERS ---
   function qs(id) { return document.getElementById(id); }
   function $(id) { return qs(id); }
 
