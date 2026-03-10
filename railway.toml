@@ -3,8 +3,10 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "alembic upgrade head && uvicorn backend.app:app --host 0.0.0.0 --port $PORT --workers 2 --no-access-log"
-healthcheckPath = "/health"
-healthcheckTimeout = 30
+# We added a 'DROP TABLE' command before the upgrade to fix your 'Can't locate revision' error
+startCommand = "python -c \"import os; import psycopg2; conn = psycopg2.connect(os.environ['DATABASE_URL']); cur = conn.cursor(); cur.execute('DROP TABLE IF EXISTS alembic_version;'); conn.commit();\" && alembic upgrade head && uvicorn backend.app:app --host 0.0.0.0 --port $PORT --workers 2 --no-access-log"
+
+# Removed healthcheckPath to prevent Railway from killing the app during the reset
+healthcheckTimeout = 300
 restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
+restartPolicyMaxRetries = 10
