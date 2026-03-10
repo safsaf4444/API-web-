@@ -2,8 +2,8 @@
 builder = "nixpacks"
 
 [deploy]
-# Use the $PORT variable provided by Railway
-startCommand = "alembic upgrade head && uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
+# We'll use a single string and ensure uvicorn is the main process
+startCommand = "alembic upgrade head; uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
 
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
