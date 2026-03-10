@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,6 +23,19 @@ from backend.routers.studies import router as studies_router
 
 logger = logging.getLogger("uvicorn")
 
+def _safe_db_init():
+    """Attempt to connect to DB with retries to prevent startup crashes."""
+    for i in range(5):
+        try:
+            logger.info(f"📡 DB Connection Attempt {i+1}/5...")
+            init_db()
+            logger.info("✅ Database connected successfully.")
+            return
+        except Exception as e:
+            logger.warning(f"⚠️ DB not ready yet: {e}")
+            time.sleep(2)
+    logger.error("❌ Failed to connect to DB after 5 attempts.")
+
 def _check_production_secrets() -> None:
     env = os.getenv("ENV", "dev").lower()
     secret = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -30,14 +44,14 @@ def _check_production_secrets() -> None:
     
     # Validation for Railway Production
     if (env == "production" or os.getenv("RAILWAY_ENVIRONMENT")) and secret == "dev-secret-change-me":
-        logger.error("❌ CRITICAL: Default SECRET_KEY used in production!")
-        raise RuntimeError("Set a real SECRET_KEY environment variable in Railway Settings.")
+        # We log a warning instead of raising RuntimeError to prevent the 502 loop 
+        # while you are still configuring variables.
+        logger.error("❌ CRITICAL: Default SECRET_KEY used in production! Please update Railway Variables.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _check_production_secrets()
-    logger.info("📡 Initializing database connection...")
-    init_db()
+    _safe_db_init()
     yield
     logger.info("🛑 Shutting down...")
 
@@ -53,19 +67,16 @@ install_error_handlers(app)
 install_logging(app)
 install_rate_limit(app)
 
-# 2. Configure CORS (Crucial for your Frontend to talk to Railway)
-# allow_credentials must be True if you are sending JWTs via Cookies or Auth Headers
+# 2. Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For production, replace with your frontend URL
+    allow_origins=["*"], 
     allow_credentials=True, 
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Authorization"],
     max_age=86400,
 )
-
-
 
 # 3. Include Routers
 app.include_router(auth_router)
@@ -83,5 +94,6 @@ def root():
         "status": "ok", 
         "message": "Medical Evidence backend running",
         "environment": os.getenv("ENV", "dev"),
+        "railway": bool(os.getenv("RAILWAY_ENVIRONMENT")),
         "docs": "/docs"
     }

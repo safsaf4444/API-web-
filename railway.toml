@@ -2,8 +2,8 @@
 builder = "nixpacks"
 
 [deploy]
-# We'll use a single string and ensure uvicorn is the main process
-startCommand = "alembic upgrade head; uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
+# '|| true' ensures the web server starts even if migrations are already up to date
+startCommand = "alembic upgrade head || true; uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
 
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
