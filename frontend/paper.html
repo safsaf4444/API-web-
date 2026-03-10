@@ -1,85 +1,163 @@
-﻿<!-- frontend/paper.html -->
-<!doctype html>
-<html>
+﻿<!doctype html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Paper - Medical Evidence</title>
+  <title>Paper — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
+  <style>
+    /* ── Paper layout overrides ── */
+    #paperSplit {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) 380px;
+      gap: 20px;
+      align-items: start;
+      max-width: none;
+    }
+    #paperSplit.drawerMode       { grid-template-columns: 1fr; }
+    #paperSplit.panelClosed .paperRight { display: none; }
+    #paperSplit.drawerMode .paperRight {
+      position: fixed;
+      right: 20px; top: 76px; bottom: 20px;
+      width: min(420px, calc(100vw - 40px));
+      z-index: 1200;
+      overflow-y: auto;
+    }
+    @media (max-width: 1000px) {
+      #paperSplit { grid-template-columns: 1fr; }
+      #paperSplit .paperRight { position: static; }
+    }
+
+    .paperLeft  { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .paperRight { position: sticky; top: 76px; min-width: 0; }
+
+    /* Panel card fills available height */
+    .paperRight .card {
+      height: calc(100vh - 100px);
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    @media (max-width: 1000px) {
+      .paperRight .card { height: auto; min-height: 500px; }
+    }
+
+    /* Paper title */
+    .paperTitle {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.4;
+      letter-spacing: -0.015em;
+      margin-bottom: 10px;
+    }
+
+    /* Save row */
+    .saveRow {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid var(--line2);
+    }
+    .saveRow select { width: auto; min-width: 130px; padding: 7px 10px; font-size: 13px; }
+    #saveMsg { font-size: 12.5px; min-height: 16px; margin-top: 6px; }
+
+    /* Section headers */
+    .sectionLabel {
+      font-size: 10.5px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--subtle); margin-bottom: 10px;
+    }
+
+    /* Abstract */
+    .abstractBox { font-size: 13.5px; line-height: 1.78; color: var(--text2); }
+    .abstractBox p { margin: 0 0 10px; }
+    .abstractBox p:last-child { margin-bottom: 0; }
+
+    /* Authors */
+    #authorsBox { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+    /* Full text */
+    #fullTextBox {
+      font-size: 13px; line-height: 1.78; color: var(--text2);
+      max-height: 520px; overflow-y: auto; margin-top: 12px;
+    }
+    #fullTextBox p { margin: 0 0 12px; }
+    #fullTextHint { font-size: 12.5px; color: var(--subtle); line-height: 1.6; }
+
+    /* Panel internals */
+    .panelTopRow {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      margin-bottom: 12px; flex-shrink: 0;
+    }
+    .panelLabel { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--navy); }
+    .panelCtrl  { display: flex; gap: 6px; }
+    .panelBody  { flex: 1; overflow-y: auto; margin-top: 12px; }
+
+    .hr { border: none; border-top: 1px solid var(--line2); margin: 12px 0; }
+  </style>
 </head>
 
-<body class="appDark">
-<header>
-  <div class="headerInner">
-    <div class="brand">Medical Evidence</div>
-    <nav id="nav" class="navRow"></nav>
-  </div>
-</header>
+<body>
+<main id="paperSplit">
 
-<main class="split" id="paperSplit">
-  <!-- LEFT -->
+  <!-- ══════════ LEFT ══════════ -->
   <div class="paperLeft">
+
     <div class="card">
-      <div class="paperTitle" id="title">(paper)</div>
-      <div class="paperMetaLine" id="meta"></div>
-
-      <div class="itemActions" style="margin-top:12px;">
-        <button type="button" class="primary" id="saveBtn">Save to my library</button>
-        <button type="button" id="openBtn">Open best link</button>
+      <div class="paperTitle" id="title">Loading…</div>
+      <div id="meta"></div>
+      <div class="saveRow">
+        <button type="button" class="btn primary" id="saveBtn">Save to library</button>
+        <button type="button" class="btn" id="openBtn" disabled>Open DOI ↗</button>
+        <select id="saveFolderPick"><option value="">No folder</option></select>
       </div>
-
-      <div style="margin-top:10px;">
-        <label>Save to folder</label>
-        <select id="saveFolderPick" style="max-width:220px;">
-          <option value="">No folder</option>
-        </select>
-      </div>
-      <div class="small" id="saveMsg" style="margin-top:10px;"></div>
+      <div id="saveMsg"></div>
     </div>
 
     <div class="card" id="authorsCard" style="display:none;">
-      <div class="sectionLabel">AUTHORS</div>
+      <div class="sectionLabel">Authors</div>
       <div class="hr"></div>
-      <div class="prose" id="authorsBox"></div>
+      <div id="authorsBox"></div>
     </div>
 
     <div class="card">
-      <div class="sectionLabel">ABSTRACT</div>
+      <div class="sectionLabel">Abstract</div>
       <div class="hr"></div>
-      <div class="abstractBox">
-        <div class="prose" id="abstract">(abstract)</div>
+      <div class="abstractBox" id="abstract">
+        <span style="color:var(--subtle);font-style:italic;">Loading…</span>
       </div>
     </div>
 
     <div class="card">
-      <div class="sectionLabel">FULL TEXT (OPEN ACCESS)</div>
+      <div class="sectionLabel">Full Text (Open Access)</div>
       <div class="hr"></div>
-      <div class="small" id="fullTextHint">
-        If the paper has an Open Access full text (usually via PMCID in Europe PMC), you can load it here.
+      <div id="fullTextHint">If the paper has an Open Access full text (via PMCID in Europe PMC), you can load it here.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        <button type="button" class="btn primary sm" id="loadFullBtn" disabled>Load full text (OA)</button>
+        <button type="button" class="btn sm" id="openFullBtn" disabled>Open provider page ↗</button>
       </div>
-      <div class="itemActions" style="margin-top:12px;">
-        <button type="button" class="primary" id="loadFullBtn">Load full text (OA)</button>
-        <button type="button" id="openFullBtn">Open provider page</button>
-      </div>
-      <div class="hr" style="margin-top:12px;"></div>
-      <div class="prose" id="fullTextBox" style="max-height:520px;overflow:auto;">
-        <div class="small">(not loaded)</div>
+      <div class="hr"></div>
+      <div id="fullTextBox">
+        <span style="color:var(--subtle);font-style:italic;font-size:13px;">Not loaded.</span>
       </div>
     </div>
+
   </div>
 
-  <!-- RIGHT -->
+  <!-- ══════════ RIGHT (PANEL) ══════════ -->
   <div class="paperRight">
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <h3 style="margin:0;">PANELS</h3>
-        <div style="display:flex;gap:10px;">
-          <button type="button" id="modeBtn">Mode: Side</button>
-          <button type="button" id="closeBtn">Close</button>
+      <div class="panelTopRow">
+        <div class="panelLabel">Panel</div>
+        <div class="panelCtrl">
+          <button type="button" class="btn sm ghost" id="modeBtn">⇄ Side</button>
+          <button type="button" class="btn sm ghost" id="closeBtn">✕</button>
         </div>
       </div>
 
-      <div class="tabPills" style="margin-top:12px;">
+      <div class="tabPills" style="flex-shrink:0;">
         <div class="tabPill active" data-tab="thread">Thread</div>
         <div class="tabPill" data-tab="ai">AI</div>
         <div class="tabPill" data-tab="related">Related</div>
@@ -88,6 +166,7 @@
       <div class="panelBody" id="panel"></div>
     </div>
   </div>
+
 </main>
 
 <script src="api.js"></script>
@@ -99,9 +178,6 @@ if (window.__ME_PAPER_INIT__) {
 } else {
 window.__ME_PAPER_INIT__ = true;
 
-/* ═══════════════════════════════════════════
-   STATE
-═══════════════════════════════════════════ */
 let external    = null;
 let savedStudy  = null;
 let meUser      = null;
@@ -112,21 +188,14 @@ let __THREAD_LAST_FETCH_AT__ = 0;
 const THREAD_FETCH_THROTTLE_MS = 700;
 let __THREAD_SHELL_READY__   = false;
 
-/* AI chat state — lives outside showAI so tab switches preserve history */
 let __AI_MESSAGES__ = [];
 let __AI_BASE__     = null;
 let __AI_WIRED__    = false;
 
-/* ═══════════════════════════════════════════
-   DOM HELPERS
-═══════════════════════════════════════════ */
 function setSaveMsg(html) { qs("saveMsg").innerHTML = html || ""; }
 function setPanel(html)   { qs("panel").innerHTML   = html || ""; }
 function setFullText(html){ qs("fullTextBox").innerHTML = html || ""; }
 
-/* ═══════════════════════════════════════════
-   PAPER SELECTION
-═══════════════════════════════════════════ */
 function getCurrentPaper() {
   const ext = sessionStorage.getItem("last_external");
   if (ext) {
@@ -170,9 +239,6 @@ async function ensureSavedStudy() {
   return null;
 }
 
-/* ═══════════════════════════════════════════
-   UTILITIES
-═══════════════════════════════════════════ */
 function normStr(x) { return (x || "").toString().trim(); }
 
 function stripHtml(s) {
@@ -209,9 +275,6 @@ function normalizeAuthors(p) {
   return [];
 }
 
-/* ═══════════════════════════════════════════
-   LINK HELPERS
-═══════════════════════════════════════════ */
 function looksLikeApiUrl(u) {
   if (!u) return false;
   const s = String(u).toLowerCase();
@@ -249,12 +312,9 @@ function bestHumanLink(p) {
 
 function canLoadOAFullText(p) { return !!normStr(p?.pmcid); }
 
-/* ═══════════════════════════════════════════
-   FORMATTING
-═══════════════════════════════════════════ */
 function formatAbstractHtml(raw) {
   const clean = stripHtml(raw);
-  if (!clean) return `<div class="small">(no abstract)</div>`;
+  if (!clean) return `<span style="color:var(--subtle);font-style:italic;">No abstract available.</span>`;
 
   const re = /(Background|Objective|Objectives|Methods|Method|Design|Participants|Interventions|Main outcome measures|Results|Conclusion|Conclusions|Discussion|Interpretation|Funding)\s*:\s*/ig;
   const hits = [];
@@ -264,23 +324,21 @@ function formatAbstractHtml(raw) {
   if (hits.length) {
     const parts = [];
     for (let i = 0; i < hits.length; i++) {
-      const start      = hits[i].idx;
-      const label      = hits[i].label;
-      const end        = (i+1 < hits.length) ? hits[i+1].idx : clean.length;
-      const colonPos   = clean.indexOf(":", start);
+      const start        = hits[i].idx;
+      const label        = hits[i].label;
+      const end          = (i+1 < hits.length) ? hits[i+1].idx : clean.length;
+      const colonPos     = clean.indexOf(":", start);
       const contentStart = colonPos >= 0 ? colonPos+1 : start;
-      const content    = clean.slice(contentStart, end).trim();
+      const content      = clean.slice(contentStart, end).trim();
       if (content) parts.push({ label, content });
     }
-    return parts.map(s => `
-      <div style="margin:10px 0;">
-        <div style="font-weight:900;">${escapeHtml(s.label)}:</div>
-        <div>${escapeHtml(s.content)}</div>
-      </div>`).join("");
+    return parts.map(s =>
+      `<p><strong style="color:var(--navy);">${escapeHtml(s.label)}:</strong> ${escapeHtml(s.content)}</p>`
+    ).join("");
   }
 
   const sentences = clean.split(/(?<=\.)\s+/).filter(Boolean);
-  if (sentences.length <= 2) return `<div>${escapeHtml(clean)}</div>`;
+  if (sentences.length <= 2) return `<p>${escapeHtml(clean)}</p>`;
   const out = [];
   let chunk = [];
   for (const s of sentences) {
@@ -293,7 +351,7 @@ function formatAbstractHtml(raw) {
 
 function formatFullTextHtml(text) {
   const clean = stripHtml(text);
-  if (!clean) return `<div class="small">(no full text returned)</div>`;
+  if (!clean) return `<span style="color:var(--subtle);">(no full text returned)</span>`;
   const paras = clean.split(/\n{2,}|\.\s{2,}/g).map(x => x.trim()).filter(Boolean);
   if (paras.length <= 1) {
     const limited = clean.split(/(?<=\.)\s+/).filter(Boolean).slice(0, 120);
@@ -301,12 +359,11 @@ function formatFullTextHtml(text) {
   }
   const limited = paras.slice(0, 180);
   return limited.map(p => `<p>${escapeHtml(p)}</p>`).join("")
-    + (paras.length > limited.length ? `<div class="small" style="opacity:.8;">(truncated for readability)</div>` : "");
+    + (paras.length > limited.length
+      ? `<p style="color:var(--subtle);font-style:italic;font-size:12px;">(truncated for readability)</p>`
+      : "");
 }
 
-/* ═══════════════════════════════════════════
-   ENRICHMENT
-═══════════════════════════════════════════ */
 async function enrichFromEuropePMC(p) {
   const doi   = normStr(p.doi);
   const pmid  = normStr(p.pmid);
@@ -350,9 +407,6 @@ async function ensureAbstractAndPMC(p) {
   return out;
 }
 
-/* ═══════════════════════════════════════════
-   RENDER
-═══════════════════════════════════════════ */
 function renderAuthors(p) {
   const authors = normalizeAuthors(p);
   const card = qs("authorsCard");
@@ -372,6 +426,7 @@ const STUDY_TYPE_LABELS_PAPER = {
   observational: "Observational", cohort: "Cohort", case_control: "Case-Control",
   case_report: "Case Report", review: "Review", editorial: "Editorial", other: "Other",
 };
+
 function detectStudyTypePaper(p) {
   if (p.study_type) return p.study_type.toLowerCase().replace(/[\s-]/g, "_");
   const text = ((p.title || "") + " " + (p.abstract || "")).toLowerCase();
@@ -380,14 +435,15 @@ function detectStudyTypePaper(p) {
   if (/\bsystematic\s+review\b/.test(text))        return "systematic_review";
   if (/\bcohort\b/.test(text))                     return "cohort";
   if (/\bcase.control\b/.test(text))               return "case_control";
-  if (/\bcase\s+report\b/.test(text))             return "case_report";
+  if (/\bcase\s+report\b/.test(text))              return "case_report";
   if (/\breview\b/.test(text))                     return "review";
   if (/\beditorial\b/.test(text))                  return "editorial";
   if (/\bobservational\b/.test(text))              return "observational";
   return null;
 }
+
 function renderPaper(p) {
-  qs("title").textContent = (p.title || "(untitled)").toUpperCase();
+  qs("title").textContent = p.title || "(untitled)";
 
   const studyType = detectStudyTypePaper(p);
   const typeLabel = studyType ? (STUDY_TYPE_LABELS_PAPER[studyType] || studyType) : null;
@@ -395,17 +451,17 @@ function renderPaper(p) {
   const srcLabel = SOURCE_LABELS_PAPER[p.source] || p.source || "";
 
   const badges = [
-    p.year    ? `<span class="badge">${escapeHtml(String(p.year))}</span>` : "",
-    p.venue   ? `<span class="badge">${escapeHtml(p.venue)}</span>` : "",
-    srcLabel  ? `<span class="badge blue">${escapeHtml(srcLabel)}</span>` : "",
-    typeLabel ? `<span class="badge" style="background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.25);color:#b45309;">${escapeHtml(typeLabel)}</span>` : "",
-    isOA      ? `<span class="badge green">Open Access</span>` : "",
-    p.doi     ? `<span class="badge" style="font-family:monospace;font-size:.72rem;">DOI: ${escapeHtml(p.doi)}</span>` : "",
-    p.pmid    ? `<span class="badge" style="font-size:.72rem;">PMID: ${escapeHtml(p.pmid)}</span>` : "",
-    p.pmcid   ? `<span class="badge" style="font-size:.72rem;">PMC: ${escapeHtml(p.pmcid)}</span>` : "",
-  ].filter(Boolean).join(" ");
+    p.year    ? `<span class="badge blue">${escapeHtml(String(p.year))}</span>` : "",
+    p.venue   ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.venue)}</span>` : "",
+    srcLabel  ? `<span class="badge coffee">${escapeHtml(srcLabel)}</span>` : "",
+    typeLabel ? `<span class="badge green">${escapeHtml(typeLabel)}</span>` : "",
+    isOA      ? `<span class="badge sage">Open Access</span>` : "",
+    p.doi     ? `<span class="badge" style="font-family:monospace;font-size:10.5px;">DOI: ${escapeHtml(p.doi)}</span>` : "",
+    p.pmid    ? `<span class="badge" style="font-size:10.5px;">PMID: ${escapeHtml(p.pmid)}</span>` : "",
+    p.pmcid   ? `<span class="badge" style="font-size:10.5px;">PMC: ${escapeHtml(p.pmcid)}</span>` : "",
+  ].filter(Boolean).join("");
 
-  qs("meta").innerHTML = `<div class="itemMeta" style="flex-wrap:wrap;gap:6px;">${badges}</div>`;
+  qs("meta").innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;">${badges}</div>`;
   qs("abstract").innerHTML = formatAbstractHtml(p.abstract || "");
   renderAuthors(p);
 
@@ -420,32 +476,29 @@ function renderPaper(p) {
   qs("openFullBtn").onclick  = () => { if (prov) window.open(prov, "_blank"); };
 
   qs("fullTextHint").innerHTML = canOA
-    ? `<span class="small">Open Access full text available (PMCID detected). Load it inline below.</span>`
-    : `<span class="small">No PMCID detected. We\'ll try to find one automatically via Europe PMC.</span>`;
+    ? `Open Access full text available (PMCID detected). Load it inline below.`
+    : `No PMCID detected — will try to find one via Europe PMC.`;
 }
 
-/* ═══════════════════════════════════════════
-   FULL TEXT
-═══════════════════════════════════════════ */
 async function loadOAFullTextForPaper(p) {
   const pmcid = normStr(p.pmcid);
-  if (!pmcid) { setFullText(`<div class="small">No PMCID available.</div>`); return; }
-  setFullText(`<div class="small">Loading…</div>`);
+  if (!pmcid) { setFullText(`<span style="color:var(--subtle);">No PMCID available.</span>`); return; }
+  setFullText(`<span style="color:var(--subtle);">Loading…</span>`);
   try {
     const r = await fetchJson(
       `/external/fulltext?source=europepmc&pmcid=${encodeURIComponent(pmcid)}`,
       { auth:false }
     );
     if (r && r.available === false) {
-      setFullText(`<div class="small">${escapeHtml(r.message || "Full text not available.")}</div>`);
+      setFullText(`<span style="color:var(--subtle);">${escapeHtml(r.message || "Full text not available.")}</span>`);
       return;
     }
     if (r && r.html) { setFullText(String(r.html)); return; }
     const text = (r && (r.text || r.full_text || "")) || "";
-    if (!text) { setFullText(`<div class="small">No OA full text returned.</div>`); return; }
+    if (!text) { setFullText(`<span style="color:var(--subtle);">No OA full text returned.</span>`); return; }
     setFullText(formatFullTextHtml(String(text)));
   } catch(e) {
-    setFullText(`<div class="small" style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</div>`);
+    setFullText(`<span style="color:var(--bad);font-weight:600;">${escapeHtml(e.message)}</span>`);
     showToast("Full text failed", e.message, "error");
   }
 }
@@ -456,9 +509,6 @@ qs("loadFullBtn").onclick = async () => {
   await withBtnLoading(qs("loadFullBtn"), () => loadOAFullTextForPaper(p), "Loading…");
 };
 
-/* ═══════════════════════════════════════════
-   SAVE
-═══════════════════════════════════════════ */
 async function fillSaveFolderPick() {
   if (!getToken()) return;
   try {
@@ -502,7 +552,7 @@ function markSavedUI(saved) {
   savedStudy = saved;
   sessionStorage.setItem("open_study_id", String(saved.id));
   sessionStorage.removeItem("last_external");
-  setSaveMsg(`<span class="badge green">Saved</span>`);
+  setSaveMsg(`<span class="badge green">✓ Saved to library</span>`);
   qs("saveBtn").textContent = "Saved";
   qs("saveBtn").disabled = true;
 }
@@ -530,14 +580,14 @@ async function doSave() {
       showToast("Saved", "Added to your library.", "success");
     } catch(e) {
       if (isProbablyNetworkError(e) || e?.isNetwork) {
-        setSaveMsg(`<span class="small">Checking library…</span>`);
+        setSaveMsg(`<span style="font-size:12px;color:var(--subtle);">Checking library…</span>`);
         const found = await tryFindSavedInLibrary(external);
         if (found) { markSavedUI(found); showToast("Saved", "Saved (network hiccup).", "success"); return; }
-        setSaveMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
+        setSaveMsg(`<span style="color:var(--bad);font-size:12.5px;">${escapeHtml(e.message)}</span>`);
         showToast("Save uncertain", "Could not confirm. Try refresh Library.", "error");
         return;
       }
-      setSaveMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
+      setSaveMsg(`<span style="color:var(--bad);font-size:12.5px;">${escapeHtml(e.message)}</span>`);
       showToast("Save failed", e.message, "error");
     }
   }, "Saving...");
@@ -545,9 +595,6 @@ async function doSave() {
 }
 qs("saveBtn").onclick = doSave;
 
-/* ═══════════════════════════════════════════
-   TABS
-═══════════════════════════════════════════ */
 function setActiveTab(tab) {
   document.querySelectorAll(".tabPill").forEach(x => x.classList.remove("active"));
   const el = document.querySelector(`.tabPill[data-tab="${tab}"]`);
@@ -568,9 +615,6 @@ function setActiveTab(tab) {
   });
 })();
 
-/* ═══════════════════════════════════════════
-   THREAD
-═══════════════════════════════════════════ */
 function isThreadShellPresent() {
   return !!(qs("commentList") && qs("commentBox") && qs("postBtn") && qs("threadHint"));
 }
@@ -580,16 +624,16 @@ function renderThreadShell() {
   __THREAD_SHELL_READY__ = false;
 
   setPanel(`
-    <div class="small" style="font-weight:900;">Comments</div>
-    <div class="small" id="threadHint">Loading…</div>
+    <div style="font-size:11.5px;font-weight:700;color:var(--subtle);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">Comments</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;" id="threadHint">Loading…</div>
     <div class="hr"></div>
-    <div class="list" id="commentList"><div class="item small">Loading…</div></div>
+    <div id="commentList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
     <div class="hr"></div>
-    <textarea id="commentBox" placeholder="Write a comment..."></textarea>
-    <div style="margin-top:10px;">
-      <button type="button" class="primary fullWidthBtn" id="postBtn">Post Comment</button>
+    <textarea id="commentBox" placeholder="Write a comment…" style="min-height:56px;font-size:13px;"></textarea>
+    <div style="margin-top:8px;">
+      <button type="button" class="btn primary" style="width:100%;" id="postBtn">Post Comment</button>
     </div>
-    <div class="small" id="threadMsg" style="margin-top:8px;"></div>
+    <div style="font-size:12px;min-height:16px;margin-top:6px;" id="threadMsg"></div>
   `);
 
   const panel = qs("panel");
@@ -615,10 +659,10 @@ function renderThreadShell() {
         if (!bodyEl) return;
         const cur = bodyEl.textContent || "";
         bodyEl.innerHTML = `
-          <textarea id="editBox_${id}">${escapeHtml(cur)}</textarea>
-          <div class="itemActions" style="margin-top:10px;">
-            <button type="button" class="btn primary" data-save-edit="${id}">Save</button>
-            <button type="button" class="btn" data-cancel-edit="${id}">Cancel</button>
+          <textarea id="editBox_${id}" style="font-size:13px;">${escapeHtml(cur)}</textarea>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button type="button" class="btn primary sm" data-save-edit="${id}">Save</button>
+            <button type="button" class="btn sm" data-cancel-edit="${id}">Cancel</button>
           </div>`;
         return;
       }
@@ -646,7 +690,7 @@ function renderThreadShell() {
         qs("commentBox").value = "";
         await showThread(true);
       } catch(err) {
-        qs("threadMsg").innerHTML = `<span style="color:var(--bad);font-weight:900;">${escapeHtml(err.message)}</span>`;
+        qs("threadMsg").innerHTML = `<span style="color:var(--bad);font-size:12px;">${escapeHtml(err.message)}</span>`;
         showToast("Comment failed", err.message, "error");
       }
     }, "Posting...");
@@ -658,9 +702,9 @@ function renderThreadShell() {
 function commentActionsHtml(canEdit, id) {
   if (!canEdit) return "";
   return `
-    <div class="itemActions" style="margin-top:10px;">
-      <button type="button" class="btn" data-edit="${id}">Edit</button>
-      <button type="button" class="btn danger" data-del="${id}">Delete</button>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <button type="button" class="btn sm ghost" data-edit="${id}">Edit</button>
+      <button type="button" class="btn sm danger" data-del="${id}">Delete</button>
     </div>`;
 }
 
@@ -674,7 +718,7 @@ function renderCommentList(comments) {
   const wasNearBottom = (prevTop + panel.clientHeight) >= (prevHeight - 40);
 
   if (!comments || !comments.length) {
-    list.innerHTML = `<div class="item small">No comments yet.</div>`;
+    list.innerHTML = `<div style="font-size:13px;color:var(--subtle);font-style:italic;padding:4px 0;">No comments yet.</div>`;
     requestAnimationFrame(() => { panel.scrollTop = prevTop; });
     return;
   }
@@ -683,11 +727,14 @@ function renderCommentList(comments) {
   for (const c of comments) {
     const canEdit = meUser && c.author === meUser.username;
     html += `
-      <div class="item" data-cwrap="${c.id}">
-        <div><b>${escapeHtml(c.author)}</b> <span class="small">${escapeHtml(new Date(c.created_at).toLocaleString())}</span></div>
-        <div class="small" style="margin-top:6px;color:var(--text);" data-body="${c.id}">${escapeHtml(c.body)}</div>
+      <div style="background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;" data-cwrap="${c.id}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+          <b style="font-size:12.5px;color:var(--navy);">${escapeHtml(c.author)}</b>
+          <span style="font-size:11px;color:var(--subtle);">${escapeHtml(new Date(c.created_at).toLocaleString())}</span>
+        </div>
+        <div style="font-size:13px;margin-top:6px;color:var(--text2);line-height:1.6;" data-body="${c.id}">${escapeHtml(c.body)}</div>
         ${commentActionsHtml(canEdit, c.id)}
-        <div class="small" data-msg="${c.id}" style="margin-top:8px;"></div>
+        <div style="font-size:12px;min-height:14px;margin-top:4px;" data-msg="${c.id}"></div>
       </div>`;
   }
   list.innerHTML = html;
@@ -709,7 +756,7 @@ async function showThread(force = false) {
   try {
     if (!getToken()) {
       qs("threadHint").textContent = "Login required to view/post comments.";
-      qs("commentList").innerHTML  = `<div class="item small">Login required.</div>`;
+      qs("commentList").innerHTML  = `<div style="font-size:13px;color:var(--subtle);">Login required.</div>`;
       qs("commentBox").disabled    = true;
       qs("postBtn").disabled       = true;
       return;
@@ -719,7 +766,7 @@ async function showThread(force = false) {
 
     if (!getToken()) {
       qs("threadHint").textContent = "Session expired. Please log in again.";
-      qs("commentList").innerHTML  = `<div class="item small"><a class="btn" href="login.html">Login</a></div>`;
+      qs("commentList").innerHTML  = `<a class="btn sm" href="login.html">Login</a>`;
       qs("commentBox").disabled    = true;
       qs("postBtn").disabled       = true;
       return;
@@ -733,27 +780,24 @@ async function showThread(force = false) {
 
     qs("threadHint").textContent = s
       ? "Thread is active."
-      : "This paper is not saved yet. Posting will auto-save first.";
+      : "Paper not saved yet. Posting will auto-save first.";
 
     const now      = Date.now();
     const canFetch = force || (now - __THREAD_LAST_FETCH_AT__ > THREAD_FETCH_THROTTLE_MS);
-    if (!s)         { renderCommentList([]); return; }
-    if (!canFetch)  return;
+    if (!s)        { renderCommentList([]); return; }
+    if (!canFetch) return;
     __THREAD_LAST_FETCH_AT__ = now;
 
     const comments = await fetchJson(`/studies/${s.id}/comments`);
     renderCommentList(comments);
   } catch(e) {
     qs("threadHint").textContent = "Failed to load comments.";
-    qs("commentList").innerHTML  = `<div class="item small" style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</div>`;
+    qs("commentList").innerHTML  = `<div style="color:var(--bad);font-size:12.5px;">${escapeHtml(e.message)}</div>`;
   } finally {
     __THREAD_IN_FLIGHT__ = false;
   }
 }
 
-/* ═══════════════════════════════════════════
-   AI CHAT
-═══════════════════════════════════════════ */
 function _aiMsgHtml(msg) {
   const time = new Date(msg.ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
 
@@ -770,7 +814,6 @@ function _aiMsgHtml(msg) {
       <div class="aiMsgBubble">⚠ ${escapeHtml(msg.text)}</div>
     </div>`;
 
-  // AI response — markdown-lite
   const html = escapeHtml(msg.text)
     .replace(/\*\*(.+?)\*\*/g,  '<strong>$1</strong>')
     .replace(/^### (.+)$/gm,    '<div class="aiHead">$1</div>')
@@ -781,7 +824,7 @@ function _aiMsgHtml(msg) {
 
   return `
     <div class="aiMsg aiMsg--ai">
-      <div class="aiMsgAvatar">AI</div>
+      <div class="aiMsgAvatar">S</div>
       <div class="aiMsgBody">
         <div class="aiMsgBubble">${html}</div>
         <div class="aiMsgMeta">${time}</div>
@@ -827,9 +870,8 @@ async function showAI() {
 
   if (!getToken()) {
     setPanel(`
-      <div class="small">Login required to use AI.</div>
-      <div class="hr"></div>
-      <a class="btn" href="login.html">Login</a>`);
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Login required to use AI.</div>
+      <a class="btn primary" href="login.html">Sign in</a>`);
     return;
   }
 
@@ -839,7 +881,6 @@ async function showAI() {
     year: p.year, pmid: p.pmid, pmcid: p.pmcid, doi: p.doi,
   };
 
-  /* Only build shell once — tab switches preserve history */
   if (!__AI_WIRED__ || !document.getElementById("aiFeed")) {
     setPanel(`
       <div class="aiShell">
@@ -852,8 +893,8 @@ async function showAI() {
         <div class="aiInputRow">
           <textarea id="aiQBox" placeholder="Ask a question… (Ctrl+Enter to send)" rows="2"></textarea>
           <div class="aiActions">
-            <button type="button" class="primary" id="aiSumBtn">Summarize</button>
-            <button type="button" id="aiAskBtn">Ask</button>
+            <button type="button" class="btn primary sm" id="aiSumBtn">Summarize</button>
+            <button type="button" class="btn sm" id="aiAskBtn">Ask</button>
           </div>
         </div>
         <div class="aiFooter">Free AI included · <a href="ai.html">Add BYOK key</a> for your preferred model</div>
@@ -901,23 +942,19 @@ async function showAI() {
     });
 
   } else {
-    /* Tab switched back — re-render messages only, shell preserved */
     _aiRender();
   }
 }
 
-/* ═══════════════════════════════════════════
-   RELATED
-═══════════════════════════════════════════ */
 async function showRelated() {
   __THREAD_SHELL_READY__ = false;
   setActiveTab("related");
 
   const p = savedStudy || external;
   const q = shortTitleKeywords(p?.title || "");
-  if (!q) { setPanel(`<div class="small">No keywords available to find related papers.</div>`); return; }
+  if (!q) { setPanel(`<div style="font-size:13px;color:var(--subtle);">No keywords available to find related papers.</div>`); return; }
 
-  setPanel(`<div class="small">Finding related papers…</div>`);
+  setPanel(`<div style="font-size:13px;color:var(--subtle);">Finding related papers…</div>`);
 
   try {
     const src = (p?.source || "europepmc");
@@ -925,34 +962,29 @@ async function showRelated() {
       `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(src)}&limit=10&cursor_mark=*`,
       { auth:false }
     );
-    // Smart ranking: sort by year desc (newest first), exclude current paper
     const items = (r.items || [])
       .filter(x => x.source_id !== p.source_id)
       .sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0))
       .slice(0, 10);
 
-    if (!items.length) { setPanel(`<div class="small">No related results found for: <b>${escapeHtml(q)}</b></div>`); return; }
+    if (!items.length) { setPanel(`<div style="font-size:13px;color:var(--subtle);">No related results found for: <b>${escapeHtml(q)}</b></div>`); return; }
 
-    let html = `<div class="small" style="margin-bottom:8px;">Related · sorted by year · <b>${escapeHtml(q)}</b></div><div class="hr"></div><div class="list">`;
+    let html = `<div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">Related · sorted by year</div>`;
     for (const it of items) {
       const relType = detectStudyTypePaper(it);
       const relTypeLabel = relType ? (STUDY_TYPE_LABELS_PAPER[relType] || relType) : null;
       const relOA = !!((it.pmcid || "").toString().trim());
       html += `
-        <div class="item">
-          <div class="itemTitle">${escapeHtml(it.title)}</div>
-          <div class="itemMeta" style="margin-top:6px;">
-            ${it.year ? `<span class="badge">${escapeHtml(String(it.year))}</span>` : ""}
-            <span class="badge blue">${escapeHtml(SOURCE_LABELS_PAPER[it.source] || it.source)}</span>
-            ${relTypeLabel ? `<span class="badge" style="background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.25);color:#b45309;">${escapeHtml(relTypeLabel)}</span>` : ""}
-            ${relOA ? `<span class="badge green">OA</span>` : ""}
-          </div>
-          <div class="itemActions">
-            <button type="button" class="primary" data-open-rel="1">Open</button>
+        <div style="background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color .12s;" data-open-rel="1">
+          <div style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:6px;">${escapeHtml(it.title)}</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            ${it.year ? `<span class="badge blue">${escapeHtml(String(it.year))}</span>` : ""}
+            <span class="badge coffee">${escapeHtml(SOURCE_LABELS_PAPER[it.source] || it.source)}</span>
+            ${relTypeLabel ? `<span class="badge green">${escapeHtml(relTypeLabel)}</span>` : ""}
+            ${relOA ? `<span class="badge sage">OA</span>` : ""}
           </div>
         </div>`;
     }
-    html += `</div>`;
     setPanel(html);
 
     Array.from(qs("panel").querySelectorAll('[data-open-rel="1"]')).forEach((b, idx) => {
@@ -963,17 +995,14 @@ async function showRelated() {
       };
     });
   } catch(e) {
-    setPanel(`<div class="small" style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</div>`);
+    setPanel(`<div style="color:var(--bad);font-size:13px;">${escapeHtml(e.message)}</div>`);
     showToast("Related failed", e.message, "error");
   }
 }
 
-/* ═══════════════════════════════════════════
-   PANEL MODE + CLOSE
-═══════════════════════════════════════════ */
 function setMode(mode) {
   qs("paperSplit").classList.toggle("drawerMode", mode === "drawer");
-  qs("modeBtn").textContent = `Mode: ${mode === "drawer" ? "Drawer" : "Side"}`;
+  qs("modeBtn").textContent = mode === "drawer" ? "⇄ Drawer" : "⇄ Side";
   sessionStorage.setItem("paper_panel_mode", mode);
 }
 
@@ -983,12 +1012,9 @@ qs("modeBtn").onclick  = () => {
 };
 qs("closeBtn").onclick = () => {
   const closed = qs("paperSplit").classList.toggle("panelClosed");
-  qs("closeBtn").textContent = closed ? "Open" : "Close";
+  qs("closeBtn").textContent = closed ? "Open" : "✕";
 };
 
-/* ═══════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════ */
 (async function init() {
   const ref = getCurrentPaper();
   setMode(sessionStorage.getItem("paper_panel_mode") || "side");
@@ -1012,14 +1038,13 @@ qs("closeBtn").onclick = () => {
           catch { sessionStorage.removeItem("last_external"); }
         }
         if (!p) {
-          qs("title").textContent    = "NO PAPER SELECTED";
+          qs("title").textContent    = "Paper not found";
           qs("saveBtn").disabled     = true;
           qs("openBtn").disabled     = true;
           qs("loadFullBtn").disabled = true;
           qs("openFullBtn").disabled = true;
-          setFullText(`<div class="small">(not loaded)</div>`);
           await fillSaveFolderPick();
-          setPanel(`<div class="small">That saved paper no longer exists. Go back to Search/Library and open again.</div>`);
+          setPanel(`<div style="font-size:13px;color:var(--subtle);">That saved paper no longer exists. Go back to Search or Library and open again.</div>`);
           return;
         }
       }
@@ -1029,19 +1054,17 @@ qs("closeBtn").onclick = () => {
     p = external;
     qs("saveBtn").disabled = !getToken();
   } else {
-    qs("title").textContent    = "NO PAPER SELECTED";
+    qs("title").textContent    = "No paper selected";
     qs("saveBtn").disabled     = true;
     qs("openBtn").disabled     = true;
     qs("loadFullBtn").disabled = true;
     qs("openFullBtn").disabled = true;
-    setFullText(`<div class="small">(not loaded)</div>`);
     await fillSaveFolderPick();
-    setPanel(`<div class="small">Select a paper from Search or Library.</div>`);
+    setPanel(`<div style="font-size:13px;color:var(--subtle);">Select a paper from Search or Library.</div>`);
     return;
   }
 
   renderPaper(p);
-  setFullText(`<div class="small">(not loaded)</div>`);
 
   const enriched = await ensureAbstractAndPMC(p);
 

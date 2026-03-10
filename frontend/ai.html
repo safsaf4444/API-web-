@@ -1,39 +1,153 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>AI - Medical Evidence</title>
+  <title>AI — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .aiPageLayout { display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 20px; align-items: start; }
+    @media (max-width: 780px) { .aiPageLayout { grid-template-columns: 1fr; } }
+
+    .aiSideCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      position: sticky;
+      top: 80px;
+    }
+
+    .aiSideLabel {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      margin-bottom: 14px;
+    }
+
+    .keyStatus {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--r-sm);
+      background: var(--surface2);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .providerCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 18px 20px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow-xs);
+    }
+
+    .providerName {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--navy);
+      margin-bottom: 4px;
+    }
+
+    .providerDesc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    .keyInput { display: flex; gap: 8px; margin-top: 12px; }
+    .keyInput input { flex: 1; }
+
+    .keyMsg { font-size: 12.5px; min-height: 16px; margin-top: 8px; }
+
+    .infoBox {
+      background: linear-gradient(135deg, rgba(201,168,124,.08), rgba(201,168,124,.03));
+      border: 1px solid rgba(201,168,124,.20);
+      border-radius: var(--r);
+      padding: 16px 18px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.65;
+    }
+  </style>
 </head>
 <body>
-<header>
-  <div class="headerInner">
-    <div class="brand">Medical Evidence</div>
-    <nav id="nav" class="navRow"></nav>
-  </div>
-</header>
-
 <main>
-  <div class="card">
-    <h2>AI</h2>
-    <div class="small">
-      This page is a simple BYOK check. For paper-based AI, use the Paper page → Panels → AI tab.
+  <div class="aiPageLayout">
+
+    <!-- LEFT: key management -->
+    <aside>
+      <div class="aiSideCard">
+        <div class="aiSideLabel">AI Key Status</div>
+
+        <div class="keyStatus" id="keyStatusBadge">
+          <span class="dot" id="keyDot"></span>
+          <span id="keyStatusText">Checking…</span>
+        </div>
+
+        <div>
+          <label>Set BYOK key</label>
+          <div class="keyInput">
+            <input id="keyInput" placeholder="sk-... or AIza... or gsk_..."/>
+          </div>
+          <div class="keyMsg" id="keyMsg"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+            <button class="btn primary" id="saveKeyBtn">Save key</button>
+            <button class="btn danger" id="clearKeyBtn">Clear key</button>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-size:11.5px;color:var(--subtle);line-height:1.6;">
+            Keys are encrypted at rest. Prefix detection: <span class="mono">sk-ant-</span> → Anthropic · <span class="mono">AIza</span> → Gemini · <span class="mono">gsk_</span> → Groq · else OpenAI.
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT: info + providers -->
+    <div>
+      <div style="font-family:var(--font-display);font-size:26px;font-weight:600;color:var(--navy);margin-bottom:16px;letter-spacing:-0.02em;">AI Assistant</div>
+
+      <div class="infoBox">
+        <strong>Paper-based AI</strong> lives in the paper panel. Open any paper → Panel → AI tab to summarise or ask questions. This page manages your API key and shows available providers.
+      </div>
+
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);margin-bottom:12px;">Providers</div>
+
+      <div class="providerCard">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div class="providerName">Gemini Flash <span class="badge green" style="margin-left:6px;">Free</span></div>
+          <span class="badge sage">Default</span>
+        </div>
+        <div class="providerDesc">Google Gemini 1.5 Flash — no key required. Used automatically as the primary provider.</div>
+      </div>
+
+      <div class="providerCard">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div class="providerName">Groq (Llama 3.3) <span class="badge green" style="margin-left:6px;">Free</span></div>
+          <span class="badge">Fallback</span>
+        </div>
+        <div class="providerDesc">Llama 3.3 70B via Groq — free tier fallback when Gemini quota is reached.</div>
+      </div>
+
+      <div class="providerCard">
+        <div class="providerName">OpenAI / Anthropic / Gemini Pro / Groq</div>
+        <div class="providerDesc">Bring your own key for premium models. Set your key in the panel to the left. Auto-detected from key prefix.</div>
+      </div>
+
+      <div class="providerCard">
+        <div class="providerName">Ollama <span class="badge brass" style="margin-left:6px;">Local</span></div>
+        <div class="providerDesc">Route to a local Ollama instance at <span class="mono">localhost:11434</span>. Zero data leaves your device.</div>
+      </div>
     </div>
-  </div>
 
-  <div class="card">
-    <h3>Key status</h3>
-    <div class="small" id="status">(loading)</div>
-
-    <div class="hr"></div>
-
-    <label>Set OpenAI API key</label>
-    <input id="k" placeholder="sk-..." />
-    <div class="itemActions" style="margin-top:12px;">
-      <button class="primary" id="save">Save</button>
-      <button id="clear">Clear</button>
-    </div>
   </div>
 </main>
 
@@ -42,33 +156,49 @@
 <script>
 requireAuthOrRedirect();
 
+function $id(id){ return document.getElementById(id); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+function setKeyMsg(html){ $id('keyMsg').innerHTML=html||''; }
+
 async function refresh(){
   try{
-    const s = await fetchJson("/ai/key_status");
-    $("status").innerHTML = s.has_key
-      ? `<span class="badge green">key set</span> ${escapeHtml(s.masked || "")}`
-      : `<span class="badge">no key set</span>`;
+    const s=await fetchJson('/ai/key_status');
+    const dot=$id('keyDot'), text=$id('keyStatusText');
+    if(s.has_key){
+      dot.className='dot ok';
+      text.textContent=`Key set — ${s.masked||''}`;
+    } else {
+      dot.className='dot warn';
+      text.textContent='No BYOK key — using free tier';
+    }
   }catch(e){
-    $("status").innerHTML = `<span style="color:var(--danger);font-weight:900;">${escapeHtml(e.message)}</span>`;
+    $id('keyStatusText').textContent='Error checking status';
   }
 }
 
-$("save").onclick = async () => {
+$id('saveKeyBtn').onclick=async()=>{
+  const key=$id('keyInput').value.trim();
+  if(!key){ setKeyMsg('<span style="color:var(--bad);">Enter a key first.</span>'); return; }
   try{
-    await fetchJson("/ai/set_key", { method:"POST", json:{ api_key: $("k").value.trim() }});
-    $("k").value = "";
-    refresh();
+    await fetchJson('/ai/set_key',{method:'POST',body:{api_key:key}});
+    $id('keyInput').value='';
+    setKeyMsg('<span class="badge green">✓ Key saved</span>');
+    await refresh();
+    showToast('Key saved','Your AI key has been encrypted and stored.','success');
   }catch(e){
-    alert(e.message);
+    setKeyMsg(`<span style="color:var(--bad);">${esc(e.message)}</span>`);
   }
 };
 
-$("clear").onclick = async () => {
+$id('clearKeyBtn').onclick=async()=>{
+  const ok=await confirmModal({title:'Clear AI key?',message:'This removes your stored key. AI will fall back to the free tier.',okText:'Clear key',cancelText:'Cancel',danger:true});
+  if(!ok)return;
   try{
-    await fetchJson("/ai/clear_key", { method:"DELETE" });
-    refresh();
+    await fetchJson('/ai/clear_key',{method:'DELETE'});
+    setKeyMsg('<span class="badge">Key cleared</span>');
+    await refresh();
   }catch(e){
-    alert(e.message);
+    setKeyMsg(`<span style="color:var(--bad);">${esc(e.message)}</span>`);
   }
 };
 

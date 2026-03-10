@@ -1,186 +1,181 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Info - Medical Evidence</title>
+  <title>About — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .infoLayout { max-width: 760px; }
+    .infoSection { margin-bottom: 28px; }
+
+    .infoCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-xs);
+      margin-bottom: 10px;
+    }
+
+    .infoCardTitle {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--navy);
+      margin-bottom: 8px;
+    }
+
+    .infoCardBody {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    .infoCardBody .mono {
+      background: var(--surface2);
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-size: 12px;
+    }
+
+    .infoPageTitle {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--navy);
+      margin-bottom: 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .infoPageSub {
+      font-size: 13px;
+      color: var(--subtle);
+      margin-bottom: 24px;
+    }
+
+    .sectionHeading {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      margin-bottom: 10px;
+    }
+  </style>
 </head>
 <body>
-<header>
-  <div class="headerInner">
-    <div class="brand">Medical Evidence</div>
-    <nav id="nav" class="navRow"></nav>
-  </div>
-</header>
-
 <main>
-  <div class="card">
-    <h2>Info</h2>
-    <div class="small">
-      This page explains how keys work for AI and Semantic Scholar. Search is available in Guest Mode, but saving, comments, and AI require login.
-    </div>
-  </div>
+  <div class="infoLayout">
 
-  <!-- Guest / Login -->
-  <div class="card">
-    <h3>Guest Mode vs Login</h3>
-    <div class="list">
-      <div class="item">
-        <div class="itemTitle">Guest Mode</div>
-        <div class="small" style="margin-top:6px;">
-          You can search and open papers from external providers (Europe PMC, Semantic Scholar).
-          You can’t save, comment, or use AI without logging in.
-        </div>
+    <div class="infoPageTitle">About Seren</div>
+    <div class="infoPageSub">Medical evidence research platform — documentation and key management.</div>
+
+    <!-- Guest vs Login -->
+    <div class="infoSection">
+      <div class="sectionHeading">Access Levels</div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Guest Mode</div>
+        <div class="infoCardBody">Search and open papers from Europe PMC, Semantic Scholar, OpenAlex, and Crossref without logging in. Full-text loading and DOI resolution also work as a guest.</div>
       </div>
 
-      <div class="item">
-        <div class="itemTitle">Login Required For</div>
-        <div class="small" style="margin-top:6px;">
-          • Saving papers to your library<br/>
-          • Notes and folders<br/>
-          • Comment threads<br/>
-          • AI features (Summarize / Ask)
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- AI BYOK -->
-  <div class="card">
-    <h3>AI (BYOK — Bring Your Own Key)</h3>
-    <div class="small">
-      The app does not ship with an AI key. You provide your own OpenAI API key and the backend uses it only for your requests.
-    </div>
-
-    <div class="hr"></div>
-
-    <div class="list">
-      <div class="item">
-        <div class="itemTitle">What happens when I set my key?</div>
-        <div class="small" style="margin-top:6px;">
-          • Your key is sent to the backend over HTTP (localhost).<br/>
-          • The backend stores it <b>encrypted</b> in the database tied to your user.<br/>
-          • The frontend does <b>not</b> store your OpenAI key in localStorage.
-        </div>
-      </div>
-
-      <div class="item">
-        <div class="itemTitle">What uses the key?</div>
-        <div class="small" style="margin-top:6px;">
-          These endpoints require login and a stored key:<br/>
-          • <span class="mono">POST /ai/summarize</span><br/>
-          • <span class="mono">POST /ai/ask</span>
-          <div style="margin-top:8px;">
-            The AI only sees the paper’s title + abstract (unless you add full-text support later).
-          </div>
-        </div>
-      </div>
-
-      <div class="item">
-        <div class="itemTitle">Key management endpoints</div>
-        <div class="small" style="margin-top:6px;">
-          • <span class="mono">POST /ai/set_key</span> — store/update your key<br/>
-          • <span class="mono">GET /ai/key_status</span> — shows masked key status<br/>
-          • <span class="mono">DELETE /ai/clear_key</span> — remove your key
-        </div>
-      </div>
-
-      <div class="item">
-        <div class="itemTitle">Security notes (local dev)</div>
-        <div class="small" style="margin-top:6px;">
-          Since you run this locally, “security” is mostly about not leaking keys into the browser.
-          For production, use HTTPS, stronger secret management, and rotate keys.
+      <div class="infoCard">
+        <div class="infoCardTitle">Requires Login</div>
+        <div class="infoCardBody">
+          Saving papers to your library · Folders and notes · Comment threads · AI summarisation and Q&A · BYOK key management
         </div>
       </div>
     </div>
 
-    <div class="hr"></div>
+    <!-- AI -->
+    <div class="infoSection">
+      <div class="sectionHeading">AI Engine</div>
 
-    <div class="itemActions">
-      <button class="primary requiresLogin" id="checkAiBtn">Check AI Key Status</button>
-      <button class="requiresLogin" id="clearAiBtn">Clear AI Key</button>
-    </div>
-    <div class="small" id="aiMsg" style="margin-top:10px;"></div>
-  </div>
+      <div class="infoCard">
+        <div class="infoCardTitle">Free AI — no key needed</div>
+        <div class="infoCardBody">Gemini 1.5 Flash is included by default with no API key required. Groq (Llama 3.3 70B) serves as an automatic fallback when Gemini quota is reached.</div>
+      </div>
 
-  <!-- Semantic Scholar -->
-  <div class="card">
-    <h3>Semantic Scholar API Key</h3>
-    <div class="small">
-      Semantic Scholar often rate-limits unauthenticated requests. Adding an API key increases reliability and reduces “429 Too Many Requests”.
-    </div>
-
-    <div class="hr"></div>
-
-    <div class="list">
-      <div class="item">
-        <div class="itemTitle">Where does the Semantic Scholar key go?</div>
-        <div class="small" style="margin-top:6px;">
-          The Semantic Scholar key should be configured on the <b>backend</b> as an environment variable.
-          The frontend does not need to store it.
+      <div class="infoCard">
+        <div class="infoCardTitle">BYOK — Bring Your Own Key</div>
+        <div class="infoCardBody">
+          Set your own API key on the AI page to unlock premium models. Keys are auto-detected by prefix:<br/>
+          <span class="mono">sk-ant-</span> → Anthropic Claude &nbsp;·&nbsp;
+          <span class="mono">AIza</span> → Gemini Pro &nbsp;·&nbsp;
+          <span class="mono">gsk_</span> → Groq &nbsp;·&nbsp;
+          anything else → OpenAI<br/><br/>
+          Keys are encrypted with Fernet before being stored. The frontend never stores your key in localStorage.
         </div>
       </div>
 
-      <div class="item">
-        <div class="itemTitle">How to set it (recommended)</div>
-        <div class="small" style="margin-top:6px;">
-          Set an environment variable before starting the backend (name depends on your backend code).<br/>
-          Common patterns are:
-          <div class="mono" style="margin-top:8px;">
-            SEMANTIC_SCHOLAR_API_KEY=your_key_here
-          </div>
-          Then restart the backend.
-        </div>
-      </div>
-
-      <div class="item">
-        <div class="itemTitle">How you’ll know it’s working</div>
-        <div class="small" style="margin-top:6px;">
-          Searches against Semantic Scholar should stop throwing <b>429</b> errors and return results consistently.
+      <div class="infoCard">
+        <div class="infoCardTitle">AI Endpoints</div>
+        <div class="infoCardBody">
+          <span class="mono">POST /ai/summarize</span> — structured summary of a paper's abstract<br/>
+          <span class="mono">POST /ai/ask</span> — answer a specific question about a paper<br/>
+          <span class="mono">POST /ai/set_key</span> · <span class="mono">GET /ai/key_status</span> · <span class="mono">DELETE /ai/clear_key</span>
         </div>
       </div>
     </div>
+
+    <!-- Semantic Scholar -->
+    <div class="infoSection">
+      <div class="sectionHeading">Semantic Scholar</div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">API Key (Optional)</div>
+        <div class="infoCardBody">
+          Semantic Scholar rate-limits unauthenticated requests aggressively. To reduce 429 errors, add your key to the backend environment:<br/><br/>
+          <span class="mono">SEMANTIC_SCHOLAR_API_KEY=your_key_here</span><br/><br/>
+          Then restart the backend. The key is backend-only and never stored in the frontend.
+        </div>
+      </div>
+    </div>
+
+    <!-- Key check -->
+    <div class="infoSection">
+      <div class="sectionHeading">Key Management</div>
+      <div class="infoCard">
+        <div class="infoCardTitle">Check AI Key Status</div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <button class="btn primary sm" id="checkAiBtn">Check status</button>
+          <button class="btn danger sm" id="clearAiBtn">Clear key</button>
+        </div>
+        <div style="font-size:12.5px;min-height:18px;margin-top:10px;" id="aiMsg"></div>
+      </div>
+    </div>
+
   </div>
 </main>
 
 <script src="api.js"></script>
 <script src="app.js"></script>
 <script>
-function setAiMsg(html){ qs("aiMsg").innerHTML = html || ""; }
+function $id(id){ return document.getElementById(id); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
 
-qs("checkAiBtn").onclick = async () => {
-  if (!getToken()) return; // requiresLogin already blocks guests with toast
-  setAiMsg("Checking...");
+$id('checkAiBtn').onclick=async()=>{
+  if(!getToken()){ showToast('Sign in required','Log in to check your AI key status.','error'); return; }
   try{
-    const r = await fetchJson("/ai/key_status");
-    if (r && r.has_key){
-      setAiMsg(`<span class="badge green">Key set</span> <span class="small">(${escapeHtml(r.masked || "")})</span>`);
-    } else {
-      setAiMsg(`<span class="badge">No key set</span> <span class="small">Go to the AI page to add your key.</span>`);
-    }
+    const r=await fetchJson('/ai/key_status');
+    $id('aiMsg').innerHTML=r.has_key
+      ?`<span class="badge green">Key set</span> <span style="color:var(--muted);">${esc(r.masked||'')}</span>`
+      :`<span class="badge">No key set</span> <span style="color:var(--subtle);">Free tier active</span>`;
   }catch(e){
-    setAiMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
+    $id('aiMsg').innerHTML=`<span style="color:var(--bad);">${esc(e.message)}</span>`;
   }
 };
 
-qs("clearAiBtn").onclick = async () => {
-  if (!getToken()) return;
-  const ok = await confirmModal({
-    title: "Clear AI key?",
-    message: "This removes your stored OpenAI key from the server. AI will stop working until you set it again.",
-    okText: "Clear key",
-    cancelText: "Cancel",
-    danger: true
-  });
-  if(!ok) return;
-
-  setAiMsg("Clearing...");
+$id('clearAiBtn').onclick=async()=>{
+  if(!getToken()){ showToast('Sign in required','Log in to manage your AI key.','error'); return; }
+  const ok=await confirmModal({title:'Clear AI key?',message:'Your key will be removed. AI falls back to the free tier.',okText:'Clear',cancelText:'Cancel',danger:true});
+  if(!ok)return;
   try{
-    await fetchJson("/ai/clear_key", { method:"DELETE" });
-    setAiMsg(`<span class="badge green">Cleared</span>`);
+    await fetchJson('/ai/clear_key',{method:'DELETE'});
+    $id('aiMsg').innerHTML='<span class="badge">Cleared</span>';
   }catch(e){
-    setAiMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
+    $id('aiMsg').innerHTML=`<span style="color:var(--bad);">${esc(e.message)}</span>`;
   }
 };
 </script>

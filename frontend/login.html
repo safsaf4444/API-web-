@@ -1,288 +1,303 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Login - Medical Evidence</title>
+  <title>Sign in — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
-</head>
+  <style>
+    .authErr { color: var(--bad); font-weight: 600; font-size: 12.5px; }
+    .authOk  { color: var(--good); font-weight: 600; font-size: 12.5px; }
 
+    .authGrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 480px) { .authGrid2 { grid-template-columns: 1fr; } }
+
+    .authInputWrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .authInputWrap input { padding-right: 40px; }
+    .eyeBtn {
+      position: absolute;
+      right: 10px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 4px 6px;
+      cursor: pointer;
+      color: var(--subtle);
+      font-size: 13px;
+      line-height: 1;
+    }
+    .eyeBtn:hover { color: var(--text2); transform: none; background: transparent; }
+
+    .authDivider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--subtle);
+      font-size: 11.5px;
+      font-weight: 500;
+      margin: 4px 0;
+    }
+    .authDivider::before, .authDivider::after { content:''; flex:1; height:1px; background:var(--line); }
+
+    .authFoot {
+      font-size: 12.5px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .authFoot a { color: var(--brass2); text-decoration: none; font-weight: 600; }
+    .authFoot a:hover { text-decoration: underline; }
+
+    .authMeta {
+      margin-top: 14px;
+      font-size: 11.5px;
+      color: var(--subtle);
+      text-align: center;
+    }
+
+    /* Stats row in visual panel */
+    .authStats {
+      display: flex;
+      gap: 20px;
+      margin-top: 16px;
+    }
+    .authStat { }
+    .authStatNum {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--brass);
+    }
+    .authStatLabel {
+      font-size: 11px;
+      color: rgba(245,240,232,.5);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: 2px;
+    }
+
+    .authHint {
+      font-size: 11.5px;
+      color: rgba(245,240,232,.4);
+      margin-top: 16px;
+      line-height: 1.5;
+      font-style: italic;
+    }
+
+    .authPill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: var(--r-pill);
+      border: 1px solid rgba(201,168,124,.25);
+      background: rgba(201,168,124,.08);
+      color: var(--brass);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-top: 8px;
+    }
+  </style>
+</head>
 <body class="authBody">
   <div class="authShell">
     <div class="authCard">
 
-      <!-- LEFT: visual panel -->
+      <!-- LEFT: visual -->
       <section class="authVisual">
-        <div class="authVisualTop">
+        <div>
           <div class="authLogo">
-            <span class="authLogoMark">ME</span>
-            <span class="authLogoText">Medical Evidence</span>
+            <div class="authLogoMark">S</div>
+            <span class="authLogoText">Seren</span>
           </div>
-          <span class="authPill">Evidence-first • BYOK AI</span>
+          <div class="authTagline">Medical Evidence Research Platform</div>
+          <div class="authPill">Evidence-first · Free AI included · BYOK</div>
         </div>
 
-        <div class="authVisualMid">
-          <h1>Capture papers.<br/>Build evidence.</h1>
-          <p>
-            Search (Europe PMC + Semantic Scholar), save to your library, add notes,
-            discuss in threads, and run AI analysis.
-          </p>
+        <div class="authVisualQuote">
+          <p>"The goal of science is to build better mousetraps. The goal of medicine is to build better patients."</p>
+          <span>Evidence-based medicine</span>
         </div>
 
-        <div class="authVisualBottom">
+        <div>
           <div class="authStats">
             <div class="authStat">
-              <div class="authStatNum">2</div>
-              <div class="authStatLabel">providers</div>
+              <div class="authStatNum">4</div>
+              <div class="authStatLabel">Providers</div>
+            </div>
+            <div class="authStat">
+              <div class="authStatNum">Free</div>
+              <div class="authStatLabel">AI included</div>
             </div>
             <div class="authStat">
               <div class="authStatNum">BYOK</div>
-              <div class="authStatLabel">AI mode</div>
-            </div>
-            <div class="authStat">
-              <div class="authStatNum">JWT</div>
-              <div class="authStatLabel">secure auth</div>
+              <div class="authStatLabel">Your key</div>
             </div>
           </div>
-          <div class="authHint">Tip: Guest mode lets you browse/search. Login to save + comment.</div>
+          <div class="authHint">Guest mode lets you search freely. Log in to save papers, annotate, and use AI.</div>
         </div>
-
-        <div class="authGlow"></div>
       </section>
 
-      <!-- RIGHT: form panel -->
+      <!-- RIGHT: form -->
       <section class="authForm">
-        <div class="authFormHeader">
-          <h2 id="formTitle">Welcome back</h2>
-          <p class="muted" id="formSubtitle">Log in to your account to save papers and comment.</p>
+        <div style="margin-bottom:20px;">
+          <h2 id="formTitle" style="margin-bottom:4px;">Welcome back</h2>
+          <p class="muted" id="formSubtitle" style="font-size:13px;margin:0;">Sign in to your Seren account.</p>
         </div>
 
-        <!-- Tabs -->
-        <div class="authTabs" role="tablist" aria-label="Auth tabs">
-          <button class="authTab active" id="tabLogin" type="button">Login</button>
-          <button class="authTab" id="tabRegister" type="button">Register</button>
+        <div class="authTabs">
+          <button class="authTab active" id="tabLogin" type="button">Sign in</button>
+          <button class="authTab" id="tabRegister" type="button">Create account</button>
         </div>
 
-        <!-- LOGIN -->
-        <form id="loginForm" class="authFields">
-          <label class="authLabel">Username</label>
-          <input id="loginUsername" class="authInput" autocomplete="username" placeholder="username"/>
-
-          <label class="authLabel">Password</label>
-          <div class="authInputRow">
-            <input id="loginPassword" class="authInput" type="password" autocomplete="current-password" placeholder="password"/>
-            <button class="authIconBtn" id="toggleLoginPw" type="button" aria-label="Show/hide password">👁</button>
-          </div>
-
-          <button class="authPrimary" id="loginBtn" type="submit">Login</button>
-
-          <!-- PATCH: single guest button id that app.js can auto-wire -->
-          <button class="authGhost" id="continueGuest" type="button">Continue as guest</button>
-
-          <div class="authMsg" id="loginMsg"></div>
-
-          <div class="authFoot">
-            <span class="muted">No account?</span>
-            <a href="#" id="goRegister">Create one</a>
-          </div>
-        </form>
-
-        <!-- REGISTER -->
-        <form id="registerForm" class="authFields" style="display:none;">
-          <div class="authGrid2">
+        <!-- LOGIN FORM -->
+        <form id="loginForm">
+          <div class="authFields">
             <div>
-              <label class="authLabel">Username</label>
-              <input id="regUsername" class="authInput" autocomplete="username" placeholder="username"/>
+              <label>Username</label>
+              <input id="loginUsername" autocomplete="username" placeholder="your username"/>
             </div>
             <div>
-              <label class="authLabel">Email</label>
-              <input id="regEmail" class="authInput" autocomplete="email" placeholder="email@example.com"/>
+              <label>Password</label>
+              <div class="authInputWrap">
+                <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••"/>
+                <button class="eyeBtn" id="toggleLoginPw" type="button" tabindex="-1">👁</button>
+              </div>
             </div>
           </div>
 
-          <label class="authLabel">Password</label>
-          <div class="authInputRow">
-            <input id="regPassword" class="authInput" type="password" autocomplete="new-password" placeholder="password"/>
-            <button class="authIconBtn" id="toggleRegPw" type="button" aria-label="Show/hide password">👁</button>
+          <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
+            <button class="primary authPrimary" id="loginBtn" type="submit">Sign in</button>
+            <div class="authDivider">or</div>
+            <button class="authSecondary" id="continueGuest" type="button">Continue as guest</button>
           </div>
 
-          <label class="authLabel">Confirm password</label>
-          <input id="regPassword2" class="authInput" type="password" autocomplete="new-password" placeholder="confirm password"/>
+          <div class="authMsg" id="loginMsg" style="margin-top:10px;min-height:18px;"></div>
 
-          <button class="authPrimary" id="registerBtn" type="submit">Create account</button>
-
-          <!-- PATCH: reuse same guest button id (works regardless of tab) -->
-          <button class="authGhost" id="continueGuest2" type="button">Continue as guest</button>
-
-          <div class="authMsg" id="regMsg"></div>
-
-          <div class="authFoot">
-            <span class="muted">Already have an account?</span>
-            <a href="#" id="goLogin">Login</a>
+          <div class="authFoot" style="margin-top:12px;">
+            No account? <a href="#" id="goRegister">Create one →</a>
           </div>
         </form>
 
-        <div class="authMeta">
-          <span class="muted">API:</span> <span class="mono">http://127.0.0.1:8000</span>
-        </div>
+        <!-- REGISTER FORM -->
+        <form id="registerForm" style="display:none;">
+          <div class="authFields">
+            <div class="authGrid2">
+              <div>
+                <label>Username</label>
+                <input id="regUsername" autocomplete="username" placeholder="username"/>
+              </div>
+              <div>
+                <label>Email</label>
+                <input id="regEmail" autocomplete="email" placeholder="you@example.com"/>
+              </div>
+            </div>
+            <div>
+              <label>Password</label>
+              <div class="authInputWrap">
+                <input id="regPassword" type="password" autocomplete="new-password" placeholder="••••••••"/>
+                <button class="eyeBtn" id="toggleRegPw" type="button" tabindex="-1">👁</button>
+              </div>
+            </div>
+            <div>
+              <label>Confirm password</label>
+              <input id="regPassword2" type="password" autocomplete="new-password" placeholder="••••••••"/>
+            </div>
+          </div>
+
+          <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
+            <button class="primary authPrimary" id="registerBtn" type="submit">Create account</button>
+            <div class="authDivider">or</div>
+            <button class="authSecondary" id="continueGuest2" type="button">Continue as guest</button>
+          </div>
+
+          <div class="authMsg" id="regMsg" style="margin-top:10px;min-height:18px;"></div>
+
+          <div class="authFoot" style="margin-top:12px;">
+            Already have an account? <a href="#" id="goLogin">Sign in →</a>
+          </div>
+        </form>
+
+        <div class="authMeta">API: <span class="mono">http://127.0.0.1:8000</span></div>
       </section>
+
     </div>
   </div>
 
-  <!-- IMPORTANT: api.js MUST be loaded from same folder as login.html -->
   <script src="./api.js"></script>
-
-  <!-- PATCH: load app.js so the guest button + navbar logic is consistent everywhere -->
   <script src="./app.js"></script>
-
   <script>
-    // ---- Failsafe helpers (work even if api.js didn't load)
-    function safeClearToken(){
-      try { localStorage.removeItem("token"); } catch {}
-    }
-    function safeSetUsername(u){
-      try {
-        if (u) localStorage.setItem("username", u);
-        else localStorage.removeItem("username");
-      } catch {}
-    }
-    function safeEscapeHtml(s){
-      return String(s ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function $(id){ return document.getElementById(id); }
-    function setMsg(id, html){ $(id).innerHTML = html || ""; }
+    function $id(id){ return document.getElementById(id); }
+    function setMsg(id,html){ $id(id).innerHTML=html||''; }
+    function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
 
     function setMode(mode){
-      const isLogin = mode === "login";
-      $("tabLogin").classList.toggle("active", isLogin);
-      $("tabRegister").classList.toggle("active", !isLogin);
-
-      $("loginForm").style.display = isLogin ? "block" : "none";
-      $("registerForm").style.display = isLogin ? "none" : "block";
-
-      $("formTitle").textContent = isLogin ? "Welcome back" : "Create an account";
-      $("formSubtitle").textContent = isLogin
-        ? "Log in to your account to save papers and comment."
-        : "Register to start saving papers and notes.";
-      setMsg("loginMsg", "");
-      setMsg("regMsg", "");
+      const isLogin=mode==='login';
+      $id('tabLogin').classList.toggle('active',isLogin);
+      $id('tabRegister').classList.toggle('active',!isLogin);
+      $id('loginForm').style.display=isLogin?'block':'none';
+      $id('registerForm').style.display=isLogin?'none':'block';
+      $id('formTitle').textContent=isLogin?'Welcome back':'Create an account';
+      $id('formSubtitle').textContent=isLogin?'Sign in to your Seren account.':'Register to start building your evidence library.';
+      setMsg('loginMsg',''); setMsg('regMsg','');
     }
 
-    function togglePw(inputId){
-      const el = $(inputId);
-      el.type = (el.type === "password") ? "text" : "password";
-    }
+    function togglePw(id){ const el=$id(id); el.type=el.type==='password'?'text':'password'; }
 
-    $("tabLogin").onclick = () => setMode("login");
-    $("tabRegister").onclick = () => setMode("register");
-    $("goRegister").onclick = (e) => { e.preventDefault(); setMode("register"); };
-    $("goLogin").onclick = (e) => { e.preventDefault(); setMode("login"); };
+    $id('tabLogin').onclick=()=>setMode('login');
+    $id('tabRegister').onclick=()=>setMode('register');
+    $id('goRegister').onclick=e=>{e.preventDefault();setMode('register');};
+    $id('goLogin').onclick=e=>{e.preventDefault();setMode('login');};
+    $id('toggleLoginPw').onclick=()=>togglePw('loginPassword');
+    $id('toggleRegPw').onclick=()=>togglePw('regPassword');
 
-    $("toggleLoginPw").onclick = () => togglePw("loginPassword");
-    $("toggleRegPw").onclick = () => togglePw("regPassword");
-
-    // PATCH: single guest handler, wired to both buttons
     function goGuest(){
-      if (typeof clearToken === "function") clearToken(); else safeClearToken();
-      if (typeof setUsername === "function") setUsername(""); else safeSetUsername("");
-
-      try {
-        sessionStorage.removeItem("last_external");
-        sessionStorage.removeItem("open_study_id");
-      } catch {}
-
-      window.location.href = "search.html";
+      try{ clearToken(); }catch{ try{localStorage.removeItem('token');}catch{} }
+      try{ setUsername(''); }catch{ try{localStorage.removeItem('username');}catch{} }
+      try{ sessionStorage.removeItem('last_external'); sessionStorage.removeItem('open_study_id'); }catch{}
+      window.location.href='search.html';
     }
+    [$id('continueGuest'),$id('continueGuest2')].filter(Boolean).forEach(b=>b.onclick=goGuest);
 
-    const g1 = $("continueGuest");
-    if (g1) g1.onclick = goGuest;
-
-    const g2 = $("continueGuest2");
-    if (g2) g2.onclick = goGuest;
-
-    function haveApiJs(){
-      return (typeof fetchJson === "function" && typeof setToken === "function");
-    }
-
-    $("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      setMsg("loginMsg", "");
-
-      try {
-        if (!haveApiJs()) {
-          setMsg("loginMsg", `<span class="authErr">api.js not loaded. Ensure login.html and api.js are in the same folder.</span>`);
-          return;
-        }
-
-        const username = $("loginUsername").value.trim();
-        const password = $("loginPassword").value;
-
-        if (!username || !password) {
-          setMsg("loginMsg", `<span class="authErr">Enter username + password.</span>`);
-          return;
-        }
-
-        const data = await fetchJson("/auth/login", {
-          method: "POST",
-          body: { username, password }
-        });
-
-        setToken(data.access_token);
-        setUsername(username);
-
-        window.location.href = "search.html";
-      } catch (err) {
-        setMsg("loginMsg", `<span class="authErr">${safeEscapeHtml(err.message || String(err))}</span>`);
+    $id('loginForm').addEventListener('submit',async e=>{
+      e.preventDefault(); setMsg('loginMsg','');
+      const username=$id('loginUsername').value.trim();
+      const password=$id('loginPassword').value;
+      if(!username||!password){ setMsg('loginMsg','<span class="authErr">Enter username and password.</span>'); return; }
+      try{
+        const data=await fetchJson('/auth/login',{method:'POST',body:{username,password}});
+        setToken(data.access_token); setUsername(username);
+        const after=sessionStorage.getItem('after_login')||'search.html';
+        sessionStorage.removeItem('after_login');
+        window.location.href=after;
+      }catch(err){
+        setMsg('loginMsg',`<span class="authErr">${esc(err.message||String(err))}</span>`);
       }
     });
 
-    $("registerForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      setMsg("regMsg", "");
-
-      try {
-        if (!haveApiJs()) {
-          setMsg("regMsg", `<span class="authErr">api.js not loaded. Ensure login.html and api.js are in the same folder.</span>`);
-          return;
-        }
-
-        const username = $("regUsername").value.trim();
-        const email = $("regEmail").value.trim();
-        const password = $("regPassword").value;
-        const password2 = $("regPassword2").value;
-
-        if (!username || !email || !password) {
-          setMsg("regMsg", `<span class="authErr">Fill all fields.</span>`);
-          return;
-        }
-        if (password !== password2) {
-          setMsg("regMsg", `<span class="authErr">Passwords do not match.</span>`);
-          return;
-        }
-
-        await fetchJson("/auth/register", {
-          method: "POST",
-          body: { username, email, password }
-        });
-
-        setMsg("regMsg", `<span class="authOk">Account created. Please log in.</span>`);
-
-        $("loginUsername").value = username;
-        $("loginPassword").value = "";
-        setMode("login");
-        setMsg("loginMsg", `<span class="authOk">Registered. Now log in.</span>`);
-      } catch (err) {
-        setMsg("regMsg", `<span class="authErr">${safeEscapeHtml(err.message || String(err))}</span>`);
+    $id('registerForm').addEventListener('submit',async e=>{
+      e.preventDefault(); setMsg('regMsg','');
+      const username=$id('regUsername').value.trim();
+      const email=$id('regEmail').value.trim();
+      const password=$id('regPassword').value;
+      const password2=$id('regPassword2').value;
+      if(!username||!email||!password){ setMsg('regMsg','<span class="authErr">Fill all fields.</span>'); return; }
+      if(password!==password2){ setMsg('regMsg','<span class="authErr">Passwords do not match.</span>'); return; }
+      try{
+        await fetchJson('/auth/register',{method:'POST',body:{username,email,password}});
+        $id('loginUsername').value=username;
+        setMode('login');
+        setMsg('loginMsg','<span class="authOk">Account created — sign in below.</span>');
+      }catch(err){
+        setMsg('regMsg',`<span class="authErr">${esc(err.message||String(err))}</span>`);
       }
     });
 
-    setMode("login");
+    setMode('login');
   </script>
 </body>
 </html>

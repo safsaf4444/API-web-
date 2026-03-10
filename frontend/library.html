@@ -1,78 +1,444 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Saved Papers - Medical Evidence</title>
+  <title>Library — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
+  <style>
+    /* ── Library-specific styles ── */
+    .libLayout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 860px) {
+      .libLayout { grid-template-columns: 1fr; }
+      .libSidebar { position: static !important; }
+    }
+
+    /* Sticky sidebar panel */
+    .libSidebar {
+      position: sticky;
+      top: 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .libSideCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .libSideTitle {
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--subtle);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    /* Filter fields */
+    .filterStack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .filterRow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    /* Action buttons in sidebar */
+    .libActions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .libActions button {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+
+    /* Folder chips panel */
+    .folderList {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .folderRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      border-radius: var(--r-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all .14s ease;
+      position: relative;
+    }
+
+    .folderRow:hover {
+      background: var(--surface2);
+      border-color: var(--line);
+    }
+
+    .folderRow.active {
+      background: var(--navy);
+      border-color: var(--navy);
+    }
+
+    .folderRow.active .folderRowName { color: var(--cream); }
+    .folderRow.active .folderCount   { color: rgba(245,240,232,.5); }
+    .folderRow.active .folderMenuBtn { color: rgba(245,240,232,.6); }
+
+    .folderRowLeft {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .folderRowIcon {
+      font-size: 14px;
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+
+    .folderRowName {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .folderCount {
+      font-size: 11px;
+      color: var(--subtle);
+      margin-left: auto;
+      padding-right: 6px;
+      flex-shrink: 0;
+    }
+
+    .folderMenuBtn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--subtle);
+      font-size: 14px;
+      flex-shrink: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity .12s;
+    }
+
+    .folderRow:hover .folderMenuBtn { opacity: 1; }
+    .folderRow.active .folderMenuBtn { opacity: 0.6; }
+
+    .folderMenuBtn:hover {
+      background: rgba(255,255,255,.12) !important;
+      opacity: 1 !important;
+      transform: none;
+    }
+
+    /* Main content area */
+    .libMain { display: flex; flex-direction: column; gap: 14px; }
+
+    .libHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .libTitle {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--navy);
+      letter-spacing: -0.02em;
+    }
+
+    .libSubtitle {
+      font-size: 13px;
+      color: var(--subtle);
+      margin-top: 2px;
+    }
+
+    .libCount {
+      font-size: 12px;
+      color: var(--subtle);
+      font-weight: 500;
+    }
+
+    /* Paper cards */
+    .paperCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-xs);
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+      cursor: default;
+    }
+
+    .paperCard:hover {
+      border-color: rgba(201,168,124,.35);
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
+    }
+
+    .paperCardTitle {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--navy);
+      line-height: 1.4;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+
+    .paperCardMeta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .paperCardFooter {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line2);
+    }
+
+    .paperCardFooterLeft {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .paperCardFooterLeft select {
+      width: auto;
+      min-width: 130px;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: var(--r-xs);
+      background: var(--surface2);
+    }
+
+    .paperCardActions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    /* Inline msg */
+    .inlineMsg {
+      font-size: 11.5px;
+      color: var(--subtle);
+      margin-left: 4px;
+    }
+
+    /* Empty state */
+    .emptyLibrary {
+      padding: 56px 20px;
+      text-align: center;
+      border: 1.5px dashed var(--parchment);
+      border-radius: var(--r-lg);
+    }
+
+    .emptyLibrary .emptyIcon {
+      font-size: 36px;
+      margin-bottom: 12px;
+      opacity: 0.4;
+    }
+
+    .emptyLibrary p {
+      color: var(--subtle);
+      font-size: 14px;
+      margin: 0 0 16px;
+    }
+
+    /* Status message bar */
+    .statusBar {
+      font-size: 12.5px;
+      color: var(--subtle);
+      min-height: 18px;
+    }
+
+    /* Folder context menu */
+    .folderContextMenu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      min-width: 148px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      box-shadow: var(--shadow);
+      padding: 5px;
+      z-index: 3000;
+    }
+
+    .folderContextMenu button {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      padding: 8px 10px;
+      border-radius: var(--r-xs);
+      font-size: 12.5px;
+      color: var(--text2);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .folderContextMenu button:hover {
+      background: var(--surface2);
+      transform: none;
+    }
+
+    .folderContextMenu .danger { color: var(--bad); font-weight: 600; }
+  </style>
 </head>
 <body>
-<header>
-  <div class="headerInner">
-    <div class="brand">Medical Evidence</div>
-    <nav id="nav" class="navRow"></nav>
-  </div>
-</header>
 
 <main>
-  <div class="card">
-    <h2>Saved Papers</h2>
+  <div class="libLayout">
 
-    <div class="split" style="grid-template-columns:2fr 1fr 1fr;">
-      <div>
-        <label>Search</label>
-        <input id="q" placeholder="filter title/abstract" />
+    <!-- ═══════════════════════════════
+         LEFT SIDEBAR — Filters + Folders
+         ═══════════════════════════════ -->
+    <aside class="libSidebar">
+
+      <!-- Filters card -->
+      <div class="libSideCard">
+        <div class="libSideTitle">Filters</div>
+
+        <div class="filterStack">
+          <div>
+            <label>Search</label>
+            <input id="q" placeholder="Filter by title or abstract…" autocomplete="off"/>
+          </div>
+
+          <div>
+            <label>Sort by</label>
+            <select id="sort">
+              <option value="newest" selected>Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="year_desc">Year ↓</option>
+              <option value="year_asc">Year ↑</option>
+              <option value="title_asc">Title A → Z</option>
+              <option value="title_desc">Title Z → A</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Source</label>
+            <select id="sourceFilter">
+              <option value="all">All sources</option>
+            </select>
+          </div>
+
+          <div class="filterRow">
+            <div>
+              <label>Year from</label>
+              <input id="yearFrom" inputmode="numeric" placeholder="2015"/>
+            </div>
+            <div>
+              <label>Year to</label>
+              <input id="yearTo" inputmode="numeric" placeholder="2024"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="libActions" style="margin-top:16px;">
+          <button class="primary" id="loadBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+          <button id="clearBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Clear filters
+          </button>
+        </div>
+
+        <div id="statusMsg" class="statusBar" style="margin-top:10px;"></div>
       </div>
-      <div>
-        <label>Sort</label>
-        <select id="sort">
-          <option value="newest" selected>Newest</option>
-          <option value="oldest">Oldest</option>
-          <option value="year_desc">Year ↓</option>
-          <option value="year_asc">Year ↑</option>
-          <option value="title_asc">Title A→Z</option>
-          <option value="title_desc">Title Z→A</option>
-        </select>
+
+      <!-- Folders card -->
+      <div class="libSideCard">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+          <div class="libSideTitle" style="margin-bottom:0;">Folders</div>
+          <button class="btn sm ghost" id="newFolderBtn" style="padding:5px 8px;" title="New folder">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New
+          </button>
+        </div>
+
+        <div class="folderList" id="folderList">
+          <!-- populated by JS -->
+        </div>
       </div>
-      <div>
-        <label>Folder</label>
-        <select id="folder"></select>
+
+    </aside>
+
+    <!-- ═══════════════════════════════
+         RIGHT MAIN — Library papers
+         ═══════════════════════════════ -->
+    <div class="libMain">
+
+      <div class="libHeader">
+        <div>
+          <div class="libTitle" id="libTitle">Your Library</div>
+          <div class="libSubtitle" id="libSubtitle">All saved papers</div>
+        </div>
+        <div class="libCount" id="countLabel"></div>
       </div>
+
+      <div id="paperList">
+        <!-- populated by JS -->
+      </div>
+
     </div>
-
-    <!-- ✅ NEW: extra filters -->
-    <div class="split" style="grid-template-columns:1fr 1fr 1fr; margin-top:12px;">
-      <div>
-        <label>Source</label>
-        <select id="sourceFilter">
-          <option value="all" selected>All</option>
-        </select>
-      </div>
-      <div>
-        <label>Year from</label>
-        <input id="yearFrom" inputmode="numeric" placeholder="e.g. 2015"/>
-      </div>
-      <div>
-        <label>Year to</label>
-        <input id="yearTo" inputmode="numeric" placeholder="e.g. 2024"/>
-      </div>
-    </div>
-
-    <div class="itemActions" style="margin-top:14px;">
-      <button class="primary" id="loadBtn">Refresh</button>
-      <button id="newFolderBtn">New Folder</button>
-      <button id="clearBtn">Clear filters</button>
-    </div>
-
-    <div id="msg" class="small" style="margin-top:10px;"></div>
-  </div>
-
-  <div class="card">
-    <div class="row" style="align-items:center;justify-content:space-between;">
-      <h3 style="margin:0;">Your Library</h3>
-      <div class="small" id="countLabel"></div>
-    </div>
-    <div class="list" id="items" style="margin-top:12px;"></div>
   </div>
 </main>
 
@@ -81,398 +447,448 @@
 <script>
 requireAuthOrRedirect();
 
-const STATE_KEY = "me_library_state_v2";
+const STATE_KEY = 'seren_library_v3';
 
-let foldersCache = [];
-let activeFolderId = "all"; // "all" or folderId as string
+let foldersCache  = [];
+let activeFolderId = 'all';
+let openMenuId     = null; // track which folder menu is open
 
-function setMsg(msg){
-  $("msg").innerHTML = String(msg ?? "");
+/* ── Utilities ── */
+function $id(id) { return document.getElementById(id); }
+function esc(s)  { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+function normStr(x) { return (x ?? '').toString().trim(); }
+
+function parseYear(x) {
+  const n = parseInt(String(x || '').trim(), 10);
+  return Number.isFinite(n) && n >= 1000 && n <= 3000 ? n : null;
 }
 
-function setCountLabel(text){
-  const el = $("countLabel");
-  if(el) el.textContent = text || "";
+function setStatus(html) {
+  const el = $id('statusMsg');
+  if (el) el.innerHTML = html || '';
 }
 
-function normStr(x){ return (x ?? "").toString().trim(); }
-
-function parseYear(x){
-  const n = parseInt(String(x || "").trim(), 10);
-  if (!Number.isFinite(n)) return null;
-  if (n < 1000 || n > 3000) return null;
-  return n;
+function setCountLabel(text) {
+  const el = $id('countLabel');
+  if (el) el.textContent = text || '';
 }
 
-function saveState(){
-  try{
-    const st = {
-      q: $("q").value || "",
-      sort: $("sort").value || "newest",
-      folder: $("folder").value || "all",
-      source: $("sourceFilter").value || "all",
-      yearFrom: $("yearFrom").value || "",
-      yearTo: $("yearTo").value || "",
-      savedAt: Date.now(),
-    };
-    sessionStorage.setItem(STATE_KEY, JSON.stringify(st));
-  }catch{}
+/* ── State persistence ── */
+function saveState() {
+  try {
+    sessionStorage.setItem(STATE_KEY, JSON.stringify({
+      q:        $id('q').value || '',
+      sort:     $id('sort').value || 'newest',
+      folder:   activeFolderId,
+      source:   $id('sourceFilter').value || 'all',
+      yearFrom: $id('yearFrom').value || '',
+      yearTo:   $id('yearTo').value || '',
+    }));
+  } catch {}
 }
 
-function loadState(){
-  try{
+function loadState() {
+  try {
     const raw = sessionStorage.getItem(STATE_KEY);
-    if(!raw) return null;
-    const st = JSON.parse(raw);
-    if(!st || typeof st !== "object") return null;
-    return st;
-  }catch{
-    return null;
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+/* ── Close any open folder menu ── */
+function closeOpenMenu() {
+  if (openMenuId !== null) {
+    const existing = document.querySelector('.folderContextMenu');
+    if (existing) existing.remove();
+    openMenuId = null;
   }
 }
 
-/* ---------------- Folder actions ---------------- */
-async function renameFolder(folder){
+document.addEventListener('click', closeOpenMenu);
+
+/* ── Folder actions ── */
+async function renameFolder(folder) {
   const name = await promptModal({
-    title: "Rename folder",
-    message: "Enter a new folder name",
-    placeholder: "e.g. Cardiology",
-    okText: "Rename",
-    cancelText: "Cancel",
-    initialValue: folder.name || ""
+    title: 'Rename folder',
+    message: 'Enter a new name',
+    placeholder: 'e.g. Cardiology',
+    okText: 'Rename',
+    cancelText: 'Cancel',
+    initialValue: folder.name || '',
   });
   if (!name) return;
-  await fetchJson(`/folders/${folder.id}`, { method:"PATCH", body:{ name }});
+  await fetchJson(`/folders/${folder.id}`, { method: 'PATCH', body: { name } });
   await loadFolders();
 }
 
-async function deleteFolder(folder){
+async function deleteFolder(folder) {
   const ok = await confirmModal({
-    title: "Delete folder?",
-    message: "This removes the folder. Papers stay saved (moved to no folder).",
-    okText: "Delete folder",
-    cancelText: "Cancel",
-    danger: true
+    title: 'Delete folder?',
+    message: 'Papers stay saved — they just move to "No folder".',
+    okText: 'Delete',
+    cancelText: 'Cancel',
+    danger: true,
   });
   if (!ok) return;
-  await fetchJson(`/folders/${folder.id}`, { method:"DELETE" });
-  activeFolderId = "all";
+  await fetchJson(`/folders/${folder.id}`, { method: 'DELETE' });
+  activeFolderId = 'all';
   await loadFolders();
   await loadStudies();
 }
 
-async function newFolder(){
+async function newFolder() {
   const name = await promptModal({
-    title: "New folder",
-    message: "Enter a folder name",
-    placeholder: "e.g. Endocrinology",
-    okText: "Create",
-    cancelText: "Cancel",
-    initialValue: ""
+    title: 'New folder',
+    message: 'Enter a folder name',
+    placeholder: 'e.g. Endocrinology',
+    okText: 'Create',
+    cancelText: 'Cancel',
+    initialValue: '',
   });
   if (!name) return;
-  await fetchJson("/folders", { method:"POST", body:{ name }});
+  await fetchJson('/folders', { method: 'POST', body: { name } });
   await loadFolders();
 }
 
-/* ---------------- Folder pick UI ---------------- */
-function folderSelectHtml(study){
-  const cur = study.folder_id ? String(study.folder_id) : "";
-  let opts = `<option value="">No folder</option>`;
-  for (const f of foldersCache){
-    opts += `<option value="${f.id}" ${String(f.id)===cur?"selected":""}>${escapeHtml(f.name)}</option>`;
-  }
-  return `
-    <div style="margin-top:12px;">
-      <label>Folder</label>
-      <select data-folder-pick="${study.id}">${opts}</select>
-      <div class="small" data-folder-msg="${study.id}" style="margin-top:8px;"></div>
+/* ── Render folder list ── */
+function renderFolderList() {
+  const list = $id('folderList');
+  if (!list) return;
+
+  const pseudoFolders = [
+    { id: 'all',  name: 'All papers', icon: '◈' },
+    { id: 'none', name: 'No folder',  icon: '◇' },
+  ];
+
+  const allFolders = [
+    ...pseudoFolders,
+    ...foldersCache.map(f => ({ ...f, icon: '◆', real: true })),
+  ];
+
+  list.innerHTML = allFolders.map(f => `
+    <div class="folderRow${String(f.id) === String(activeFolderId) ? ' active' : ''}"
+         data-folder-id="${esc(String(f.id))}"
+         data-folder-real="${f.real ? '1' : '0'}">
+      <div class="folderRowLeft">
+        <span class="folderRowIcon">${f.icon}</span>
+        <span class="folderRowName">${esc(f.name)}</span>
+      </div>
+      ${f.real
+        ? `<button class="folderMenuBtn" data-menu-folder-id="${f.id}" title="Options">···</button>`
+        : ''
+      }
     </div>
-  `;
-}
+  `).join('');
 
-/* ---------------- Load folders ---------------- */
-async function loadFolders(){
-  try{
-    const folders = await fetchJson("/folders");
-    foldersCache = Array.isArray(folders) ? folders : [];
-
-    const sel = $("folder");
-    sel.innerHTML = "";
-
-    const optAll = document.createElement("option");
-    optAll.value = "all";
-    optAll.textContent = "All";
-    sel.appendChild(optAll);
-
-    // "No folder" pseudo
-    const optNone = document.createElement("option");
-    optNone.value = "none";
-    optNone.textContent = "No folder";
-    sel.appendChild(optNone);
-
-    for (const f of foldersCache){
-      const opt = document.createElement("option");
-      opt.value = String(f.id);
-      opt.textContent = f.name;
-      sel.appendChild(opt);
-    }
-
-    // restore active selection if possible
-    const wanted = (activeFolderId || "all");
-    sel.value = Array.from(sel.options).some(o => o.value === wanted) ? wanted : "all";
-    activeFolderId = sel.value;
-
-  }catch(e){
-    setMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
-  }
-}
-
-/* ---------------- Source dropdown (based on returned studies) ---------------- */
-function buildSourceFilterFromItems(items){
-  const sel = $("sourceFilter");
-  if(!sel) return;
-
-  const cur = sel.value || "all";
-
-  const sources = new Set();
-  (items || []).forEach(it => {
-    const s = normStr(it?.source);
-    if(s) sources.add(s);
+  /* Click to select folder */
+  list.querySelectorAll('.folderRow').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('.folderMenuBtn')) return;
+      activeFolderId = row.dataset.folderId;
+      renderFolderList();
+      loadStudies();
+      saveState();
+    });
   });
 
-  const sorted = Array.from(sources).sort((a,b)=>a.localeCompare(b));
+  /* Folder menu button */
+  list.querySelectorAll('.folderMenuBtn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      closeOpenMenu();
 
-  sel.innerHTML = `<option value="all">All</option>`;
-  for (const s of sorted){
-    const opt = document.createElement("option");
-    opt.value = s;
-    opt.textContent = s;
-    sel.appendChild(opt);
-  }
+      const fid = parseInt(btn.dataset.menuFolderId, 10);
+      const folder = foldersCache.find(f => f.id === fid);
+      if (!folder) return;
 
-  // restore
-  sel.value = Array.from(sel.options).some(o => o.value === cur) ? cur : "all";
+      openMenuId = fid;
+
+      const menu = document.createElement('div');
+      menu.className = 'folderContextMenu';
+      menu.innerHTML = `
+        <button data-action="rename">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Rename
+        </button>
+        <button data-action="delete" class="danger">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+          Delete
+        </button>
+      `;
+
+      menu.querySelector('[data-action="rename"]').onclick = async e2 => {
+        e2.stopPropagation();
+        closeOpenMenu();
+        await renameFolder(folder);
+      };
+
+      menu.querySelector('[data-action="delete"]').onclick = async e2 => {
+        e2.stopPropagation();
+        closeOpenMenu();
+        await deleteFolder(folder);
+      };
+
+      const row = btn.closest('.folderRow');
+      row.style.position = 'relative';
+      row.appendChild(menu);
+    });
+  });
 }
 
-/* ---------------- Apply client filters ---------------- */
-function applyClientFilters(items){
-  const srcNeed = $("sourceFilter").value || "all";
-  const yFrom = parseYear($("yearFrom").value);
-  const yTo = parseYear($("yearTo").value);
+/* ── Load folders ── */
+async function loadFolders() {
+  try {
+    const folders = await fetchJson('/folders');
+    foldersCache = Array.isArray(folders) ? folders : [];
+
+    /* Also update inline folder selects (inside paper cards) */
+    renderFolderList();
+
+    /* Rebuild folder <select> in paper cards if visible */
+    document.querySelectorAll('[data-folder-pick]').forEach(sel => {
+      const studyId = sel.dataset.folderPick;
+      const curVal  = sel.value;
+      let opts = '<option value="">No folder</option>';
+      for (const f of foldersCache) {
+        opts += `<option value="${f.id}"${String(f.id) === curVal ? ' selected' : ''}>${esc(f.name)}</option>`;
+      }
+      sel.innerHTML = opts;
+      sel.value = curVal;
+    });
+
+  } catch (e) {
+    setStatus(`<span style="color:var(--bad);">${esc(e.message)}</span>`);
+  }
+}
+
+/* ── Build source dropdown from loaded items ── */
+function buildSourceFilter(items) {
+  const sel  = $id('sourceFilter');
+  if (!sel) return;
+  const cur  = sel.value || 'all';
+  const srcs = [...new Set((items || []).map(it => normStr(it?.source)).filter(Boolean))].sort();
+
+  sel.innerHTML = '<option value="all">All sources</option>';
+  srcs.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sel.appendChild(opt);
+  });
+  sel.value = Array.from(sel.options).some(o => o.value === cur) ? cur : 'all';
+}
+
+/* ── Client-side filtering ── */
+function applyFilters(items) {
+  const src   = $id('sourceFilter').value || 'all';
+  const yFrom = parseYear($id('yearFrom').value);
+  const yTo   = parseYear($id('yearTo').value);
 
   return (items || []).filter(it => {
-    if (srcNeed !== "all" && normStr(it?.source) !== srcNeed) return false;
-
+    if (src !== 'all' && normStr(it?.source) !== src) return false;
     const y = parseYear(it?.year);
-    if (yFrom !== null) {
-      if (y === null) return false;
-      if (y < yFrom) return false;
-    }
-    if (yTo !== null) {
-      if (y === null) return false;
-      if (y > yTo) return false;
-    }
+    if (yFrom !== null && (y === null || y < yFrom)) return false;
+    if (yTo   !== null && (y === null || y > yTo))   return false;
     return true;
   });
 }
 
-/* ---------------- Load studies ---------------- */
-async function loadStudies(){
-  setMsg("");
-  setCountLabel("");
+/* ── Folder select HTML inside a paper card ── */
+function folderSelectHtml(study) {
+  let opts = '<option value="">No folder</option>';
+  for (const f of foldersCache) {
+    opts += `<option value="${f.id}"${String(f.id) === String(study.folder_id || '') ? ' selected' : ''}>${esc(f.name)}</option>`;
+  }
+  return `<select data-folder-pick="${study.id}" style="min-width:130px;">${opts}</select>`;
+}
 
-  const q = $("q").value.trim();
-  const sort = $("sort").value;
+/* ── Render paper list ── */
+function renderPapers(filtered, total) {
+  const list = $id('paperList');
+  if (!list) return;
+
+  setCountLabel(filtered.length === total
+    ? `${total} paper${total !== 1 ? 's' : ''}`
+    : `${filtered.length} of ${total} papers`
+  );
+
+  /* Update subtitle */
+  const subtitle = $id('libSubtitle');
+  if (subtitle) {
+    if (activeFolderId === 'all')  subtitle.textContent = 'All saved papers';
+    else if (activeFolderId === 'none') subtitle.textContent = 'Papers without a folder';
+    else {
+      const f = foldersCache.find(f => String(f.id) === String(activeFolderId));
+      subtitle.textContent = f ? `Folder: ${f.name}` : 'Filtered view';
+    }
+  }
+
+  if (!filtered.length) {
+    list.innerHTML = `
+      <div class="emptyLibrary">
+        <div class="emptyIcon">◈</div>
+        <p>No papers here yet.</p>
+        <a class="btn" href="search.html">Search literature</a>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(it => `
+    <div class="paperCard" data-paper-id="${it.id}">
+
+      <div class="paperCardTitle">${esc(it.title || 'Untitled')}</div>
+
+      <div class="paperCardMeta">
+        ${it.year        ? `<span class="badge blue">${esc(String(it.year))}</span>` : ''}
+        ${it.study_type  ? `<span class="badge green">${esc(it.study_type)}</span>` : ''}
+        ${it.source      ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
+        ${it.venue       ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
+        ${it.tags        ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass">${esc(t.trim())}</span>`).join('') : ''}
+      </div>
+
+      ${it.abstract ? `
+        <p style="font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+          ${esc(it.abstract)}
+        </p>` : ''
+      }
+
+      <div class="paperCardFooter">
+        <div class="paperCardFooterLeft">
+          ${folderSelectHtml(it)}
+          <span class="inlineMsg" id="fmsg-${it.id}"></span>
+        </div>
+        <div class="paperCardActions">
+          <button class="btn primary sm" data-open data-study-id="${it.id}">Open</button>
+          <button class="btn danger sm" data-del  data-study-id="${it.id}">Delete</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  /* Wire folder selects */
+  list.querySelectorAll('[data-folder-pick]').forEach(sel => {
+    sel.onchange = async () => {
+      const studyId = parseInt(sel.dataset.folderPick, 10);
+      const msgEl   = $id(`fmsg-${studyId}`);
+      if (msgEl) msgEl.textContent = 'Saving…';
+      try {
+        await fetchJson(`/studies/${studyId}`, {
+          method: 'PATCH',
+          body: { folder_id: sel.value ? parseInt(sel.value, 10) : null },
+        });
+        if (msgEl) { msgEl.innerHTML = '<span class="badge green">✓ Saved</span>'; setTimeout(() => { msgEl.textContent = ''; }, 1800); }
+        await loadStudies();
+      } catch (e) {
+        if (msgEl) msgEl.innerHTML = `<span style="color:var(--bad);">${esc(e.message)}</span>`;
+      }
+    };
+  });
+}
+
+/* ── Load studies ── */
+async function loadStudies() {
+  setStatus('');
+  const q    = $id('q').value.trim();
+  const sort = $id('sort').value;
 
   let url = `/studies?sort=${encodeURIComponent(sort)}`;
   if (q) url += `&q=${encodeURIComponent(q)}`;
-  if (activeFolderId && activeFolderId !== "all"){
-    if (activeFolderId === "none") url += `&folder_id=${encodeURIComponent("")}`; // backend treats missing; we handle client-side below too
-    else url += `&folder_id=${encodeURIComponent(activeFolderId)}`;
+  if (activeFolderId && activeFolderId !== 'all' && activeFolderId !== 'none') {
+    url += `&folder_id=${encodeURIComponent(activeFolderId)}`;
   }
 
-  try{
+  try {
     let items = await fetchJson(url);
     if (!Array.isArray(items)) items = [];
+    if (activeFolderId === 'none') items = items.filter(it => !it.folder_id);
 
-    // If user selected "No folder", backend doesn't support it cleanly, so filter it client-side.
-    if (activeFolderId === "none"){
-      items = items.filter(it => !it.folder_id);
-    }
-
-    // build source dropdown from what we have
-    buildSourceFilterFromItems(items);
-
-    const filtered = applyClientFilters(items);
-
-    const wrap = $("items");
-    wrap.innerHTML = "";
-
-    setCountLabel(`${filtered.length} shown / ${items.length} loaded`);
-
-    if (!filtered || !filtered.length){
-      wrap.innerHTML = `<div class="item small">No saved papers.</div>`;
-      saveState();
-      return;
-    }
-
-    for (const it of filtered){
-      const div = document.createElement("div");
-      div.className = "item";
-      div.innerHTML = `
-        <div class="itemTitle">${escapeHtml(it.title)}</div>
-        <div class="itemMeta">
-          ${it.year ? `<span class="badge blue">${escapeHtml(it.year)}</span>` : ""}
-          ${it.venue ? `<span class="badge">${escapeHtml(it.venue)}</span>` : ""}
-          <span class="badge">${escapeHtml(it.source)}</span>
-          ${it.study_type ? `<span class="badge green">${escapeHtml(it.study_type)}</span>` : ""}
-          ${it.tags ? `<span class="badge">${escapeHtml(it.tags)}</span>` : ""}
-        </div>
-
-        ${folderSelectHtml(it)}
-
-        <div class="itemActions">
-          <!-- ✅ KEY FIX: attach the study id to the button -->
-          <button class="primary" type="button" data-open data-study-id="${it.id}">Open</button>
-          <button class="danger" type="button" data-del data-study-id="${it.id}">Delete</button>
-        </div>
-      `;
-
-      // Move / remove folder
-      const sel = div.querySelector(`[data-folder-pick="${it.id}"]`);
-      if (sel){
-        sel.onchange = async () => {
-          const v = sel.value;
-          const msg = div.querySelector(`[data-folder-msg="${it.id}"]`);
-          if (msg) msg.textContent = "Saving...";
-
-          try{
-            await fetchJson(`/studies/${it.id}`, {
-              method: "PATCH",
-              body: { folder_id: v ? parseInt(v, 10) : null }
-            });
-            if (msg) msg.innerHTML = `<span class="badge green">Updated</span>`;
-            await loadStudies();
-          }catch(e){
-            if (msg) msg.innerHTML = `<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`;
-          }
-        };
-      }
-
-      wrap.appendChild(div);
-    }
-
+    buildSourceFilter(items);
+    const filtered = applyFilters(items);
+    renderPapers(filtered, items.length);
     saveState();
-  }catch(e){
-    setMsg(`<span style="color:var(--bad);font-weight:900;">${escapeHtml(e.message)}</span>`);
+  } catch (e) {
+    setStatus(`<span style="color:var(--bad);">${esc(e.message)}</span>`);
   }
 }
 
-/* ✅ ONE delegated click handler = never “wrong paper” */
-(function wireDelegatedClicks(){
-  const wrap = $("items");
-  if (!wrap) return;
-  if (wrap.dataset.wired === "1") return;
-  wrap.dataset.wired = "1";
+/* ── Delegated click handler (open / delete) ── */
+$id('paperList').addEventListener('click', async e => {
+  const btnOpen = e.target.closest('[data-open]');
+  const btnDel  = e.target.closest('[data-del]');
 
-  wrap.addEventListener("click", async (e) => {
-    const btnOpen = e.target.closest("[data-open]");
-    const btnDel = e.target.closest("[data-del]");
+  if (btnOpen) {
+    sessionStorage.setItem('open_study_id', btnOpen.dataset.studyId);
+    sessionStorage.removeItem('last_external');
+    location.href = 'paper.html';
+  }
 
-    if (btnOpen){
-      const id = parseInt(btnOpen.getAttribute("data-study-id"), 10);
-      sessionStorage.setItem("open_study_id", String(id));
-      sessionStorage.removeItem("last_external");
-      location.href = "paper.html";
-      return;
+  if (btnDel) {
+    const id = parseInt(btnDel.dataset.studyId, 10);
+    const ok = await confirmModal({
+      title: 'Delete paper?',
+      message: 'This removes it from your library permanently.',
+      okText: 'Delete',
+      cancelText: 'Cancel',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await fetchJson(`/studies/${id}`, { method: 'DELETE' });
+      showToast('Deleted', 'Paper removed from your library.', 'info');
+      await loadStudies();
+    } catch (err) {
+      showToast('Error', err.message, 'error');
     }
+  }
+});
 
-    if (btnDel){
-      const id = parseInt(btnDel.getAttribute("data-study-id"), 10);
-      const ok = await confirmModal({
-        title: "Delete paper?",
-        message: "This removes it from your library.",
-        okText: "Delete",
-        cancelText: "Cancel",
-        danger: true
-      });
-      if (!ok) return;
-
-      try{
-        await fetchJson(`/studies/${id}`, { method:"DELETE" });
-        await loadStudies();
-      }catch(err){
-        showToast("Delete failed", err.message, "error");
-      }
-      return;
-    }
-  });
-})();
-
-/* ---------------- Wire UI events (debounced) ---------------- */
-function debounce(fn, ms=250){
-  let t = null;
-  return (...args)=>{
-    if(t) clearTimeout(t);
-    t = setTimeout(()=>fn(...args), ms);
-  };
+/* ── Debounce ── */
+function debounce(fn, ms = 250) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
+const debLoad = debounce(loadStudies, 280);
 
-const debouncedLoad = debounce(loadStudies, 250);
+/* ── Event wiring ── */
+$id('loadBtn').onclick     = loadStudies;
+$id('newFolderBtn').onclick = async () => { await newFolder(); };
 
-$("loadBtn").onclick = loadStudies;
-$("newFolderBtn").onclick = async ()=>{ await newFolder(); };
-$("clearBtn").onclick = async ()=>{
-  $("q").value = "";
-  $("sort").value = "newest";
-  $("sourceFilter").value = "all";
-  $("yearFrom").value = "";
-  $("yearTo").value = "";
-  $("folder").value = "all";
-  activeFolderId = "all";
+$id('clearBtn').onclick = async () => {
+  $id('q').value       = '';
+  $id('sort').value    = 'newest';
+  $id('sourceFilter').value = 'all';
+  $id('yearFrom').value = '';
+  $id('yearTo').value   = '';
+  activeFolderId = 'all';
+  renderFolderList();
   saveState();
   await loadStudies();
 };
 
-$("q").addEventListener("input", ()=>{ debouncedLoad(); saveState(); });
-$("sort").addEventListener("change", ()=>{ loadStudies(); saveState(); });
+$id('q').addEventListener('input', () => { debLoad(); saveState(); });
+$id('sort').addEventListener('change', () => { loadStudies(); saveState(); });
+$id('sourceFilter').addEventListener('change', () => { loadStudies(); saveState(); });
+$id('yearFrom').addEventListener('input', () => { debLoad(); saveState(); });
+$id('yearTo').addEventListener('input', () => { debLoad(); saveState(); });
 
-$("folder").addEventListener("change", ()=>{
-  activeFolderId = $("folder").value || "all";
-  loadStudies();
-  saveState();
-});
-
-$("sourceFilter").addEventListener("change", ()=>{ loadStudies(); saveState(); });
-$("yearFrom").addEventListener("input", ()=>{ debouncedLoad(); saveState(); });
-$("yearTo").addEventListener("input", ()=>{ debouncedLoad(); saveState(); });
-
-/* ---------------- Init ---------------- */
-(async function init(){
+/* ── Init ── */
+(async function init() {
   await loadFolders();
 
-  // restore saved view
   const st = loadState();
-  if (st){
-    $("q").value = st.q || "";
-    $("sort").value = st.sort || "newest";
-
-    const wantedFolder = st.folder || "all";
-    $("folder").value = Array.from($("folder").options).some(o => o.value === wantedFolder) ? wantedFolder : "all";
-    activeFolderId = $("folder").value;
-
-    $("yearFrom").value = st.yearFrom || "";
-    $("yearTo").value = st.yearTo || "";
-    // sourceFilter options depend on loaded items; we restore after first load
+  if (st) {
+    $id('q').value    = st.q    || '';
+    $id('sort').value = st.sort || 'newest';
+    activeFolderId    = st.folder || 'all';
+    $id('yearFrom').value = st.yearFrom || '';
+    $id('yearTo').value   = st.yearTo   || '';
+    renderFolderList();
   }
 
   await loadStudies();
 
-  // restore source after first load (because we build options dynamically)
-  if (st && st.source){
-    const sel = $("sourceFilter");
-    if (sel && Array.from(sel.options).some(o => o.value === st.source)){
+  /* Restore source after items load */
+  if (st?.source) {
+    const sel = $id('sourceFilter');
+    if (sel && Array.from(sel.options).some(o => o.value === st.source)) {
       sel.value = st.source;
       await loadStudies();
     }

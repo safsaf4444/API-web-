@@ -1,31 +1,247 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Medical Evidence</title>
+  <title>Seren — Medical Evidence</title>
   <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .heroSection {
+      background: linear-gradient(135deg, var(--navy) 0%, #1a2535 100%);
+      border-radius: var(--r-lg);
+      padding: 56px 48px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .heroSection::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+      opacity: 0.3;
+      pointer-events: none;
+    }
+    .heroSection::after {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(201,168,124,.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .heroMark {
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--brass);
+      margin-bottom: 16px;
+    }
+
+    .heroTitle {
+      font-family: var(--font-display);
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 700;
+      color: var(--cream);
+      line-height: 1.2;
+      letter-spacing: -0.025em;
+      margin-bottom: 16px;
+    }
+
+    .heroSub {
+      font-size: 15px;
+      color: rgba(245,240,232,.55);
+      line-height: 1.7;
+      max-width: 520px;
+      margin-bottom: 28px;
+    }
+
+    .heroCTA {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .heroCTA .btn.primary {
+      background: var(--brass);
+      border-color: var(--brass);
+      color: var(--navy);
+      font-weight: 700;
+      font-size: 13.5px;
+      padding: 10px 22px;
+    }
+    .heroCTA .btn.primary:hover { background: #d4b48a; border-color: #d4b48a; }
+
+    .heroCTA .btn.ghost {
+      background: transparent;
+      border-color: rgba(245,240,232,.2);
+      color: rgba(245,240,232,.7);
+    }
+    .heroCTA .btn.ghost:hover { border-color: rgba(245,240,232,.4); color: var(--cream); background: rgba(245,240,232,.05); }
+
+    .featureGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .featureCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 20px;
+      box-shadow: var(--shadow-xs);
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+      text-decoration: none;
+      display: block;
+      cursor: pointer;
+    }
+    .featureCard:hover {
+      border-color: rgba(201,168,124,.3);
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-2px);
+    }
+
+    .featureIcon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, rgba(201,168,124,.15), rgba(201,168,124,.05));
+      border: 1px solid rgba(201,168,124,.2);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      color: var(--brass2);
+    }
+
+    .featureName {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--navy);
+      margin-bottom: 5px;
+    }
+
+    .featureDesc {
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .statRow {
+      display: flex;
+      gap: 0;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .statItem {
+      flex: 1;
+      padding: 18px 20px;
+      border-right: 1px solid var(--line);
+      text-align: center;
+    }
+    .statItem:last-child { border-right: none; }
+
+    .statNum {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    .statLabel {
+      font-size: 11.5px;
+      color: var(--subtle);
+      font-weight: 500;
+      margin-top: 2px;
+    }
+
+    @media (max-width: 600px) {
+      .heroSection { padding: 36px 24px; }
+      .statRow { display: grid; grid-template-columns: 1fr 1fr; }
+      .statItem { border-right: none; border-bottom: 1px solid var(--line); }
+      .statItem:nth-child(odd) { border-right: 1px solid var(--line); }
+      .statItem:last-child, .statItem:nth-last-child(2):nth-child(odd) { border-bottom: none; }
+    }
+  </style>
 </head>
 <body>
-<header>
-  <div class="headerInner">
-    <div class="brand">Medical Evidence</div>
-    <nav id="nav" class="navRow"></nav>
-  </div>
-</header>
-
 <main>
-  <div class="card">
-    <h2>Welcome</h2>
-    <div class="small">
-      Search papers, save them, add notes, discuss in threads, and use BYOK AI.
-    </div>
-    <div class="itemActions" style="margin-top:14px;">
-      <button class="primary" onclick="location.href='search.html'">Search</button>
-      <button onclick="location.href='library.html'">Saved Papers</button>
-      <button onclick="location.href='ai.html'">AI</button>
+
+  <!-- Hero -->
+  <div class="heroSection">
+    <div class="heroMark">Seren · Medical Evidence</div>
+    <div class="heroTitle">Research smarter.<br/>Build evidence.</div>
+    <div class="heroSub">Search 4 providers, save papers to your library, annotate, discuss in threads, and run AI analysis — all in one place.</div>
+    <div class="heroCTA">
+      <button class="btn primary" onclick="location.href='search.html'">Start searching →</button>
+      <button class="btn ghost" onclick="location.href='login.html'">Sign in</button>
     </div>
   </div>
+
+  <!-- Stats -->
+  <div class="statRow">
+    <div class="statItem">
+      <div class="statNum">4</div>
+      <div class="statLabel">Search providers</div>
+    </div>
+    <div class="statItem">
+      <div class="statNum">Free</div>
+      <div class="statLabel">AI included</div>
+    </div>
+    <div class="statItem">
+      <div class="statNum">BYOK</div>
+      <div class="statLabel">Your own key</div>
+    </div>
+    <div class="statItem">
+      <div class="statNum">OA</div>
+      <div class="statLabel">Full text</div>
+    </div>
+  </div>
+
+  <!-- Feature cards -->
+  <div class="featureGrid">
+    <a class="featureCard" href="search.html">
+      <div class="featureIcon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </div>
+      <div class="featureName">Search</div>
+      <div class="featureDesc">Europe PMC, Semantic Scholar, OpenAlex, and Crossref — all in one query.</div>
+    </a>
+
+    <a class="featureCard" href="library.html">
+      <div class="featureIcon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      <div class="featureName">Library</div>
+      <div class="featureDesc">Save papers, organise into folders, add notes, and track your evidence base.</div>
+    </a>
+
+    <a class="featureCard" href="ai.html">
+      <div class="featureIcon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 1 0 5 5"/><path d="M12 2v4m0 16v-4m8-4h-4M4 12H0m15.66-6.34-2.83 2.83M6.34 17.66l-2.83 2.83M17.66 17.66l-2.83-2.83M6.34 6.34 3.51 3.51"/></svg>
+      </div>
+      <div class="featureName">AI Assistant</div>
+      <div class="featureDesc">Summarise papers and ask questions. Free AI included — BYOK for premium models.</div>
+    </a>
+
+    <a class="featureCard" href="info.html">
+      <div class="featureIcon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div class="featureName">About</div>
+      <div class="featureDesc">Key management, API documentation, and platform information.</div>
+    </a>
+  </div>
+
 </main>
 
 <script src="api.js"></script>

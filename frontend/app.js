@@ -1,96 +1,98 @@
 ﻿// frontend/app.js
-// Dashboard shell (sidebar + topbar) + token pill + guest gating.
-// Requires api.js (qs/getToken/setToken/fetchJson etc.)
+// Seren — Dashboard shell, sidebar, topbar, token pill, guest gating.
+// Requires api.js (getToken/setToken/fetchJson etc.)
 
-/* ===========================
-   ✅ PATCH: hard global guard
-   Prevents this file from wiring twice (Live Server / injection / re-eval).
-   =========================== */
-if (window.__ME_APPJS_WIRED__) {
-  // already wired
+if (window.__SEREN_APPJS_WIRED__) {
+  // already wired — skip
 } else {
-  window.__ME_APPJS_WIRED__ = true;
+  window.__SEREN_APPJS_WIRED__ = true;
 
-  const API_LABEL = window.API_BASE || "http://127.0.0.1:8000"; // display only
-
-  function esc(s){
-    return String(s ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
+  /* ── Helpers ─────────────────────────────────────────────── */
+  function esc(s) {
+    return String(s ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
   }
 
-  function icon(name){
-    const m = {
-      search: '⌕',
-      library: '▦',
-      paper: '▤',
-      ai: '✦',
-      info: 'i',
-      login: '⎆',
-      logout: '⟲'
+  /* SVG icon set — refined, consistent stroke-based icons */
+  function icon(name) {
+    const size = '18';
+    const base = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"`;
+    const icons = {
+      search:  `<svg ${base}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`,
+      library: `<svg ${base}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+      ai:      `<svg ${base}><path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 0 6h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1 0-6h1V6a4 4 0 0 1 4-4z"/><circle cx="12" cy="10" r="2"/></svg>`,
+      info:    `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`,
+      paper:   `<svg ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+      login:   `<svg ${base}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`,
+      logout:  `<svg ${base}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
     };
-    return m[name] || '•';
+    return icons[name] || `<svg ${base}><circle cx="12" cy="12" r="3"/></svg>`;
   }
 
-  function currentPage(){
+  function currentPage() {
     const p = (location.pathname.split('/').pop() || '').toLowerCase();
-    if(p.includes('search')) return 'search';
-    if(p.includes('library')) return 'library';
-    if(p.includes('ai')) return 'ai';
-    if(p.includes('info')) return 'info';
-    if(p.includes('paper')) return 'paper';
-    if(p.includes('login')) return 'login';
+    if (p.includes('search'))  return 'search';
+    if (p.includes('library')) return 'library';
+    if (p.includes('ai'))      return 'ai';
+    if (p.includes('info'))    return 'info';
+    if (p.includes('paper'))   return 'paper';
+    if (p.includes('login'))   return 'login';
     return 'search';
   }
 
-  function pageTitle(){
-    const t = (document.title || 'Medical Evidence').split('-')[0].trim();
-    return t || 'Medical Evidence';
+  function pageTitle() {
+    const titles = {
+      search:  'Search',
+      library: 'Library',
+      ai:      'AI Assistant',
+      info:    'About',
+      paper:   'Paper',
+    };
+    return titles[currentPage()] || 'Seren';
   }
 
-  function requireAuthOrRedirect(target="login.html"){
+  function requireAuthOrRedirect(target = 'login.html') {
     if (getToken()) return true;
-    try { sessionStorage.setItem("after_login", location.pathname.split('/').pop() || "search.html"); } catch {}
+    try { sessionStorage.setItem('after_login', location.pathname.split('/').pop() || 'search.html'); } catch {}
     window.location.href = target;
     return false;
   }
-
   window.requireAuthOrRedirect = requireAuthOrRedirect;
 
-  function setTokenPill(state, text, tooltip=""){
-    const dot = document.getElementById('tokenDot');
+  function setTokenPill(state, text, tooltip = '') {
+    const dot   = document.getElementById('tokenDot');
     const label = document.getElementById('tokenPillText');
-    if(!dot || !label) return;
-    dot.classList.remove('ok','bad','warn');
-    if(state === 'ok') dot.classList.add('ok');
-    else if(state === 'bad') dot.classList.add('bad');
-    else dot.classList.add('warn');
+    if (!dot || !label) return;
+    dot.classList.remove('ok', 'bad', 'warn');
+    dot.classList.add(state === 'ok' ? 'ok' : state === 'bad' ? 'bad' : 'warn');
     label.textContent = text;
-    dot.title = tooltip || '';
-    label.title = tooltip || '';
+    dot.title = tooltip;
+    label.title = tooltip;
   }
 
-  function ensureDashboardShell(){
-    if(currentPage() === 'login') return;
-    if(document.querySelector('.appShell')) return;
+  /* ── Shell construction ──────────────────────────────────── */
+  function ensureDashboardShell() {
+    if (currentPage() === 'login') return;
+    if (document.querySelector('.appShell')) return;
 
     const bodyKids = Array.from(document.body.children);
-    const header = document.querySelector('header');
-    const main = document.querySelector('main');
+    const header   = document.querySelector('header');
+    const main     = document.querySelector('main');
 
-    const shell = document.createElement('div');
+    const shell   = document.createElement('div');
     shell.className = 'appShell';
 
-    const side = document.createElement('aside');
+    const side    = document.createElement('aside');
     side.className = 'sidebar';
 
-    const area = document.createElement('div');
+    const area    = document.createElement('div');
     area.className = 'mainArea';
 
-    const top = document.createElement('div');
+    const top     = document.createElement('div');
     top.className = 'topbar';
     top.id = 'topbar';
 
@@ -98,87 +100,92 @@ if (window.__ME_APPJS_WIRED__) {
     content.className = 'content';
     content.id = 'content';
 
-    if(main){
+    if (main) {
       content.appendChild(main);
     } else {
-      bodyKids.forEach(el=>{
-        if(el.tagName === 'SCRIPT') return;
-        if(el.id === 'toastHost') return;
+      bodyKids.forEach(el => {
+        if (el.tagName === 'SCRIPT') return;
+        if (el.id === 'toastHost')   return;
         content.appendChild(el);
       });
     }
 
-    if(header) header.remove();
+    if (header) header.remove();
 
     area.appendChild(top);
     area.appendChild(content);
     shell.appendChild(side);
     shell.appendChild(area);
-
     document.body.prepend(shell);
   }
 
-  function wireSidebarDelegation(){
+  function wireSidebarDelegation() {
     const side = document.querySelector('.sidebar');
-    if(!side) return;
+    if (!side || side.dataset.navWired === '1') return;
+    side.dataset.navWired = '1';
 
-    if(side.dataset.navWired === "1") return;
-    side.dataset.navWired = "1";
-
-    side.addEventListener("click", (e) => {
-      const a = e.target.closest("a.sideBtn");
-      if(!a) return;
-
+    side.addEventListener('click', e => {
+      const a = e.target.closest('a.sideBtn');
+      if (!a) return;
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 
-      const href = (a.getAttribute("href") || "").trim();
+      const href = (a.getAttribute('href') || '').trim();
+      if (href === '#' || href === '') { e.preventDefault(); return; }
 
-      if(href === "#" || href === ""){
+      if (a.classList.contains('requiresLogin') && !getToken()) {
         e.preventDefault();
-        e.stopImmediatePropagation();
-        return;
-      }
-
-      if(a.classList.contains("requiresLogin") && !getToken()){
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        showToast("Login required","Please login to use this feature.","error");
+        showToast('Sign in required', 'Please log in to access this feature.', 'error');
         return;
       }
 
       e.preventDefault();
-      e.stopImmediatePropagation();
-
       window.location.assign(href);
     }, true);
   }
 
-  function renderShellNav(){
-    if(currentPage() === 'login') return;
+  /* ── Render nav ──────────────────────────────────────────── */
+  function renderShellNav() {
+    if (currentPage() === 'login') return;
     ensureDashboardShell();
 
-    const token = getToken();
+    const token    = getToken();
     const username = getUsername();
-    const isGuest = !token;
-    const page = currentPage();
+    const isGuest  = !token;
+    const page     = currentPage();
 
     const side = document.querySelector('.sidebar');
-    const top = document.getElementById('topbar');
-    if(!side || !top) return;
+    const top  = document.getElementById('topbar');
+    if (!side || !top) return;
+
+    const navLinks = [
+      { key: 'search',  href: 'search.html',  label: 'Search',  requiresLogin: false },
+      { key: 'library', href: 'library.html', label: 'Library', requiresLogin: true  },
+      { key: 'ai',      href: 'ai.html',       label: 'AI',      requiresLogin: true  },
+      { key: 'info',    href: 'info.html',     label: 'About',   requiresLogin: false },
+    ];
 
     side.innerHTML = `
-      <div class="brandMark">ME</div>
+      <a class="brandMark" href="search.html" title="Seren">S</a>
+
       <div class="sideGroup">
-        <a class="sideBtn ${page==='search'?'active':''}" href="search.html" title="Search"><span class="i">${icon('search')}</span></a>
-        <a class="sideBtn ${page==='library'?'active':''} ${isGuest?'requiresLogin':''}" href="library.html" title="${isGuest?'Login required':'Saved papers'}"><span class="i">${icon('library')}</span></a>
-        <a class="sideBtn ${page==='ai'?'active':''} ${isGuest?'requiresLogin':''}" href="ai.html" title="${isGuest?'Login required':'AI'}"><span class="i">${icon('ai')}</span></a>
-        <a class="sideBtn ${page==='info'?'active':''}" href="info.html" title="Info"><span class="i">${icon('info')}</span></a>
+        ${navLinks.map(({ key, href, label, requiresLogin }) => {
+          const isActive   = page === key;
+          const needsLogin = requiresLogin && isGuest;
+          const titleText  = needsLogin ? `${label} — sign in required` : label;
+          return `
+            <a class="sideBtn${isActive ? ' active' : ''}${needsLogin ? ' requiresLogin' : ''}"
+               href="${needsLogin ? '#' : href}"
+               title="${titleText}">
+              ${icon(key)}
+            </a>`;
+        }).join('')}
       </div>
+
       <div class="sideSpacer"></div>
-      ${
-        token
-          ? `<a class="sideBtn" href="#" id="logoutSide" title="Logout"><span class="i">${icon('logout')}</span></a>`
-          : `<a class="sideBtn" href="login.html" title="Login"><span class="i">${icon('login')}</span></a>`
+
+      ${token
+        ? `<a class="sideBtn" href="#" id="logoutSide" title="Sign out">${icon('logout')}</a>`
+        : `<a class="sideBtn" href="login.html" title="Sign in">${icon('login')}</a>`
       }
     `;
 
@@ -188,20 +195,28 @@ if (window.__ME_APPJS_WIRED__) {
       </div>
 
       <div class="topSearch">
-        <span class="searchIcon">⌕</span>
-        <input id="topSearchInput" placeholder="Search…" autocomplete="off" />
+        <span class="searchIcon">${icon('search')}</span>
+        <input id="topSearchInput" placeholder="Search literature…" autocomplete="off" />
       </div>
 
       <div class="topRight">
-        <div class="pill">API: <span class="mono">${esc(API_LABEL)}</span></div>
-        <div class="pill">User: <b id="userPill">${esc(username || (token?'…':'guest'))}</b></div>
-        <div class="pill"><span class="dot" id="tokenDot"></span><span id="tokenPillText">token: ?</span></div>
-        ${token ? `<button class="btn danger" id="logoutBtn">Logout</button>` : `<a class="btn" href="login.html">Login</a>`}
+        <div class="pill">
+          <span class="dot" id="tokenDot"></span>
+          <span id="tokenPillText">—</span>
+        </div>
+        <div class="pill">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <b id="userPill">${esc(username || (token ? '…' : 'Guest'))}</b>
+        </div>
+        ${token
+          ? `<button class="btn danger sm" id="logoutBtn">Sign out</button>`
+          : `<a class="btn primary sm" href="login.html">Sign in</a>`
+        }
       </div>
     `;
 
-    function doLogout(e){
-      if(e) e.preventDefault();
+    function doLogout(e) {
+      if (e) e.preventDefault();
       clearToken();
       setUsername('');
       sessionStorage.removeItem('last_external');
@@ -211,23 +226,25 @@ if (window.__ME_APPJS_WIRED__) {
 
     const lo1 = document.getElementById('logoutBtn');
     const lo2 = document.getElementById('logoutSide');
-    if(lo1) lo1.onclick = doLogout;
-    if(lo2) lo2.onclick = doLogout;
+    if (lo1) lo1.onclick = doLogout;
+    if (lo2) lo2.onclick = doLogout;
 
+    /* Wire top search to page search input */
     const topInput = document.getElementById('topSearchInput');
-    const q = document.getElementById('q');
-    if(topInput){
-      if(q){
+    const q        = document.getElementById('q');
+    if (topInput) {
+      if (q) {
         topInput.value = q.value || '';
-        topInput.addEventListener('input', ()=>{ q.value = topInput.value; });
-        topInput.addEventListener('keydown', (e)=>{
-          if(e.key !== 'Enter') return;
+        topInput.addEventListener('input', () => { q.value = topInput.value; });
+        topInput.addEventListener('keydown', e => {
+          if (e.key !== 'Enter') return;
           const btn = document.getElementById('searchBtn');
-          if(btn) btn.click();
+          if (btn) btn.click();
         });
       } else {
-        topInput.addEventListener('keydown', (e)=>{
-          if(e.key === 'Enter') showToast('Search','Go to the Search page to run a query.','info');
+        topInput.addEventListener('keydown', e => {
+          if (e.key === 'Enter')
+            showToast('Tip', 'Head to the Search page to run a literature query.', 'info');
         });
       }
     }
@@ -235,93 +252,88 @@ if (window.__ME_APPJS_WIRED__) {
     wireSidebarDelegation();
   }
 
-  let __ME_PILL_IN_FLIGHT__ = false;
-  let __TOKEN_PILL_IN_FLIGHT__ = false;
-  let __ME_PILL_LAST_AT__ = 0;
-  let __TOKEN_PILL_LAST_AT__ = 0;
-  const PILL_THROTTLE_MS = 5000;
+  /* ── Pill refresh (throttled) ────────────────────────────── */
+  let __mePillFlight = false, __tokenPillFlight = false;
+  let __mePillLast   = 0,     __tokenPillLast   = 0;
+  const PILL_THROTTLE = 30000; // poll every 30s, not 5s — prevents flicker
 
-  async function refreshUserPill(){
+  async function refreshUserPill() {
     const el = document.getElementById('userPill');
-    if(!el) return;
+    if (!el) return;
 
     const token = getToken();
-    if(!token){
-      el.textContent = getUsername() || 'guest';
-      return;
-    }
+    if (!token) { el.textContent = getUsername() || 'Guest'; return; }
 
     const now = Date.now();
-    if(__ME_PILL_IN_FLIGHT__) return;
-    if(now - __ME_PILL_LAST_AT__ < PILL_THROTTLE_MS) return;
-    __ME_PILL_LAST_AT__ = now;
-    __ME_PILL_IN_FLIGHT__ = true;
+    if (__mePillFlight || now - __mePillLast < PILL_THROTTLE) return;
+    __mePillLast = now;
+    __mePillFlight = true;
 
-    try{
+    try {
       const me = await fetchJson('/me');
-      if(me && me.username){
-        setUsername(me.username);
-        el.textContent = me.username;
-      }
-    }catch{
-      el.textContent = getUsername() || 'guest';
-    }finally{
-      __ME_PILL_IN_FLIGHT__ = false;
+      if (me?.username) { setUsername(me.username); el.textContent = me.username; }
+    } catch {
+      el.textContent = getUsername() || 'Guest';
+    } finally {
+      __mePillFlight = false;
     }
   }
 
-  async function refreshTokenPill(){
+  async function refreshTokenPill() {
     const token = getToken();
-    if(!token){
-      setTokenPill('warn','token: guest','Guest mode: login only needed to save/comment/AI.');
+    if (!token) {
+      setTokenPill('warn', 'Guest mode', 'Sign in to save papers, annotate, and use AI.');
       return;
     }
 
     const now = Date.now();
-    if(__TOKEN_PILL_IN_FLIGHT__) return;
-    if(now - __TOKEN_PILL_LAST_AT__ < PILL_THROTTLE_MS) return;
-    __TOKEN_PILL_LAST_AT__ = now;
-    __TOKEN_PILL_IN_FLIGHT__ = true;
+    if (__tokenPillFlight || now - __tokenPillLast < PILL_THROTTLE) return;
+    __tokenPillLast = now;
+    __tokenPillFlight = true;
 
-    try{
+    try {
       const res = await fetchJson('/auth/token_status');
-      if(res && res.valid){
-        const secs = typeof res.seconds_left === 'number' ? res.seconds_left : 0;
-        const mins = Math.max(0, Math.floor(secs/60));
-        setTokenPill('ok', `token: ok (${mins}m)`);
+      if (res?.valid) {
+        const mins = Math.max(0, Math.floor((res.seconds_left || 0) / 60));
+        setTokenPill('ok', `Active · ${mins}m`);
       } else {
-        setTokenPill('bad','token: bad','Token invalid/expired. Login again.');
+        // Token expired — update pill only, don't force redirect or re-render
+        setTokenPill('bad', 'Session expired', 'Please sign in again.');
       }
-    }catch(e){
-      setTokenPill('warn','token: err', e?.message || String(e));
-    }finally{
-      __TOKEN_PILL_IN_FLIGHT__ = false;
+    } catch (e) {
+      // Network error (e.g. server restarting) — show offline, don't re-render shell
+      setTokenPill('warn', 'Offline', 'Backend unreachable');
+    } finally {
+      __tokenPillFlight = false;
     }
   }
 
-  function wireContinueAsGuest(){
-    const ids = ['continueGuest','continueGuest2','guestBtn','guestBtn2'];
-    const btns = ids.map(id=>document.getElementById(id)).filter(Boolean);
-    btns.forEach(b=>b.addEventListener('click', (e)=>{
-      e.preventDefault();
-      clearToken();
-      setUsername('');
-      sessionStorage.removeItem('last_external');
-      sessionStorage.removeItem('open_study_id');
-      window.location.href = 'search.html';
-    }));
+  /* ── Continue as guest ───────────────────────────────────── */
+  function wireContinueAsGuest() {
+    ['continueGuest', 'continueGuest2', 'guestBtn', 'guestBtn2']
+      .map(id => document.getElementById(id))
+      .filter(Boolean)
+      .forEach(b => b.addEventListener('click', e => {
+        e.preventDefault();
+        clearToken();
+        setUsername('');
+        sessionStorage.removeItem('last_external');
+        sessionStorage.removeItem('open_study_id');
+        window.location.href = 'search.html';
+      }));
   }
 
-  async function boot(){
+  /* ── Boot ────────────────────────────────────────────────── */
+  async function boot() {
     renderShellNav();
     wireContinueAsGuest();
     await refreshUserPill();
     await refreshTokenPill();
   }
 
-  if (!window.__ME_AUTH_CHANGED_WIRED__) {
-    window.__ME_AUTH_CHANGED_WIRED__ = true;
-    window.addEventListener("auth:changed", () => {
+  if (!window.__SEREN_AUTH_EVENT_WIRED__) {
+    window.__SEREN_AUTH_EVENT_WIRED__ = true;
+    window.addEventListener('auth:changed', () => {
       renderShellNav();
       refreshUserPill();
       refreshTokenPill();
@@ -329,8 +341,8 @@ if (window.__ME_APPJS_WIRED__) {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    if (window.__ME_DID_BOOT__) return;
-    window.__ME_DID_BOOT__ = true;
+    if (window.__SEREN_DID_BOOT__) return;
+    window.__SEREN_DID_BOOT__ = true;
     boot();
   });
 }
