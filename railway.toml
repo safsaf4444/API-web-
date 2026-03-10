@@ -1,5 +1,5 @@
 [build]
-builder = "dockerfile"
+builder = "nixpacks"  # Changing from dockerfile to nixpacks
 dockerfilePath = "Dockerfile"
 
 [deploy]
