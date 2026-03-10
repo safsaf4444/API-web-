@@ -3,10 +3,9 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# All commands are combined into one line so they run in order
+# This MUST be one continuous line inside the quotation marks
 startCommand = "python -c \"import os; import psycopg2; conn = psycopg2.connect(os.environ['DATABASE_URL']); cur = conn.cursor(); cur.execute('DROP TABLE IF EXISTS alembic_version;'); conn.commit();\" && alembic upgrade head && uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8080} --workers 2"
 
-# Gives the app 5 minutes to finish the database reset before timing out
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
