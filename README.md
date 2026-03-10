@@ -1,51 +1,86 @@
-Mission
+# Medical Evidence Platform
 
-To make real medical evidence understandable, discussable, and transparent for students and the public.
+A full-stack platform for searching, importing, and AI-analysing peer-reviewed medical research. Built as a solo project by a Biomedical Science student at Royal Holloway, University of London.
 
-This project translates peer-reviewed research into clear, structured explanations without distorting the data or removing important context.
+---
 
-Why
+## What it does
 
-Medical information is often misinterpreted, sensationalized, or stripped of nuance.
-At the same time, research papers are dense and written for specialists.
+Medical research is scattered across dozens of databases, inconsistently formatted, and difficult to evaluate quickly. This platform centralises search across four academic providers, removes duplicate results automatically, and uses AI to surface what matters in a paper — study design, key findings, and evidence quality.
 
-There is a gap between published evidence and public understanding.
-This project exists to close that gap.
+---
 
-What This Project Does
+## What's built
 
-Summarizes peer-reviewed medical research
+| Feature | Detail |
+|---|---|
+| **Multi-source search** | Europe PMC, Semantic Scholar, OpenAlex, Crossref behind a unified provider abstraction layer |
+| **Deduplication engine** | DOI-first matching with cross-source reference tracking and fuzzy title fallback |
+| **Free-tier AI engine** | Gemini Flash → Groq fallback, no API key required. BYOK OpenAI with encrypted key storage |
+| **Auth & security** | JWT authentication, PBKDF2 password hashing, rate limiting middleware |
+| **Test suite** | 93 tests covering auth, deduplication, provider parsing, and study management — all passing |
+| **CI/CD** | GitHub Actions runs lint and full test suite on every push |
+| **Smart search filters** | Automatic study type detection — RCT, meta-analysis, cohort, systematic review |
+| **Paper detail** | Structured abstract display, metadata badges, tabbed AI chat and comments panel |
 
-Explains methods and statistics in plain language
+---
 
-Identifies limitations and potential bias
+## Stack
 
-Clarifies the strength of evidence
+**Backend:** Python · FastAPI · SQLModel · SQLite · Alembic · JWT · Fernet encryption
 
-Encourages thoughtful, evidence-based discussion
+**Testing & CI:** pytest · GitHub Actions · ruff
 
-What This Project Does Not Do
+**AI:** Gemini Flash · Groq (Llama 3.3) · OpenAI (BYOK)
 
-Provide personal medical advice
+**APIs:** Europe PMC · Semantic Scholar · OpenAlex · Crossref
 
-Promote unverified claims
+**Frontend:** Vanilla JavaScript · HTML · CSS
 
-Replace consultation with healthcare professionals
+---
 
-This is an educational resource focused on transparency.
+## Running locally
 
-Principles
+```bash
+# 1. Clone and activate environment
+git clone https://github.com/safsaf4444/API-web-
+cd API-web-
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # Mac/Linux
 
-Accuracy over simplicity
+# 2. Install dependencies
+pip install -r requirements.txt
 
-Transparency over persuasion
+# 3. Run the backend
+$env:PYTHONPATH = "."
+uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
+```
 
-Context over headlines
+Open `frontend/index.html` in your browser.
 
-Clear acknowledgment of uncertainty
+---
 
-If evidence is weak or conflicting, it will be stated clearly.
+## Running tests
 
-Disclaimer
+```bash
+$env:PYTHONPATH = "."
+pytest tests/ -v
+```
 
-This project is for educational purposes only and does not provide medical advice. Always consult a qualified healthcare professional for personal medical decisions.
+---
+
+## In development
+
+- Structured evidence extraction — PICO, NNT, bias risk scoring
+- Multi-paper synthesis — consensus and contradiction detection across studies
+- Research translation — audience-specific summaries for patients, clinicians, students
+- Citation visualisation, semantic search, PDF upload and RAG pipeline
+
+---
+
+## About
+
+Built by a second-year Biomedical Science student at Royal Holloway, University of London. Immediately available for internships, placements, and work experience in digital health or software engineering.
+
+**Contact:** safasaheerp@gmail.com · [github.com/safsaf4444](https://github.com/safsaf4444)
