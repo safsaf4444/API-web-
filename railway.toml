@@ -2,8 +2,8 @@
 builder = "nixpacks"
 
 [deploy]
-# We use sh -c to ensure the shell handles the command chaining and variables
-startCommand = "sh -c 'alembic upgrade head && uvicorn backend.app:app --host 0.0.0.0 --port 8080'"
+# Using double quotes outside and a plain number 8080
+startCommand = "alembic upgrade head && uvicorn backend.app:app --host 0.0.0.0 --port 8080"
 
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
