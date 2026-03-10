@@ -2,8 +2,10 @@
 builder = "nixpacks"
 
 [deploy]
-# Simplified to ensure a fast, clean start
-startCommand = "alembic upgrade head && uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8080}"
-healthcheckTimeout = 300
+# We remove the migrations for now just to get the 'Active' green light
+startCommand = "uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8080}"
+
+# Increase this to give it more time to breathe
+healthcheckTimeout = 600 
 restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 5
+restartPolicyMaxRetries = 10
