@@ -2,9 +2,4 @@
 builder = "nixpacks"
 
 [deploy]
-# '|| true' ensures the web server starts even if migrations are already up to date
-startCommand = "alembic upgrade head || true; uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
-
-healthcheckTimeout = 300
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 10
+startCommand = "python -m uvicorn backend.app:app --host 0.0.0.0 --port $PORT"

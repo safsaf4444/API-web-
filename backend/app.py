@@ -42,16 +42,17 @@ def _check_production_secrets() -> None:
     
     logger.info(f"🚀 Starting app in {env} mode")
     
-    # Validation for Railway Production
     if (env == "production" or os.getenv("RAILWAY_ENVIRONMENT")) and secret == "dev-secret-change-me":
-        # We log a warning instead of raising RuntimeError to prevent the 502 loop 
-        # while you are still configuring variables.
-        logger.error("❌ CRITICAL: Default SECRET_KEY used in production! Please update Railway Variables.")
+        logger.error("❌ CRITICAL: Default SECRET_KEY used in production! Update Railway Variables.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _check_production_secrets()
-    _safe_db_init()
+    # Try-except here so a DB failure doesn't cause a 502 loop
+    try:
+        _safe_db_init()
+    except Exception as e:
+        logger.error(f"DB Init failed: {e}")
     yield
     logger.info("🛑 Shutting down...")
 
