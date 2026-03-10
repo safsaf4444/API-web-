@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from backend.core.errors import install_error_handlers
 from backend.core.logging import install_logging
@@ -48,7 +50,6 @@ def _check_production_secrets() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _check_production_secrets()
-    # Try-except here so a DB failure doesn't cause a 502 loop
     try:
         _safe_db_init()
     except Exception as e:
@@ -69,9 +70,12 @@ install_logging(app)
 install_rate_limit(app)
 
 # 2. Configure CORS
+# Uses the environment variable CORS_ALLOW_ORIGINS if set, otherwise defaults to "*"
+allowed_origins = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=allowed_origins, 
     allow_credentials=True, 
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,11 +93,19 @@ app.include_router(ai_router)
 app.include_router(metrics_router)
 app.include_router(health_router)
 
+# 4. STATIC FILES & FRONTEND SERVING
+# Mount the frontend folder so assets (CSS/JS) can be reached at /frontend/...
+if os.path.exists("frontend"):
+    app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+
 @app.get("/")
-def root():
+async def serve_index():
+    """Serve the main entry point index.html at the root URL."""
+    if os.path.exists("frontend/index.html"):
+        return FileResponse("frontend/index.html")
     return {
         "status": "ok", 
-        "message": "Medical Evidence backend running",
+        "message": "Backend is running, but frontend/index.html was not found.",
         "environment": os.getenv("ENV", "dev"),
         "railway": bool(os.getenv("RAILWAY_ENVIRONMENT")),
         "docs": "/docs"

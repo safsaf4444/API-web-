@@ -143,8 +143,8 @@
   }
 
   /* ======================================================
-     request dedupe + endpoint throttling
-     ====================================================== */
+      request dedupe + endpoint throttling
+      ====================================================== */
 
   const __INFLIGHT__ = new Map();   // key -> Promise
   const __THROTTLE__ = new Map();   // pathKey -> last timestamp (ms)
