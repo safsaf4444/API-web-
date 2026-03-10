@@ -1,4 +1,4 @@
-# SEREN
+# Evidence & Research Exploration Network
 
 A full-stack platform for searching, importing, and AI-analysing peer-reviewed medical research. Built as a solo project by a Biomedical Science student at Royal Holloway, University of London.
 
