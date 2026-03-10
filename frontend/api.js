@@ -3,13 +3,9 @@
 
 (() => {
   // --- CONFIGURATION ---
+  // Hardcoded to Railway to bypass any "localhost" detection issues causing 502s
   const RAILWAY_URL = "https://api-web-production-89b9.up.railway.app";
-  const LOCAL_URL = "http://127.0.0.1:8000";
-
-  // AUTO-DETECT: Use Railway if on the web, otherwise use local
-  const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
-    ? LOCAL_URL 
-    : RAILWAY_URL;
+  const API_BASE = RAILWAY_URL;
 
   console.log(`🔌 Seren API: Connecting to ${API_BASE}`);
 
@@ -138,7 +134,7 @@
 
   function makeNetworkError(original) {
     const err = new Error(
-      "Network/CORS error (request reached server or was blocked). If it actually saved, refresh Library to confirm."
+      "Network/CORS error. Check if the backend is live at Railway."
     );
     err.isNetwork = true;
     err.cause = original;
@@ -241,10 +237,9 @@
           headers,
           body,
           credentials: "omit",
-          signal: opts.signal, // optional AbortController support
+          signal: opts.signal, 
         });
       } catch (e) {
-        // Network / CORS / connection reset
         throw makeNetworkError(e);
       }
 
@@ -263,7 +258,6 @@
       if (!res.ok) {
         const msg = extractErrorMessage(data, res);
 
-        // Only auto-clear token if we actually sent auth.
         if (res.status === 401 && getToken() && sentAuth) {
           localStorage.removeItem("token");
           localStorage.removeItem("username");
@@ -459,19 +453,9 @@
   }
 
   // expose globally
-  window.API_BASE = API_BASE;
-  window.qs = qs;
-  window.$ = $;
-  window.getToken = getToken;
-  window.setToken = setToken;
-  window.clearToken = clearToken;
-  window.getUsername = getUsername;
-  window.setUsername = setUsername;
-  window.escapeHtml = escapeHtml;
-  window.fetchJson = fetchJson;
-
-  window.showToast = showToast;
-  window.withBtnLoading = withBtnLoading;
-  window.confirmModal = confirmModal;
-  window.promptModal = promptModal;
+  Object.assign(window, {
+    API_BASE, qs, $, getToken, setToken, clearToken,
+    getUsername, setUsername, escapeHtml, fetchJson,
+    showToast, withBtnLoading, confirmModal, promptModal
+  });
 })();
