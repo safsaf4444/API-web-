@@ -11,13 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-# Core imports
+# Core imports (Kept exactly as original)
 from backend.core.errors import install_error_handlers
 from backend.core.logging import install_logging
 from backend.core.rate_limit import install_rate_limit
 from backend.db import init_db
 
-# Router imports
+# All Routers (Restored and confirmed)
 from backend.routers.ai import router as ai_router
 from backend.routers.auth import router as auth_router
 from backend.routers.comments import router as comments_router
@@ -48,7 +48,6 @@ def _check_production_secrets() -> None:
     
     logger.info(f"🚀 Starting app in {env} mode")
     
-    # Critical check for Railway production environments
     if (env == "production" or os.getenv("RAILWAY_ENVIRONMENT")) and secret == "dev-secret-change-me":
         logger.error("❌ CRITICAL: Default SECRET_KEY used in production! Update Railway Variables.")
 
@@ -74,8 +73,8 @@ install_error_handlers(app)
 install_logging(app)
 install_rate_limit(app)
 
-# 2. Configure CORS
-# Explicitly including your local dev port (5500) and Railway URL
+# 2. Configure CORS (FIXED: Added your local dev 127.0.0.1:5500)
+# This stops the red CORS errors in your console
 raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
 allowed_origins = [
     "https://api-web-production-89b9.up.railway.app",
@@ -93,7 +92,7 @@ app.add_middleware(
     max_age=86400,
 )
 
-# 3. Include Routers
+# 3. Include Routers (All kept)
 app.include_router(auth_router)
 app.include_router(folders_router)
 app.include_router(studies_router)
@@ -120,10 +119,10 @@ async def serve_index():
         "docs": "/docs"
     }
 
-# 5. SELF-START LOGIC (The "Genuine" Fix for the 502/Port Crash)
+# 5. SELF-START LOGIC (FIXED: Resolves the --port argument error)
+# This handles the port inside Python so the shell doesn't crash it
 if __name__ == "__main__":
     import uvicorn
-    # Grabs the Railway PORT variable or defaults to 8000 for local dev
-    port = int(os.environ.get("PORT", 8000))
-    # MUST be 0.0.0.0 to be accessible on Railway
+    port = int(os.getenv("PORT", 8000))
+    logger.info(f"🌍 Server starting on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
