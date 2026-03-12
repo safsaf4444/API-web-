@@ -28,7 +28,6 @@ from backend.routers.studies import router as studies_router
 
 logger = logging.getLogger("uvicorn")
 
-
 # -----------------------------
 # DB Init with Retry
 # -----------------------------
@@ -92,7 +91,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-
 # -----------------------------
 # Install Core Services
 # -----------------------------
@@ -101,7 +99,6 @@ install_error_handlers(app)
 install_logging(app)
 install_rate_limit(app)
 
-
 # -----------------------------
 # CORS
 # -----------------------------
@@ -109,23 +106,22 @@ install_rate_limit(app)
 raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "").split(",")
 
 allowed_origins = [
-    "https://api-web-production-89b9.up.railway.app",
     "http://127.0.0.1:5500",
     "http://localhost:5500",
+    "https://api-web-production-89b9.up.railway.app",
 ]
 
 allowed_origins += [o.strip() for o in raw_origins if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=list(set(allowed_origins)),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Authorization"],
     max_age=86400,
 )
-
 
 # -----------------------------
 # Routers
@@ -140,20 +136,23 @@ app.include_router(ai_router)
 app.include_router(metrics_router)
 app.include_router(health_router)
 
-
 # -----------------------------
 # Static Files
 # -----------------------------
 
-if os.path.exists("frontend"):
-    app.mount("/static", StaticFiles(directory="frontend"), name="static")
+FRONTEND_DIR = "frontend"
+
+if os.path.exists(FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 
 @app.get("/")
 async def serve_index():
 
-    if os.path.exists("frontend/index.html"):
-        return FileResponse("frontend/index.html")
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
 
     return {
         "status": "ok",
@@ -161,6 +160,15 @@ async def serve_index():
         "docs": "/docs",
         "environment": os.getenv("ENV", "dev"),
     }
+
+
+# -----------------------------
+# favicon fix
+# -----------------------------
+
+@app.get("/favicon.ico")
+async def favicon():
+    return {"message": "no favicon"}
 
 
 # -----------------------------
