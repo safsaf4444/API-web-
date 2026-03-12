@@ -151,7 +151,7 @@ app.include_router(health_router)
 # Static Files
 # -----------------------------
 
-FRONTEND_DIR = "frontend"
+FRONTEND_DIR = "public"
 
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
