@@ -151,7 +151,7 @@ app.include_router(health_router)
 # Static Files
 # -----------------------------
 
-FRONTEND_DIR = "public"
+FRONTEND_DIR = "frontend"
 
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
@@ -171,6 +171,17 @@ async def serve_index():
         "docs": "/docs",
         "environment": os.getenv("ENV", "dev"),
     }
+
+
+# Catch-all: serve any frontend HTML/CSS/JS file
+@app.get("/{filename:path}")
+async def serve_frontend_file(filename: str):
+    file_path = os.path.join(FRONTEND_DIR, filename)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # If not a static file, return 404
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"detail": "Not Found"}, status_code=404)
 
 
 # -----------------------------

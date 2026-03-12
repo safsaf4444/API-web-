@@ -4,13 +4,13 @@
 (() => {
   // --- CONFIGURATION ---
   // On Railway: use Railway URL directly.
-  // On Vercel: Vercel auto-detects FastAPI (via pyproject.toml) and exposes it at the root.
+  // On Vercel: everything goes through the same domain (same origin).
   // On localhost (Live Server port 5500): backend runs separately on port 8000.
   const API_BASE = window.location.hostname.includes("railway")
     ? "https://api-web-production-89b9.up.railway.app"
     : window.location.port === "5500"
       ? "http://127.0.0.1:8000"
-      : ""; // Vercel: API and frontend on same origin, root paths
+      : ""; // Vercel: same origin, no prefix needed
 
   console.log(`🔌 Seren API: Connecting to ${API_BASE || "(same origin)"}`);
 
