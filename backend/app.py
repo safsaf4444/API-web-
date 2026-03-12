@@ -54,11 +54,18 @@ def _check_production_secrets():
 
     env = os.getenv("ENV", "dev").lower()
     secret = os.getenv("SECRET_KEY", "dev-secret-change-me")
+    db_url = os.getenv("DATABASE_URL", "")
 
     logger.info(f"🚀 Environment: {env}")
 
-    if (env == "production" or os.getenv("RAILWAY_ENVIRONMENT")) and secret == "dev-secret-change-me":
-        logger.error("❌ Default SECRET_KEY detected in production!")
+    if (env == "production" or os.getenv("VERCEL") or os.getenv("RAILWAY_ENVIRONMENT")):
+        if secret == "dev-secret-change-me":
+            logger.error("❌ Default SECRET_KEY detected in production!")
+        
+        # Vercel uses a read-only filesystem; sqlite will fail on startup.
+        if "sqlite" in db_url or not db_url:
+            logger.error("❌ Vercel/Production requires a remote POSTGRES database URL. sqlite is not supported because the filesystem is read-only!")
+            logger.error("❌ App will likely crash on DB init.")
 
 
 # -----------------------------
@@ -111,6 +118,11 @@ allowed_origins = [
     "https://api-web-production-89b9.up.railway.app",
 ]
 
+# Specifically allow Vercel dynamic branch URLs if we're running inside Vercel
+vercel_url = os.getenv("VERCEL_URL")
+if vercel_url:
+    allowed_origins.append(f"https://{vercel_url}")
+    
 allowed_origins += [o.strip() for o in raw_origins if o.strip()]
 
 app.add_middleware(
@@ -127,6 +139,16 @@ app.add_middleware(
 # Routers
 # -----------------------------
 
+# Vercel needs an `/api` prefix to route correctly, while local dev uses `/`
+app.include_router(auth_router, prefix="/api")
+app.include_router(folders_router, prefix="/api")
+app.include_router(studies_router, prefix="/api")
+app.include_router(comments_router, prefix="/api")
+app.include_router(external_router, prefix="/api")
+app.include_router(metrics_router, prefix="/api")
+app.include_router(health_router, prefix="/api")
+
+# Support local dev by mounting them at root as well
 app.include_router(auth_router)
 app.include_router(folders_router)
 app.include_router(studies_router)

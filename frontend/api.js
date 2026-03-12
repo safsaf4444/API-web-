@@ -1,11 +1,12 @@
-﻿// frontend/api.js
+// frontend/api.js
 // Global helpers for ALL pages (no modules). Must be loaded before app.js.
 
 (() => {
   // --- CONFIGURATION ---
-  // Hardcoded to Railway to bypass any "localhost" detection issues causing 502s
-  const RAILWAY_URL = "https://api-web-production-89b9.up.railway.app";
-  const API_BASE = RAILWAY_URL;
+  // If we are on Vercel or localhost, use relative paths to hit the same origin.
+  const API_BASE = window.location.hostname.includes("railway")
+    ? "https://api-web-production-89b9.up.railway.app"
+    : "/api"; // Vercel rewrite maps /api/(.*) -> backend/app.py
 
   console.log(`🔌 Seren API: Connecting to ${API_BASE}`);
 
