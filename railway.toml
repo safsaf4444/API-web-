@@ -2,4 +2,4 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python -m alembic upgrade head && python -m backend.app"
+startCommand = "python -m alembic upgrade head; python -m backend.app"
