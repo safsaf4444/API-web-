@@ -1,0 +1,6 @@
+[project]
+name = "seren-medical-evidence"
+version = "0.1.0"
+
+[project.scripts]
+app = "backend.app:app"

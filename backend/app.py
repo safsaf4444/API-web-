@@ -139,16 +139,6 @@ app.add_middleware(
 # Routers
 # -----------------------------
 
-# Vercel needs an `/api` prefix to route correctly, while local dev uses `/`
-app.include_router(auth_router, prefix="/api")
-app.include_router(folders_router, prefix="/api")
-app.include_router(studies_router, prefix="/api")
-app.include_router(comments_router, prefix="/api")
-app.include_router(external_router, prefix="/api")
-app.include_router(metrics_router, prefix="/api")
-app.include_router(health_router, prefix="/api")
-
-# Support local dev by mounting them at root as well
 app.include_router(auth_router)
 app.include_router(folders_router)
 app.include_router(studies_router)

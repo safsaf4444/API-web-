@@ -1,10 +1,18 @@
 {
-  "version": 2,
-  "routes": [
+  "builds": [
     {
-      "src": "/api/(.*)",
-      "dest": "backend/app.py"
-    },
+      "src": "backend/app.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "backend/app.py/:path*"
+    }
+  ],
+  "routes": [
     {
       "src": "/(.*)",
       "dest": "frontend/$1"

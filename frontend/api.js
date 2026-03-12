@@ -3,10 +3,14 @@
 
 (() => {
   // --- CONFIGURATION ---
-  // If we are on Vercel or localhost, use relative paths to hit the same origin.
+  // If running on Railway, use the Railway URL directly.
+  // On Vercel or localhost (via Live Server), call /api which Vercel rewrites
+  // to the FastAPI backend (stripping the /api prefix automatically).
   const API_BASE = window.location.hostname.includes("railway")
     ? "https://api-web-production-89b9.up.railway.app"
-    : "/api"; // Vercel rewrite maps /api/(.*) -> backend/app.py
+    : window.location.port === "5500"
+      ? "http://127.0.0.1:8000"   // local dev: backend on port 8000
+      : "/api";                   // Vercel: rewrite strips /api before FastAPI
 
   console.log(`🔌 Seren API: Connecting to ${API_BASE}`);
 
