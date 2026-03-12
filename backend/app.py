@@ -146,6 +146,7 @@ app.include_router(comments_router)
 app.include_router(external_router)
 app.include_router(metrics_router)
 app.include_router(health_router)
+app.include_router(ai_router)
 
 # -----------------------------
 # Static Files
