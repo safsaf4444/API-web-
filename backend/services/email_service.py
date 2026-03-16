@@ -7,33 +7,44 @@ logger = logging.getLogger("uvicorn")
 
 
 def _send_resend(to: str, subject: str, html_body: str) -> bool:
+    from backend.core.config import settings
+
+    # Get the API key directly from the environment
     api_key = os.getenv("RESEND_API_KEY", "")
-    mail_from = os.getenv("MAIL_FROM", "onboarding@resend.dev")
+    
+    # Use the verified domain from your config (e.g., verify@serenresearch.com)
+    mail_from = settings.mail_from 
 
     if not api_key:
-        logger.warning("RESEND_API_KEY not set — skipping email send")
+        logger.warning("⚠️ RESEND_API_KEY not set — skipping email send")
         return False
 
     try:
         import resend
         resend.api_key = api_key
-        resend.Emails.send({
+        
+        # Trigger the email send
+        response = resend.Emails.send({
             "from": mail_from,
             "to": to,
             "subject": subject,
             "html": html_body,
         })
-        logger.info(f"Email sent to {to}: {subject}")
+        
+        logger.info(f"✅ Email sent successfully to {to}: {subject}")
         return True
+        
     except Exception as e:
-        logger.error(f"Resend email failed to {to}: {e}")
+        logger.error(f"💥 Resend email failed to {to}. Error: {str(e)}")
         return False
 
 
 def send_verification_email(to_email: str, username: str, token: str) -> bool:
     from backend.core.config import settings
+    
     verify_url = f"{settings.frontend_url}/login.html?token={token}&mode=verify"
     subject = "Verify your Seren account"
+    
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -61,8 +72,10 @@ def send_verification_email(to_email: str, username: str, token: str) -> bool:
 
 def send_password_reset_email(to_email: str, username: str, token: str) -> bool:
     from backend.core.config import settings
+    
     reset_url = f"{settings.frontend_url}/login.html?token={token}&mode=reset"
     subject = "Reset your Seren password"
+    
     html = f"""
     <!DOCTYPE html>
     <html>
