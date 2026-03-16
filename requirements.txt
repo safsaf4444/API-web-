@@ -15,6 +15,5 @@ pytest-asyncio>=0.23
 ruff>=0.4.0
 psycopg2-binary>=2.9
 aiosmtplib>=3.0
-python-multipart>=0.0.9
 itsdangerous>=2.1
-resend>=0.8.0
+resend>=2.1.0
