@@ -1,46 +1,38 @@
 from __future__ import annotations
 
 import logging
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
-from backend.core.config import settings
+import os
 
 logger = logging.getLogger("uvicorn")
 
 
-def _send_smtp(to: str, subject: str, html_body: str) -> bool:
-    """Send email via SMTP. Returns True on success, False on failure."""
-    if not settings.mail_enabled:
-        logger.info(f"[EMAIL DISABLED] Would send to {to}: {subject}")
-        return True
+def _send_resend(to: str, subject: str, html_body: str) -> bool:
+    api_key = os.getenv("RESEND_API_KEY", "")
+    mail_from = os.getenv("MAIL_FROM", "onboarding@resend.dev")
 
-    if not settings.mail_username or not settings.mail_password:
-        logger.warning("Email not configured — skipping send. Set MAIL_USERNAME and MAIL_PASSWORD.")
+    if not api_key:
+        logger.warning("RESEND_API_KEY not set — skipping email send")
         return False
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = settings.mail_from
-    msg["To"] = to
-    msg.attach(MIMEText(html_body, "html"))
-
     try:
-        with smtplib.SMTP(settings.mail_server, settings.mail_port) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(settings.mail_username, settings.mail_password)
-            server.sendmail(settings.mail_from, to, msg.as_string())
+        import resend
+        resend.api_key = api_key
+        resend.Emails.send({
+            "from": mail_from,
+            "to": to,
+            "subject": subject,
+            "html": html_body,
+        })
         logger.info(f"Email sent to {to}: {subject}")
         return True
     except Exception as e:
-        logger.error(f"Email send failed to {to}: {e}")
+        logger.error(f"Resend email failed to {to}: {e}")
         return False
 
 
 def send_verification_email(to_email: str, username: str, token: str) -> bool:
-    verify_url = f"{settings.frontend_url}/verify-email.html?token={token}"
+    from backend.core.config import settings
+    verify_url = f"{settings.frontend_url}/login.html?token={token}&mode=verify"
     subject = "Verify your Seren account"
     html = f"""
     <!DOCTYPE html>
@@ -51,7 +43,7 @@ def send_verification_email(to_email: str, username: str, token: str) -> bool:
         </div>
         <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 16px;">Verify your email address</h2>
         <p style="color: #4a5568; line-height: 1.6; margin-bottom: 24px;">
-            Hi {username}, click the button below to verify your email and activate your Seren account.
+            Hi {username}, click below to verify your email and activate your Seren account.
         </p>
         <a href="{verify_url}"
            style="display: inline-block; background: #1e3a5f; color: white; padding: 12px 28px;
@@ -61,17 +53,15 @@ def send_verification_email(to_email: str, username: str, token: str) -> bool:
         <p style="color: #718096; font-size: 13px; margin-top: 24px;">
             This link expires in 24 hours. If you didn't create a Seren account, ignore this email.
         </p>
-        <p style="color: #718096; font-size: 12px; margin-top: 8px;">
-            Or paste this URL: {verify_url}
-        </p>
     </body>
     </html>
     """
-    return _send_smtp(to_email, subject, html)
+    return _send_resend(to_email, subject, html)
 
 
 def send_password_reset_email(to_email: str, username: str, token: str) -> bool:
-    reset_url = f"{settings.frontend_url}/reset-password.html?token={token}"
+    from backend.core.config import settings
+    reset_url = f"{settings.frontend_url}/login.html?token={token}&mode=reset"
     subject = "Reset your Seren password"
     html = f"""
     <!DOCTYPE html>
@@ -90,12 +80,9 @@ def send_password_reset_email(to_email: str, username: str, token: str) -> bool:
             Reset Password
         </a>
         <p style="color: #718096; font-size: 13px; margin-top: 24px;">
-            If you didn't request this, ignore this email. Your password won't change.
-        </p>
-        <p style="color: #718096; font-size: 12px; margin-top: 8px;">
-            Or paste this URL: {reset_url}
+            If you didn't request this, ignore this email.
         </p>
     </body>
     </html>
     """
-    return _send_smtp(to_email, subject, html)
+    return _send_resend(to_email, subject, html)
