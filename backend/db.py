@@ -1,22 +1,17 @@
 from __future__ import annotations
 
 import os
-from sqlmodel import SQLModel, create_engine, Session
+from sqlalchemy.pool import NullPool
+from sqlmodel import SQLModel, Session, create_engine
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
 
-# Fix for Neon serverless + Vercel — disable SQLAlchemy connection pooling
-# and let pgbouncer handle it instead
 if DATABASE_URL.startswith("postgresql"):
     engine = create_engine(
         DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=300,
-        pool_size=1,
-        max_overflow=0,
+        poolclass=NullPool,
     )
 else:
-    # SQLite for local dev
     engine = create_engine(
         DATABASE_URL,
         connect_args={"check_same_thread": False},
