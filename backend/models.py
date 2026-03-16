@@ -12,7 +12,8 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     email: str = Field(index=True, unique=True)
     hashed_password: str
-    ai_key_enc: Optional[str] = Field(default=None)  # encrypted OpenAI key (BYOK)
+    ai_key_enc: Optional[str] = Field(default=None)
+    is_verified: bool = Field(default=False)  # NEW — email verification
 
 
 class Folder(SQLModel, table=True):
@@ -56,8 +57,8 @@ class Study(SQLModel, table=True):
 
 class StudyExternalRef(SQLModel, table=True):
     """
-    Tracks additional external IDs for a saved Study so one saved paper can be linked to
-    multiple providers (Europe PMC, OpenAlex, Crossref, Semantic Scholar, etc).
+    Tracks additional external IDs for a saved Study so one saved paper
+    can be linked to multiple providers.
     """
 
     __table_args__ = (
@@ -79,21 +80,20 @@ class StudyExternalRef(SQLModel, table=True):
 class StudyMetrics(SQLModel, table=True):
     """
     Usage + quality metrics per saved paper per user.
-    Fixed: added owner_username, save_count, folder_count, comment_count, ai_runs, last_accessed.
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    owner_username: str = Field(index=True)  # FIX: was missing, caused DB constraint errors
+    owner_username: str = Field(index=True)
     study_id: int = Field(foreign_key="study.id", index=True)
 
-    # Evidence quality (Phase 1 baseline)
+    # Evidence quality
     study_type: Optional[str] = Field(default=None, index=True)
     evidence_strength: Optional[int] = Field(default=None, ge=0, le=5)
     risk_of_bias: Optional[int] = Field(default=None, ge=0, le=5)
     sample_size: Optional[int] = Field(default=None, ge=0)
 
-    # FIX: usage counters — were missing entirely
+    # Usage counters
     save_count: int = Field(default=0)
     folder_count: int = Field(default=0)
     comment_count: int = Field(default=0)
@@ -101,15 +101,12 @@ class StudyMetrics(SQLModel, table=True):
 
     notes: Optional[str] = None
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    # FIX: last_accessed was referenced in metrics_service but not defined
     last_accessed: Optional[datetime] = Field(default=None)
 
 
 class AIResult(SQLModel, table=True):
     """
-    Cache for AI responses (summarize / ask) per user per paper.
-    FIX: this model was missing entirely — caused NameError crashes in routers/ai.py.
+    Cache for AI responses (summarize / ask / pico / evidence) per user per paper.
     """
 
     __table_args__ = (
@@ -120,11 +117,11 @@ class AIResult(SQLModel, table=True):
 
     owner_username: str = Field(index=True)
     cache_key: str = Field(index=True)   # SHA-256 of title+doi+pmid+pmcid+question
-    kind: str = Field(index=True)        # "summarize" | "ask"
+    kind: str = Field(index=True)        # "summarize" | "ask" | "pico" | "evidence"
 
-    model_used: str = Field(default="byok")  # tracks which provider/model was used
-    question: Optional[str] = None           # only set for "ask" kind
-    summary: Optional[str] = None            # the AI response text
+    model_used: str = Field(default="byok")
+    question: Optional[str] = None
+    summary: Optional[str] = None
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -41,7 +41,12 @@
       font-weight: 500;
       margin: 4px 0;
     }
-    .authDivider::before, .authDivider::after { content:''; flex:1; height:1px; background:var(--line); }
+    .authDivider::before, .authDivider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
 
     .authFoot {
       font-size: 12.5px;
@@ -58,13 +63,11 @@
       text-align: center;
     }
 
-    /* Stats row in visual panel */
     .authStats {
       display: flex;
       gap: 20px;
       margin-top: 16px;
     }
-    .authStat { }
     .authStatNum {
       font-family: var(--font-display);
       font-size: 22px;
@@ -101,6 +104,60 @@
       letter-spacing: 0.04em;
       margin-top: 8px;
     }
+
+    /* Google SSO button */
+    .btnGoogle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      background: var(--surface);
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      text-decoration: none;
+    }
+    .btnGoogle:hover {
+      background: var(--surface2);
+      border-color: var(--navy);
+    }
+    .btnGoogle svg { flex-shrink: 0; }
+
+    /* Forgot password link */
+    .forgotLink {
+      font-size: 12px;
+      color: var(--subtle);
+      text-align: right;
+      display: block;
+      margin-top: 4px;
+      text-decoration: none;
+    }
+    .forgotLink:hover { color: var(--brass2); text-decoration: underline; }
+
+    /* Forgot / Reset overlay panels */
+    .authOverlay {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .authOverlay.active { display: flex; }
+    .backLink {
+      font-size: 12.5px;
+      color: var(--subtle);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      text-align: left;
+      margin-bottom: 4px;
+    }
+    .backLink:hover { color: var(--brass2); }
   </style>
 </head>
 <body class="authBody">
@@ -119,7 +176,7 @@
         </div>
 
         <div class="authVisualQuote">
-          <p>"The goal of science is to build better mousetraps. The goal of medicine is to build better patients."</p>
+          <p>"The strength of evidence should guide the strength of recommendations."</p>
           <span>Evidence-based medicine</span>
         </div>
 
@@ -138,166 +195,383 @@
               <div class="authStatLabel">Your key</div>
             </div>
           </div>
-          <div class="authHint">Guest mode lets you search freely. Log in to save papers, annotate, and use AI.</div>
+          <div class="authHint">
+            Guest mode lets you search freely. Log in to save papers, annotate, and use AI.
+          </div>
         </div>
       </section>
 
-      <!-- RIGHT: form -->
+      <!-- RIGHT: form panels -->
       <section class="authForm">
-        <div style="margin-bottom:20px;">
-          <h2 id="formTitle" style="margin-bottom:4px;">Welcome back</h2>
-          <p class="muted" id="formSubtitle" style="font-size:13px;margin:0;">Sign in to your Seren account.</p>
-        </div>
 
-        <div class="authTabs">
-          <button class="authTab active" id="tabLogin" type="button">Sign in</button>
-          <button class="authTab" id="tabRegister" type="button">Create account</button>
-        </div>
-
-        <!-- LOGIN FORM -->
-        <form id="loginForm">
-          <div class="authFields">
-            <div>
-              <label>Username</label>
-              <input id="loginUsername" autocomplete="username" placeholder="your username"/>
-            </div>
-            <div>
-              <label>Password</label>
-              <div class="authInputWrap">
-                <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••"/>
-                <button class="eyeBtn" id="toggleLoginPw" type="button" tabindex="-1">👁</button>
-              </div>
-            </div>
+        <!-- ── MAIN PANEL (login / register) ── -->
+        <div id="mainPanel">
+          <div style="margin-bottom:20px;">
+            <h2 id="formTitle" style="margin-bottom:4px;">Welcome back</h2>
+            <p class="muted" id="formSubtitle" style="font-size:13px;margin:0;">
+              Sign in to your Seren account.
+            </p>
           </div>
 
-          <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
-            <button class="primary authPrimary" id="loginBtn" type="submit">Sign in</button>
-            <div class="authDivider">or</div>
-            <button class="authSecondary" id="continueGuest" type="button">Continue as guest</button>
+          <div class="authTabs">
+            <button class="authTab active" id="tabLogin" type="button">Sign in</button>
+            <button class="authTab" id="tabRegister" type="button">Create account</button>
           </div>
 
-          <div class="authMsg" id="loginMsg" style="margin-top:10px;min-height:18px;"></div>
-
-          <div class="authFoot" style="margin-top:12px;">
-            No account? <a href="#" id="goRegister">Create one →</a>
-          </div>
-        </form>
-
-        <!-- REGISTER FORM -->
-        <form id="registerForm" style="display:none;">
-          <div class="authFields">
-            <div class="authGrid2">
+          <!-- LOGIN FORM -->
+          <form id="loginForm">
+            <div class="authFields">
               <div>
                 <label>Username</label>
-                <input id="regUsername" autocomplete="username" placeholder="username"/>
+                <input id="loginUsername" autocomplete="username" placeholder="your username"/>
               </div>
               <div>
-                <label>Email</label>
-                <input id="regEmail" autocomplete="email" placeholder="you@example.com"/>
+                <label>Password</label>
+                <div class="authInputWrap">
+                  <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••"/>
+                  <button class="eyeBtn" id="toggleLoginPw" type="button" tabindex="-1">👁</button>
+                </div>
+                <a class="forgotLink" href="#" id="goForgot">Forgot password?</a>
               </div>
             </div>
-            <div>
-              <label>Password</label>
-              <div class="authInputWrap">
-                <input id="regPassword" type="password" autocomplete="new-password" placeholder="••••••••"/>
-                <button class="eyeBtn" id="toggleRegPw" type="button" tabindex="-1">👁</button>
+
+            <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
+              <button class="primary authPrimary" id="loginBtn" type="submit">Sign in</button>
+              <div class="authDivider">or</div>
+              <a class="btnGoogle" id="googleLoginBtn" href="/auth/google">
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+                  <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/>
+                  <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/>
+                  <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/>
+                </svg>
+                Continue with Google
+              </a>
+              <div class="authDivider">or</div>
+              <button class="authSecondary" id="continueGuest" type="button">Continue as guest</button>
+            </div>
+
+            <div class="authMsg" id="loginMsg" style="margin-top:10px;min-height:18px;"></div>
+
+            <div class="authFoot" style="margin-top:12px;">
+              No account? <a href="#" id="goRegister">Create one →</a>
+            </div>
+          </form>
+
+          <!-- REGISTER FORM -->
+          <form id="registerForm" style="display:none;">
+            <div class="authFields">
+              <div class="authGrid2">
+                <div>
+                  <label>Username</label>
+                  <input id="regUsername" autocomplete="username" placeholder="username"/>
+                </div>
+                <div>
+                  <label>Email</label>
+                  <input id="regEmail" autocomplete="email" placeholder="you@example.com"/>
+                </div>
+              </div>
+              <div>
+                <label>Password</label>
+                <div class="authInputWrap">
+                  <input id="regPassword" type="password" autocomplete="new-password" placeholder="••••••••"/>
+                  <button class="eyeBtn" id="toggleRegPw" type="button" tabindex="-1">👁</button>
+                </div>
+              </div>
+              <div>
+                <label>Confirm password</label>
+                <input id="regPassword2" type="password" autocomplete="new-password" placeholder="••••••••"/>
               </div>
             </div>
-            <div>
-              <label>Confirm password</label>
-              <input id="regPassword2" type="password" autocomplete="new-password" placeholder="••••••••"/>
+
+            <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
+              <button class="primary authPrimary" id="registerBtn" type="submit">Create account</button>
+              <div class="authDivider">or</div>
+              <a class="btnGoogle" href="/auth/google">
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+                  <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/>
+                  <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/>
+                  <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/>
+                </svg>
+                Sign up with Google
+              </a>
+              <div class="authDivider">or</div>
+              <button class="authSecondary" id="continueGuest2" type="button">Continue as guest</button>
+            </div>
+
+            <div class="authMsg" id="regMsg" style="margin-top:10px;min-height:18px;"></div>
+
+            <div class="authFoot" style="margin-top:12px;">
+              Already have an account? <a href="#" id="goLogin">Sign in →</a>
+            </div>
+          </form>
+        </div>
+
+        <!-- ── FORGOT PASSWORD PANEL ── -->
+        <div id="forgotPanel" class="authOverlay">
+          <button class="backLink" id="backFromForgot">← Back to sign in</button>
+          <h2 style="margin-bottom:4px;">Reset your password</h2>
+          <p class="muted" style="font-size:13px;margin:0 0 16px;">
+            Enter your email and we'll send a reset link.
+          </p>
+          <div>
+            <label>Email address</label>
+            <input id="forgotEmail" autocomplete="email" placeholder="you@example.com"/>
+          </div>
+          <button class="primary authPrimary" id="forgotBtn" type="button">Send reset link</button>
+          <div class="authMsg" id="forgotMsg" style="min-height:18px;"></div>
+        </div>
+
+        <!-- ── RESET PASSWORD PANEL ── -->
+        <div id="resetPanel" class="authOverlay">
+          <button class="backLink" id="backFromReset">← Back to sign in</button>
+          <h2 style="margin-bottom:4px;">Set new password</h2>
+          <p class="muted" style="font-size:13px;margin:0 0 16px;">
+            Enter your new password below.
+          </p>
+          <div>
+            <label>New password</label>
+            <div class="authInputWrap">
+              <input id="resetPassword" type="password" placeholder="••••••••"/>
+              <button class="eyeBtn" id="toggleResetPw" type="button" tabindex="-1">👁</button>
             </div>
           </div>
-
-          <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
-            <button class="primary authPrimary" id="registerBtn" type="submit">Create account</button>
-            <div class="authDivider">or</div>
-            <button class="authSecondary" id="continueGuest2" type="button">Continue as guest</button>
+          <div>
+            <label>Confirm password</label>
+            <input id="resetPassword2" type="password" placeholder="••••••••"/>
           </div>
+          <button class="primary authPrimary" id="resetBtn" type="button">Set new password</button>
+          <div class="authMsg" id="resetMsg" style="min-height:18px;"></div>
+        </div>
 
-          <div class="authMsg" id="regMsg" style="margin-top:10px;min-height:18px;"></div>
+        <div class="authMeta" id="apiMeta">
+          API: <span class="mono" id="apiBaseDisplay"></span>
+        </div>
 
-          <div class="authFoot" style="margin-top:12px;">
-            Already have an account? <a href="#" id="goLogin">Sign in →</a>
-          </div>
-        </form>
-
-        <div class="authMeta">API: <span class="mono">http://127.0.0.1:8000</span></div>
       </section>
-
     </div>
   </div>
 
   <script src="./api.js"></script>
   <script src="./app.js"></script>
   <script>
-    function $id(id){ return document.getElementById(id); }
-    function setMsg(id,html){ $id(id).innerHTML=html||''; }
-    function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+    // ── Show API base in meta ──────────────────────────────────────────────────
+    document.getElementById('apiBaseDisplay').textContent =
+      (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : '(same origin)';
 
-    function setMode(mode){
-      const isLogin=mode==='login';
-      $id('tabLogin').classList.toggle('active',isLogin);
-      $id('tabRegister').classList.toggle('active',!isLogin);
-      $id('loginForm').style.display=isLogin?'block':'none';
-      $id('registerForm').style.display=isLogin?'none':'block';
-      $id('formTitle').textContent=isLogin?'Welcome back':'Create an account';
-      $id('formSubtitle').textContent=isLogin?'Sign in to your Seren account.':'Register to start building your evidence library.';
-      setMsg('loginMsg',''); setMsg('regMsg','');
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function $id(id) { return document.getElementById(id); }
+    function setMsg(id, html) { $id(id).innerHTML = html || ''; }
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[c])
+      );
     }
 
-    function togglePw(id){ const el=$id(id); el.type=el.type==='password'?'text':'password'; }
-
-    $id('tabLogin').onclick=()=>setMode('login');
-    $id('tabRegister').onclick=()=>setMode('register');
-    $id('goRegister').onclick=e=>{e.preventDefault();setMode('register');};
-    $id('goLogin').onclick=e=>{e.preventDefault();setMode('login');};
-    $id('toggleLoginPw').onclick=()=>togglePw('loginPassword');
-    $id('toggleRegPw').onclick=()=>togglePw('regPassword');
-
-    function goGuest(){
-      try{ clearToken(); }catch{ try{localStorage.removeItem('token');}catch{} }
-      try{ setUsername(''); }catch{ try{localStorage.removeItem('username');}catch{} }
-      try{ sessionStorage.removeItem('last_external'); sessionStorage.removeItem('open_study_id'); }catch{}
-      window.location.href='search.html';
-    }
-    [$id('continueGuest'),$id('continueGuest2')].filter(Boolean).forEach(b=>b.onclick=goGuest);
-
-    $id('loginForm').addEventListener('submit',async e=>{
-      e.preventDefault(); setMsg('loginMsg','');
-      const username=$id('loginUsername').value.trim();
-      const password=$id('loginPassword').value;
-      if(!username||!password){ setMsg('loginMsg','<span class="authErr">Enter username and password.</span>'); return; }
-      try{
-        const data=await fetchJson('/auth/login',{method:'POST',body:{username,password}});
-        setToken(data.access_token); setUsername(username);
-        const after=sessionStorage.getItem('after_login')||'search.html';
+    // ── Google OAuth redirect handler ────────────────────────────────────────
+    // When Google redirects back to /login.html?token=...&username=...
+    (function handleOAuthRedirect() {
+      const params   = new URLSearchParams(window.location.search);
+      const token    = params.get('token');
+      const username = params.get('username');
+      if (token && username) {
+        setToken(token);
+        setUsername(username);
+        history.replaceState({}, '', window.location.pathname);
+        const dest = sessionStorage.getItem('after_login') || 'search.html';
         sessionStorage.removeItem('after_login');
-        window.location.href=after;
-      }catch(err){
-        setMsg('loginMsg',`<span class="authErr">${esc(err.message||String(err))}</span>`);
+        window.location.href = dest;
+      }
+    })();
+
+    // ── Panel switching ───────────────────────────────────────────────────────
+    function showPanel(name) {
+      ['mainPanel', 'forgotPanel', 'resetPanel'].forEach(id => {
+        const el = $id(id);
+        if (!el) return;
+        if (id === 'mainPanel') {
+          el.style.display = name === 'main' ? '' : 'none';
+        } else {
+          el.classList.toggle('active', id === name + 'Panel');
+        }
+      });
+    }
+
+    function setMode(mode) {
+      const isLogin = mode === 'login';
+      $id('tabLogin').classList.toggle('active', isLogin);
+      $id('tabRegister').classList.toggle('active', !isLogin);
+      $id('loginForm').style.display    = isLogin ? 'block' : 'none';
+      $id('registerForm').style.display = isLogin ? 'none'  : 'block';
+      $id('formTitle').textContent      = isLogin ? 'Welcome back' : 'Create an account';
+      $id('formSubtitle').textContent   = isLogin
+        ? 'Sign in to your Seren account.'
+        : 'Register to start building your evidence library.';
+      setMsg('loginMsg', '');
+      setMsg('regMsg', '');
+    }
+
+    function togglePw(id) {
+      const el = $id(id);
+      el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    // ── Tab / nav wiring ──────────────────────────────────────────────────────
+    $id('tabLogin').onclick    = () => setMode('login');
+    $id('tabRegister').onclick = () => setMode('register');
+    $id('goRegister').onclick  = e => { e.preventDefault(); setMode('register'); };
+    $id('goLogin').onclick     = e => { e.preventDefault(); setMode('login'); };
+    $id('goForgot').onclick    = e => { e.preventDefault(); showPanel('forgot'); };
+
+    $id('backFromForgot').onclick = () => { showPanel('main'); setMode('login'); };
+    $id('backFromReset').onclick  = () => { showPanel('main'); setMode('login'); };
+
+    $id('toggleLoginPw').onclick = () => togglePw('loginPassword');
+    $id('toggleRegPw').onclick   = () => togglePw('regPassword');
+    $id('toggleResetPw').onclick = () => togglePw('resetPassword');
+
+    // ── Guest mode ────────────────────────────────────────────────────────────
+    function goGuest() {
+      try { clearToken(); } catch { try { localStorage.removeItem('token'); } catch {} }
+      try { setUsername(''); } catch { try { localStorage.removeItem('username'); } catch {} }
+      try {
+        sessionStorage.removeItem('last_external');
+        sessionStorage.removeItem('open_study_id');
+      } catch {}
+      window.location.href = 'search.html';
+    }
+    [$id('continueGuest'), $id('continueGuest2')].filter(Boolean).forEach(b => b.onclick = goGuest);
+
+    // ── Login ─────────────────────────────────────────────────────────────────
+    $id('loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      setMsg('loginMsg', '');
+      const username = $id('loginUsername').value.trim();
+      const password = $id('loginPassword').value;
+      if (!username || !password) {
+        setMsg('loginMsg', '<span class="authErr">Enter username and password.</span>');
+        return;
+      }
+      try {
+        const data = await fetchJson('/auth/login', { method: 'POST', body: { username, password } });
+        setToken(data.access_token);
+        setUsername(username);
+        const after = sessionStorage.getItem('after_login') || 'search.html';
+        sessionStorage.removeItem('after_login');
+        window.location.href = after;
+      } catch (err) {
+        setMsg('loginMsg', `<span class="authErr">${esc(err.message || String(err))}</span>`);
       }
     });
 
-    $id('registerForm').addEventListener('submit',async e=>{
-      e.preventDefault(); setMsg('regMsg','');
-      const username=$id('regUsername').value.trim();
-      const email=$id('regEmail').value.trim();
-      const password=$id('regPassword').value;
-      const password2=$id('regPassword2').value;
-      if(!username||!email||!password){ setMsg('regMsg','<span class="authErr">Fill all fields.</span>'); return; }
-      if(password!==password2){ setMsg('regMsg','<span class="authErr">Passwords do not match.</span>'); return; }
-      try{
-        await fetchJson('/auth/register',{method:'POST',body:{username,email,password}});
-        $id('loginUsername').value=username;
+    // ── Register ──────────────────────────────────────────────────────────────
+    $id('registerForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      setMsg('regMsg', '');
+      const username  = $id('regUsername').value.trim();
+      const email     = $id('regEmail').value.trim();
+      const password  = $id('regPassword').value;
+      const password2 = $id('regPassword2').value;
+      if (!username || !email || !password) {
+        setMsg('regMsg', '<span class="authErr">Fill all fields.</span>');
+        return;
+      }
+      if (password !== password2) {
+        setMsg('regMsg', '<span class="authErr">Passwords do not match.</span>');
+        return;
+      }
+      try {
+        await fetchJson('/auth/register', { method: 'POST', body: { username, email, password } });
+        $id('loginUsername').value = username;
         setMode('login');
-        setMsg('loginMsg','<span class="authOk">Account created — sign in below.</span>');
-      }catch(err){
-        setMsg('regMsg',`<span class="authErr">${esc(err.message||String(err))}</span>`);
+        setMsg('loginMsg', '<span class="authOk">✓ Account created — check your email to verify, then sign in.</span>');
+      } catch (err) {
+        setMsg('regMsg', `<span class="authErr">${esc(err.message || String(err))}</span>`);
       }
     });
 
+    // ── Forgot password ───────────────────────────────────────────────────────
+    $id('forgotBtn').onclick = async () => {
+      setMsg('forgotMsg', '');
+      const email = ($id('forgotEmail').value || '').trim();
+      if (!email) {
+        setMsg('forgotMsg', '<span class="authErr">Enter your email address.</span>');
+        return;
+      }
+      try {
+        $id('forgotBtn').disabled = true;
+        $id('forgotBtn').textContent = 'Sending…';
+        await fetchJson('/auth/forgot-password', { method: 'POST', body: { email } });
+        setMsg('forgotMsg', '<span class="authOk">✓ If that email exists, a reset link has been sent.</span>');
+      } catch (err) {
+        setMsg('forgotMsg', `<span class="authErr">${esc(err.message)}</span>`);
+      } finally {
+        $id('forgotBtn').disabled = false;
+        $id('forgotBtn').textContent = 'Send reset link';
+      }
+    };
+
+    // ── Reset password (from email link ?reset_token=...) ─────────────────────
+    (function checkResetToken() {
+      const params = new URLSearchParams(window.location.search);
+      const token  = params.get('token');
+      const mode   = params.get('mode');
+      if (token && mode === 'reset') {
+        showPanel('reset');
+        $id('resetBtn').dataset.token = token;
+        history.replaceState({}, '', window.location.pathname);
+      }
+    })();
+
+    $id('resetBtn').onclick = async () => {
+      setMsg('resetMsg', '');
+      const token    = $id('resetBtn').dataset.token || '';
+      const newPw    = ($id('resetPassword').value || '').trim();
+      const confirm  = ($id('resetPassword2').value || '').trim();
+      if (!token) {
+        setMsg('resetMsg', '<span class="authErr">Invalid reset link. Request a new one.</span>');
+        return;
+      }
+      if (!newPw || newPw.length < 6) {
+        setMsg('resetMsg', '<span class="authErr">Password must be at least 6 characters.</span>');
+        return;
+      }
+      if (newPw !== confirm) {
+        setMsg('resetMsg', '<span class="authErr">Passwords do not match.</span>');
+        return;
+      }
+      try {
+        $id('resetBtn').disabled = true;
+        $id('resetBtn').textContent = 'Saving…';
+        await fetchJson('/auth/reset-password', {
+          method: 'POST',
+          body: { token, new_password: newPw },
+        });
+        setMsg('resetMsg', '<span class="authOk">✓ Password updated. You can now sign in.</span>');
+        setTimeout(() => { showPanel('main'); setMode('login'); }, 1800);
+      } catch (err) {
+        setMsg('resetMsg', `<span class="authErr">${esc(err.message)}</span>`);
+      } finally {
+        $id('resetBtn').disabled = false;
+        $id('resetBtn').textContent = 'Set new password';
+      }
+    };
+
+    // ── Email verification banner ─────────────────────────────────────────────
+    (function checkEmailVerified() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('verified') === '1') {
+        showPanel('main');
+        setMode('login');
+        setMsg('loginMsg', '<span class="authOk">✓ Email verified. You can now sign in.</span>');
+        history.replaceState({}, '', window.location.pathname);
+      }
+    })();
+
+    // ── Init ──────────────────────────────────────────────────────────────────
     setMode('login');
+    showPanel('main');
   </script>
 </body>
 </html>

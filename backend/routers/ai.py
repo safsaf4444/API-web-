@@ -19,18 +19,12 @@ from backend.schemas import (
 )
 from backend.services.ai_engine import run as engine_run
 from backend.services.ai_service import strip_html
+from backend.services.metrics_service import increment_ai_runs
 
 router = APIRouter(tags=["ai"])
 
 
-def _cache_key(
-    kind: str,
-    title: str,
-    doi: str | None,
-    pmid: str | None,
-    pmcid: str | None,
-    question: str | None = None,
-) -> str:
+def _cache_key(kind, title, doi, pmid, pmcid, question=None):
     base = {
         "kind": kind,
         "title": (title or "").strip().lower(),
@@ -44,27 +38,41 @@ def _cache_key(
 
 
 def _get_byok_keys(user: User) -> dict:
-    """
-    Decrypt and return whatever BYOK key the user has stored.
-    Returns a dict ready to unpack into engine_run().
-    If no key stored, returns empty dict — engine falls through to free tier.
-    """
     if not user.ai_key_enc:
         return {}
     try:
         key = decrypt_api_key(user.ai_key_enc)
     except Exception:
         return {}
-
-    # Detect key type by prefix
     if key.startswith("sk-ant-"):
         return {"anthropic_key": key}
     if key.startswith("AIza"):
         return {"gemini_key": key}
     if key.startswith("gsk_"):
         return {"groq_key": key}
-    # Default: treat as OpenAI
     return {"openai_key": key}
+
+
+def _get_study_id_for_paper(session: Session, owner: str, doi: str | None, pmid: str | None) -> int | None:
+    """Try to find the saved study_id for metrics wiring."""
+    from backend.models import Study
+    if doi:
+        s = session.exec(
+            select(Study).where(
+                (Study.owner_username == owner) & (Study.doi == doi.strip())
+            )
+        ).first()
+        if s:
+            return s.id
+    if pmid:
+        s = session.exec(
+            select(Study).where(
+                (Study.owner_username == owner) & (Study.pmid == pmid.strip())
+            )
+        ).first()
+        if s:
+            return s.id
+    return None
 
 
 @router.get("/ai/key_status", response_model=AIKeyStatus)
@@ -112,7 +120,6 @@ async def ai_summarize(
 ):
     ck = _cache_key("summarize", payload.title, payload.doi, payload.pmid, payload.pmcid)
 
-    # Check cache first
     cached = session.exec(
         select(AIResult).where(
             (AIResult.owner_username == current_user.username)
@@ -121,6 +128,8 @@ async def ai_summarize(
         )
     ).first()
     if cached and cached.summary:
+        # Still increment — user is viewing the result
+        _wire_ai_runs(session, current_user.username, payload.doi, payload.pmid)
         return AISummarizeResponse(text=cached.summary)
 
     system = (
@@ -139,11 +148,9 @@ async def ai_summarize(
         f"Abstract:\n{strip_html(payload.abstract or '')}"
     )
 
-    # Route through engine — BYOK if set, free tier if not
     byok = _get_byok_keys(current_user)
     result = await engine_run(system, user_msg, **byok)
 
-    # Cache the result
     rec = AIResult(
         owner_username=current_user.username,
         cache_key=ck,
@@ -153,6 +160,9 @@ async def ai_summarize(
     )
     session.add(rec)
     session.commit()
+
+    # ── Wire hook ──────────────────────────────────────────────
+    _wire_ai_runs(session, current_user.username, payload.doi, payload.pmid)
 
     return AISummarizeResponse(text=result.text)
 
@@ -165,7 +175,6 @@ async def ai_ask(
 ):
     ck = _cache_key("ask", payload.title, payload.doi, payload.pmid, payload.pmcid, payload.question)
 
-    # Check cache first
     cached = session.exec(
         select(AIResult).where(
             (AIResult.owner_username == current_user.username)
@@ -174,6 +183,7 @@ async def ai_ask(
         )
     ).first()
     if cached and cached.summary:
+        _wire_ai_runs(session, current_user.username, payload.doi, payload.pmid)
         return AIAskResponse(text=cached.summary)
 
     system = (
@@ -194,11 +204,9 @@ async def ai_ask(
         f"Abstract:\n{strip_html(payload.abstract or '')}"
     )
 
-    # Route through engine — BYOK if set, free tier if not
     byok = _get_byok_keys(current_user)
     result = await engine_run(system, user_msg, **byok)
 
-    # Cache the result
     rec = AIResult(
         owner_username=current_user.username,
         cache_key=ck,
@@ -210,7 +218,20 @@ async def ai_ask(
     session.add(rec)
     session.commit()
 
+    # ── Wire hook ──────────────────────────────────────────────
+    _wire_ai_runs(session, current_user.username, payload.doi, payload.pmid)
+
     return AIAskResponse(text=result.text)
+
+
+def _wire_ai_runs(session: Session, username: str, doi: str | None, pmid: str | None) -> None:
+    """Safely increment ai_runs — never raises."""
+    try:
+        study_id = _get_study_id_for_paper(session, username, doi, pmid)
+        if study_id:
+            increment_ai_runs(session, study_id, username)
+    except Exception:
+        pass
 
 
 @router.get("/ai/health")

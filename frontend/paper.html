@@ -1011,9 +1011,50 @@ qs("modeBtn").onclick  = () => {
   setMode(cur === "side" ? "drawer" : "side");
 };
 qs("closeBtn").onclick = () => {
-  const closed = qs("paperSplit").classList.toggle("panelClosed");
-  qs("closeBtn").textContent = closed ? "Open" : "✕";
+  const split  = qs("paperSplit");
+  const closed = split.classList.toggle("panelClosed");
+  qs("closeBtn").textContent = closed ? "Open panel" : "✕";
+
+  // If reopening, make sure panel right is visible
+  if (!closed) {
+    const right = document.querySelector(".paperRight");
+    if (right) right.style.display = "";
+  }
 };
+
+// Reopen button — shown when panel is closed
+(function addReopenBtn() {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn sm ghost";
+  btn.id = "reopenPanelBtn";
+  btn.title = "Open panel";
+  btn.style.cssText = `
+    position: fixed; bottom: 24px; right: 24px;
+    z-index: 1300; display: none;
+    background: var(--navy); color: white;
+    border: none; padding: 10px 16px;
+    border-radius: 4px; font-size: 13px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    cursor: pointer;
+  `;
+  btn.textContent = "Open panel →";
+  document.body.appendChild(btn);
+
+  btn.onclick = () => {
+    qs("paperSplit").classList.remove("panelClosed");
+    qs("closeBtn").textContent = "✕";
+    btn.style.display = "none";
+  };
+
+  // Watch for panel close state
+  const observer = new MutationObserver(() => {
+    const closed = qs("paperSplit")?.classList.contains("panelClosed");
+    btn.style.display = closed ? "block" : "none";
+  });
+  const split = qs("paperSplit");
+  if (split) observer.observe(split, { attributes: true, attributeFilter: ["class"] });
+})();
 
 (async function init() {
   const ref = getCurrentPaper();
