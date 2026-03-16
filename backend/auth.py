@@ -1,22 +1,31 @@
 from __future__ import annotations
 
 import os
+import httpx
 from datetime import datetime, timedelta, timezone
 
-from fastapi import HTTPException
+from fastapi import HTTPException, APIRouter, Request, Depends
+from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
+# --- ORIGINAL CONFIG & CONSTANTS ---
 SECRET_KEY = os.getenv("SECRET_KEY") or "dev-secret-change-me"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS") or "24")
 
-# Use PBKDF2 instead of bcrypt to avoid:
-# - bcrypt 72-byte password limit
-# - bcrypt/passlib version weirdness (bcrypt.__about__ errors)
+# Google OAuth Config
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+
+# Define the router so app.py can include it
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Use PBKDF2 instead of bcrypt
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-
+# --- ORIGINAL PASSWORD LOGIC ---
 def hash_password(password: str) -> str:
     password = (password or "").strip()
     if not password:
@@ -33,6 +42,7 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
+# --- ORIGINAL TOKEN LOGIC ---
 def create_access_token(subject: str) -> str:
     now = datetime.now(timezone.utc)
     exp = now + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
@@ -49,3 +59,61 @@ def decode_token(token: str) -> str:
         return str(sub)
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+# --- NEW GOOGLE OAUTH ROUTES ---
+
+@router.get("/google/login")
+async def google_login():
+    """Step 1: Redirect to Google login page"""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=400, detail="Google OAuth not configured")
+    
+    url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?response_type=code"
+        f"&client_id={GOOGLE_CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}"
+        f"&scope=openid%20email%20profile"
+    )
+    return RedirectResponse(url)
+
+
+@router.get("/google/callback")
+async def google_callback(code: str):
+    """Step 2: Handle the code Google sends back"""
+    if not code:
+        raise HTTPException(status_code=400, detail="No code provided from Google")
+
+    # Exchange code for tokens
+    token_url = "https://oauth2.googleapis.com/token"
+    data = {
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(token_url, data=data)
+        if resp.status_code != 200:
+            # If this fails, check your GOOGLE_CLIENT_SECRET in Vercel!
+            raise HTTPException(status_code=400, detail=f"Google token error: {resp.text}")
+        tokens = resp.json()
+
+    # Get user profile info
+    user_info_url = "https://www.googleapis.com/oauth2/v3/userinfo"
+    async with httpx.AsyncClient() as client:
+        user_resp = await client.get(
+            user_info_url, 
+            headers={"Authorization": f"Bearer {tokens['access_token']}"}
+        )
+        user_data = user_resp.json()
+
+    email = user_data.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Google did not provide email")
+
+    # Create Seren token for the user
+    access_token = create_access_token(subject=email)
+
+    # Redirect back to frontend dashboard
+    return RedirectResponse(url=f"/?token={access_token}")
