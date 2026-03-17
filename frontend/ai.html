@@ -81,8 +81,26 @@
 <main>
   <div class="aiPageLayout">
 
-    <!-- LEFT: key management -->
     <aside>
+      <div class="aiSideCard" style="margin-bottom:16px;">
+        <div class="aiSideLabel">Provider Selection</div>
+        <div>
+          <label>Preferred Model</label>
+          <div class="keyInput" style="margin-top:4px;">
+            <select id="modelSelect" style="width:100%; padding: 8px;">
+              <option value="auto">Auto (Default Free Tier)</option>
+              <option value="openai">OpenAI (Requires Key)</option>
+              <option value="anthropic">Anthropic (Requires Key)</option>
+              <option value="gemini">Gemini Pro (Requires Key)</option>
+              <option value="groq">Groq Llama 3 (Requires Key)</option>
+            </select>
+          </div>
+          <div style="font-size:11.5px;color:var(--subtle);line-height:1.6;margin-top:8px;">
+            If you select a premium model without providing a valid key below, the backend will automatically fall back to the free tier.
+          </div>
+        </div>
+      </div>
+
       <div class="aiSideCard">
         <div class="aiSideLabel">AI Key Status</div>
 
@@ -111,7 +129,6 @@
       </div>
     </aside>
 
-    <!-- RIGHT: info + providers -->
     <div>
       <div style="font-family:var(--font-display);font-size:26px;font-weight:600;color:var(--navy);margin-bottom:16px;letter-spacing:-0.02em;">AI Assistant</div>
 
@@ -159,6 +176,16 @@ requireAuthOrRedirect();
 function $id(id){ return document.getElementById(id); }
 function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
 function setKeyMsg(html){ $id('keyMsg').innerHTML=html||''; }
+
+// Handle preferred model selection
+const modelSelect = $id('modelSelect');
+const savedModel = localStorage.getItem('seren_preferred_ai_model') || 'auto';
+modelSelect.value = savedModel;
+
+modelSelect.addEventListener('change', () => {
+    localStorage.setItem('seren_preferred_ai_model', modelSelect.value);
+    showToast('Preference Saved', `Will attempt to use ${modelSelect.options[modelSelect.selectedIndex].text}`, 'success');
+});
 
 async function refresh(){
   try{

@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>About — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
+  <link rel="icon" href="/favicon.ico"/>
   <style>
-    .infoLayout { max-width: 760px; }
-    .infoSection { margin-bottom: 28px; }
+    .infoLayout { max-width: 760px; margin: 0 auto; padding: 40px 20px; }
+    .infoSection { margin-bottom: 32px; }
 
     .infoCard {
       background: var(--surface);
@@ -15,20 +16,20 @@
       border-radius: var(--r);
       padding: 20px 22px;
       box-shadow: var(--shadow-xs);
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
 
     .infoCardTitle {
       font-family: var(--font-display);
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 600;
       color: var(--navy);
       margin-bottom: 8px;
     }
 
     .infoCardBody {
-      font-size: 13px;
-      color: var(--muted);
+      font-size: 13.5px;
+      color: var(--text2);
       line-height: 1.75;
     }
 
@@ -37,30 +38,34 @@
       padding: 2px 6px;
       border-radius: 5px;
       font-size: 12px;
+      color: var(--navy);
     }
 
     .infoPageTitle {
       font-family: var(--font-display);
-      font-size: 26px;
-      font-weight: 600;
+      font-size: 32px;
+      font-weight: 700;
       color: var(--navy);
-      margin-bottom: 4px;
+      margin-bottom: 8px;
       letter-spacing: -0.02em;
     }
 
     .infoPageSub {
-      font-size: 13px;
+      font-size: 15px;
       color: var(--subtle);
-      margin-bottom: 24px;
+      margin-bottom: 32px;
+      line-height: 1.6;
     }
 
     .sectionHeading {
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 700;
-      letter-spacing: 0.09em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--subtle);
-      margin-bottom: 10px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--line2);
+      padding-bottom: 8px;
     }
   </style>
 </head>
@@ -69,71 +74,71 @@
   <div class="infoLayout">
 
     <div class="infoPageTitle">About Seren</div>
-    <div class="infoPageSub">Medical evidence research platform — documentation and key management.</div>
+    <div class="infoPageSub">A unified medical evidence platform designed to search, synthesize, and organize research efficiently. Built for speed, transparency, and evidence-based medicine.</div>
 
-    <!-- Guest vs Login -->
     <div class="infoSection">
-      <div class="sectionHeading">Access Levels</div>
+      <div class="sectionHeading">Platform Access</div>
 
       <div class="infoCard">
         <div class="infoCardTitle">Guest Mode</div>
-        <div class="infoCardBody">Search and open papers from Europe PMC, Semantic Scholar, OpenAlex, and Crossref without logging in. Full-text loading and DOI resolution also work as a guest.</div>
+        <div class="infoCardBody">Search and open papers from Europe PMC, Semantic Scholar, OpenAlex, and Crossref instantly. Full-text Open Access loading and DOI resolution are fully available without an account.</div>
       </div>
 
       <div class="infoCard">
-        <div class="infoCardTitle">Requires Login</div>
+        <div class="infoCardTitle">Registered Users</div>
         <div class="infoCardBody">
-          Saving papers to your library · Folders and notes · Comment threads · AI summarisation and Q&A · BYOK key management
+          Creating a free account unlocks the core research workflow:<br>
+          • Save papers to a personal library & organize with folders<br>
+          • Annotate papers and participate in comment threads<br>
+          • Use AI summarization and PICO extraction<br>
+          • Manage BYOK (Bring Your Own Key) for premium AI models
         </div>
       </div>
     </div>
 
-    <!-- AI -->
     <div class="infoSection">
-      <div class="sectionHeading">AI Engine</div>
+      <div class="sectionHeading">AI Infrastructure</div>
 
       <div class="infoCard">
-        <div class="infoCardTitle">Free AI — no key needed</div>
-        <div class="infoCardBody">Gemini 1.5 Flash is included by default with no API key required. Groq (Llama 3.3 70B) serves as an automatic fallback when Gemini quota is reached.</div>
+        <div class="infoCardTitle">Included Free Tier</div>
+        <div class="infoCardBody">Gemini 1.5 Flash is integrated by default—no API key required. If the global quota is reached, the system automatically falls back to Groq (Llama 3.3 70B) to ensure uninterrupted access.</div>
       </div>
 
       <div class="infoCard">
-        <div class="infoCardTitle">BYOK — Bring Your Own Key</div>
+        <div class="infoCardTitle">BYOK (Bring Your Own Key)</div>
         <div class="infoCardBody">
-          Set your own API key on the AI page to unlock premium models. Keys are auto-detected by prefix:<br/>
+          Power users can set their own API keys on the <a href="ai.html" style="color:var(--brass2);text-decoration:none;font-weight:600;">AI settings page</a> to unlock premium models. Keys are auto-routed based on their prefix:<br/><br/>
           <span class="mono">sk-ant-</span> → Anthropic Claude &nbsp;·&nbsp;
           <span class="mono">AIza</span> → Gemini Pro &nbsp;·&nbsp;
           <span class="mono">gsk_</span> → Groq &nbsp;·&nbsp;
           anything else → OpenAI<br/><br/>
-          Keys are encrypted with Fernet before being stored. The frontend never stores your key in localStorage.
+          <em>Security note: Keys are encrypted at rest using Fernet symmetric encryption. The frontend never stores your key in localStorage.</em>
         </div>
       </div>
 
       <div class="infoCard">
-        <div class="infoCardTitle">AI Endpoints</div>
+        <div class="infoCardTitle">API Endpoints</div>
         <div class="infoCardBody">
-          <span class="mono">POST /ai/summarize</span> — structured summary of a paper's abstract<br/>
-          <span class="mono">POST /ai/ask</span> — answer a specific question about a paper<br/>
+          <span class="mono">POST /ai/summarize</span> — Generates a structured summary of a paper's abstract.<br/>
+          <span class="mono">POST /ai/ask</span> — Runs a custom Q&A against the paper's metadata.<br/>
           <span class="mono">POST /ai/set_key</span> · <span class="mono">GET /ai/key_status</span> · <span class="mono">DELETE /ai/clear_key</span>
         </div>
       </div>
     </div>
 
-    <!-- Semantic Scholar -->
     <div class="infoSection">
-      <div class="sectionHeading">Semantic Scholar</div>
+      <div class="sectionHeading">External Providers</div>
 
       <div class="infoCard">
-        <div class="infoCardTitle">API Key (Optional)</div>
+        <div class="infoCardTitle">Semantic Scholar API Limits</div>
         <div class="infoCardBody">
-          Semantic Scholar rate-limits unauthenticated requests aggressively. To reduce 429 errors, add your key to the backend environment:<br/><br/>
+          Semantic Scholar aggressively rate-limits unauthenticated requests. To reduce 429 errors in your own deployment, add an API key to the backend environment variables:<br/><br/>
           <span class="mono">SEMANTIC_SCHOLAR_API_KEY=your_key_here</span><br/><br/>
-          Then restart the backend. The key is backend-only and never stored in the frontend.
+          This key remains strictly on the backend and is never exposed to the client.
         </div>
       </div>
     </div>
 
-    <!-- Key check -->
     <div class="infoSection">
       <div class="sectionHeading">Key Management</div>
       <div class="infoCard">
