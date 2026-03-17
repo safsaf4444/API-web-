@@ -9,10 +9,10 @@ from sqlmodel import Field, SQLModel
 # --- Phase 3 Enums ---
 class ReadingStatus(str, enum.Enum):
     """Tracks the user's progress through a paper."""
-    UNREAD = "UNREAD"
-    READING = "READING"
-    DONE = "DONE"
-    FLAGGED = "FLAGGED"
+    UNREAD = "unread"
+    READING = "reading"
+    DONE = "done"
+    FLAGGED = "flagged"
 
 # --- User Management ---
 class User(SQLModel, table=True):

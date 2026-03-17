@@ -73,8 +73,8 @@ class StudyRead(BaseModel):
     study_type: Optional[str] = None
     tags: Optional[str] = None
 
-    # PHASE 3 "FORGIVING" FIX: Default to Uppercase UNREAD
-    reading_status: Optional[str] = "UNREAD" 
+    # PHASE 3 FIX: Forgiving string default, securely locked to lowercase.
+    reading_status: Optional[str] = "unread" 
     ai_summary: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
 
