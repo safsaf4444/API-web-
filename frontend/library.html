@@ -6,11 +6,10 @@
   <title>Library — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    /* ── Library-specific styles ── */
     .libLayout {
       display: grid;
       grid-template-columns: 260px minmax(0, 1fr);
-      gap: 20px;
+      gap: 24px;
       align-items: start;
     }
 
@@ -19,7 +18,6 @@
       .libSidebar { position: static !important; }
     }
 
-    /* Sticky sidebar panel */
     .libSidebar {
       position: sticky;
       top: 80px;
@@ -38,15 +36,14 @@
 
     .libSideTitle {
       font-family: var(--font-display);
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 600;
       color: var(--subtle);
-      letter-spacing: 0.08em;
+      letter-spacing: 0.10em;
       text-transform: uppercase;
       margin-bottom: 14px;
     }
 
-    /* Filter fields */
     .filterStack {
       display: flex;
       flex-direction: column;
@@ -59,7 +56,14 @@
       gap: 8px;
     }
 
-    /* Action buttons in sidebar */
+    /* Status filter row */
+    .statusFilterRow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 2px;
+    }
+
     .libActions {
       display: flex;
       flex-direction: column;
@@ -74,11 +78,10 @@
       font-size: 13px;
     }
 
-    /* Folder chips panel */
     .folderList {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 4px;
     }
 
     .folderRow {
@@ -116,9 +119,9 @@
     }
 
     .folderRowIcon {
-      font-size: 14px;
+      font-size: 13px;
       flex-shrink: 0;
-      opacity: 0.6;
+      opacity: 0.55;
     }
 
     .folderRowName {
@@ -166,52 +169,73 @@
       transform: none;
     }
 
-    /* Main content area */
-    .libMain { display: flex; flex-direction: column; gap: 14px; }
+    /* ── Main content ── */
+    .libMain { display: flex; flex-direction: column; gap: 16px; }
 
     .libHeader {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: space-between;
       gap: 12px;
       flex-wrap: wrap;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
     }
 
+    /* Bold editorial title matching reference image */
     .libTitle {
       font-family: var(--font-display);
-      font-size: 26px;
-      font-weight: 600;
+      font-size: 38px;
+      font-weight: 700;
       color: var(--navy);
-      letter-spacing: -0.02em;
+      letter-spacing: -0.03em;
+      line-height: 1.0;
+      margin: 0;
+    }
+
+    .libTitleAccent {
+      color: var(--brass2);
+      font-style: italic;
     }
 
     .libSubtitle {
       font-size: 13px;
       color: var(--subtle);
-      margin-top: 2px;
+      margin-top: 6px;
+      font-weight: 400;
     }
 
     .libCount {
       font-size: 12px;
       color: var(--subtle);
       font-weight: 500;
+      padding-bottom: 4px;
     }
 
-    /* Paper cards */
+    /* Paper cards — redesigned */
     .paperCard {
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: var(--r);
-      padding: 18px 20px;
+      overflow: hidden;
       box-shadow: var(--shadow-xs);
       transition: border-color .15s, box-shadow .15s, transform .15s;
       cursor: default;
     }
 
     .paperCard:hover {
-      border-color: rgba(201,168,124,.35);
+      border-color: rgba(201,168,124,.40);
       box-shadow: var(--shadow-sm);
       transform: translateY(-1px);
+    }
+
+    /* Coloured left accent stripe by reading status */
+    .paperCard[data-status="reading"] { border-left: 3px solid var(--warn); }
+    .paperCard[data-status="done"]    { border-left: 3px solid var(--good); }
+    .paperCard[data-status="flagged"] { border-left: 3px solid var(--bad); }
+
+    .paperCardInner {
+      padding: 18px 20px 14px;
     }
 
     .paperCardTitle {
@@ -219,9 +243,9 @@
       font-size: 15px;
       font-weight: 600;
       color: var(--navy);
-      line-height: 1.4;
+      line-height: 1.45;
       letter-spacing: -0.01em;
-      margin-bottom: 8px;
+      margin-bottom: 9px;
     }
 
     .paperCardMeta {
@@ -229,18 +253,30 @@
       flex-wrap: wrap;
       gap: 6px;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
+    .paperCardAbstract {
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.65;
+      margin: 0 0 4px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* Footer: tinted background strip */
     .paperCardFooter {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
       flex-wrap: wrap;
-      margin-top: 12px;
-      padding-top: 12px;
+      padding: 10px 20px 12px;
       border-top: 1px solid var(--line2);
+      background: var(--cream3);
     }
 
     .paperCardFooterLeft {
@@ -258,7 +294,15 @@
       padding: 6px 10px;
       font-size: 12px;
       border-radius: var(--r-xs);
-      background: var(--surface2);
+      background: var(--surface);
+    }
+
+    .paperCardFooterRight {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
     }
 
     .paperCardActions {
@@ -267,41 +311,75 @@
       flex-shrink: 0;
     }
 
-    /* Inline msg */
+    /* Inline status chips row in card footer */
+    .cardStatusChips {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    /* Mini status chip for card footer (smaller than sidebar filter chips) */
+    .statusChipMini {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 9px;
+      border-radius: var(--r-pill);
+      border: 1.5px solid;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: all .13s ease;
+      text-transform: uppercase;
+      user-select: none;
+    }
+
+    .statusChipMini[data-status="unread"]  { border-color: var(--line);             background: transparent;             color: var(--subtle); }
+    .statusChipMini[data-status="reading"] { border-color: rgba(196,134,42,.35);    background: rgba(196,134,42,.08);    color: var(--warn); }
+    .statusChipMini[data-status="done"]    { border-color: rgba(61,122,74,.30);     background: rgba(61,122,74,.08);     color: var(--good); }
+    .statusChipMini[data-status="flagged"] { border-color: rgba(184,64,64,.30);     background: rgba(184,64,64,.08);     color: var(--bad); }
+
+    .statusChipMini.active[data-status="unread"]  { background: rgba(26,34,51,.07); }
+    .statusChipMini.active[data-status="reading"] { background: rgba(196,134,42,.18); border-color: rgba(196,134,42,.5); }
+    .statusChipMini.active[data-status="done"]    { background: rgba(61,122,74,.18);  border-color: rgba(61,122,74,.5); }
+    .statusChipMini.active[data-status="flagged"] { background: rgba(184,64,64,.18);  border-color: rgba(184,64,64,.5); }
+
+    .statusChipMini:hover { transform: translateY(-1px); box-shadow: var(--shadow-xs); }
+
     .inlineMsg {
       font-size: 11.5px;
       color: var(--subtle);
       margin-left: 4px;
     }
 
-    /* Empty state */
     .emptyLibrary {
-      padding: 56px 20px;
+      padding: 64px 20px;
       text-align: center;
       border: 1.5px dashed var(--parchment);
       border-radius: var(--r-lg);
+      background: rgba(255,255,255,.5);
     }
 
     .emptyLibrary .emptyIcon {
-      font-size: 36px;
-      margin-bottom: 12px;
-      opacity: 0.4;
+      font-size: 40px;
+      margin-bottom: 14px;
+      opacity: 0.35;
     }
 
     .emptyLibrary p {
       color: var(--subtle);
       font-size: 14px;
       margin: 0 0 16px;
+      line-height: 1.6;
     }
 
-    /* Status message bar */
     .statusBar {
       font-size: 12.5px;
       color: var(--subtle);
       min-height: 18px;
     }
 
-    /* Folder context menu */
     .folderContextMenu {
       position: absolute;
       right: 0;
@@ -374,6 +452,16 @@
             </select>
           </div>
 
+          <div>
+            <label>Reading status</label>
+            <div class="statusFilterRow">
+              <span class="statusChip" data-status="unread"  data-filter="unread">○ Unread</span>
+              <span class="statusChip" data-status="reading" data-filter="reading">◐ Reading</span>
+              <span class="statusChip" data-status="done"    data-filter="done">● Done</span>
+              <span class="statusChip" data-status="flagged" data-filter="flagged">⚑ Flag</span>
+            </div>
+          </div>
+
           <div class="filterRow">
             <div>
               <label>Year from</label>
@@ -401,16 +489,14 @@
       </div>
 
       <div class="libSideCard">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div class="libSideTitle" style="margin-bottom:0;">Folders</div>
           <button class="btn sm ghost" id="newFolderBtn" style="padding:5px 8px;" title="New folder">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New
           </button>
         </div>
-
-        <div class="folderList" id="folderList">
-          </div>
+        <div class="folderList" id="folderList"></div>
       </div>
 
     </aside>
@@ -419,14 +505,13 @@
 
       <div class="libHeader">
         <div>
-          <div class="libTitle" id="libTitle">Your Library</div>
+          <div class="libTitle">Your <span class="libTitleAccent">Library</span></div>
           <div class="libSubtitle" id="libSubtitle">All saved papers</div>
         </div>
         <div class="libCount" id="countLabel"></div>
       </div>
 
-      <div id="paperList">
-        </div>
+      <div id="paperList"></div>
 
     </div>
   </div>
@@ -437,18 +522,21 @@
 <script>
 requireAuthOrRedirect();
 
-const STATE_KEY = 'seren_library_v3';
+const STATE_KEY = 'seren_library_v4';
 
-let foldersCache  = [];
+let foldersCache   = [];
 let activeFolderId = 'all';
-let openMenuId     = null; // track which folder menu is open
+let activeStatus   = null;
+let openMenuId     = null;
+
+const STATUS_ICONS = { unread: '○', reading: '◐', done: '●', flagged: '⚑' };
+const STATUS_LABELS = { unread: 'Unread', reading: 'Reading', done: 'Done', flagged: 'Flagged' };
 
 /* ── Utilities ── */
 function $id(id) { return document.getElementById(id); }
 function esc(s)  { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
 function normStr(x) { return (x ?? '').toString().trim(); }
 
-// Added stripHtml for safe abstract rendering
 function stripHtml(s) {
   return (s || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -485,6 +573,7 @@ function saveState() {
       source:   $id('sourceFilter').value || 'all',
       yearFrom: $id('yearFrom').value || '',
       yearTo:   $id('yearTo').value || '',
+      status:   activeStatus || '',
     }));
   } catch {}
 }
@@ -506,6 +595,25 @@ function closeOpenMenu() {
 }
 
 document.addEventListener('click', closeOpenMenu);
+
+/* ── Wire sidebar status filter chips ── */
+function wireStatusFilterChips() {
+  document.querySelectorAll('.statusChip[data-filter]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const val = chip.dataset.filter;
+      if (activeStatus === val) {
+        activeStatus = null;
+        chip.classList.remove('active');
+      } else {
+        activeStatus = val;
+        document.querySelectorAll('.statusChip[data-filter]').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      }
+      loadStudies();
+      saveState();
+    });
+  });
+}
 
 /* ── Folder actions ── */
 async function renameFolder(folder) {
@@ -642,7 +750,6 @@ async function loadFolders() {
     const folders = await fetchJson('/folders');
     foldersCache = Array.isArray(folders) ? folders : [];
 
-    /* Also update inline folder selects (inside paper cards) */
     renderFolderList();
 
     /* Rebuild folder <select> in paper cards if visible */
@@ -702,6 +809,14 @@ function folderSelectHtml(study) {
   return `<select data-folder-pick="${study.id}" style="min-width:130px;">${opts}</select>`;
 }
 
+/* ── Status chips HTML for card footer ── */
+function cardStatusChipsHtml(study) {
+  const cur = study.reading_status || 'unread';
+  return ['unread','reading','done','flagged'].map(s =>
+    `<span class="statusChipMini${cur === s ? ' active' : ''}" data-status="${s}" data-card-status="${study.id}" data-val="${s}">${STATUS_ICONS[s]} ${STATUS_LABELS[s]}</span>`
+  ).join('');
+}
+
 /* ── Render paper list ── */
 function renderPapers(filtered, total) {
   const list = $id('paperList');
@@ -715,9 +830,13 @@ function renderPapers(filtered, total) {
   /* Update subtitle */
   const subtitle = $id('libSubtitle');
   if (subtitle) {
-    if (activeFolderId === 'all')  subtitle.textContent = 'All saved papers';
-    else if (activeFolderId === 'none') subtitle.textContent = 'Papers without a folder';
-    else {
+    if (activeFolderId === 'all') {
+      subtitle.textContent = activeStatus
+        ? `Filtered: ${STATUS_LABELS[activeStatus] || activeStatus}`
+        : 'All saved papers';
+    } else if (activeFolderId === 'none') {
+      subtitle.textContent = 'Papers without a folder';
+    } else {
       const f = foldersCache.find(f => String(f.id) === String(activeFolderId));
       subtitle.textContent = f ? `Folder: ${f.name}` : 'Filtered view';
     }
@@ -734,32 +853,33 @@ function renderPapers(filtered, total) {
   }
 
   list.innerHTML = filtered.map(it => `
-    <div class="paperCard" data-paper-id="${it.id}">
+    <div class="paperCard" data-paper-id="${it.id}" data-status="${esc(it.reading_status || 'unread')}">
 
-      <div class="paperCardTitle">${esc(it.title || 'Untitled')}</div>
+      <div class="paperCardInner">
+        <div class="paperCardTitle">${esc(it.title || 'Untitled')}</div>
 
-      <div class="paperCardMeta">
-        ${it.year        ? `<span class="badge blue">${esc(String(it.year))}</span>` : ''}
-        ${it.study_type  ? `<span class="badge green">${esc(it.study_type)}</span>` : ''}
-        ${it.source      ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
-        ${it.venue       ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
-        ${it.tags        ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass">${esc(t.trim())}</span>`).join('') : ''}
+        <div class="paperCardMeta">
+          ${it.year       ? `<span class="badge blue">${esc(String(it.year))}</span>` : ''}
+          ${it.study_type ? `<span class="badge green">${esc(it.study_type)}</span>` : ''}
+          ${it.source     ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
+          ${it.venue      ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
+          ${it.tags       ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass">${esc(t.trim())}</span>`).join('') : ''}
+        </div>
+
+        ${it.abstract ? `<p class="paperCardAbstract">${esc(stripHtml(it.abstract))}</p>` : ''}
       </div>
-
-      ${it.abstract ? `
-        <p style="font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
-          ${esc(stripHtml(it.abstract))}
-        </p>` : ''
-      }
 
       <div class="paperCardFooter">
         <div class="paperCardFooterLeft">
           ${folderSelectHtml(it)}
           <span class="inlineMsg" id="fmsg-${it.id}"></span>
         </div>
-        <div class="paperCardActions">
-          <button class="btn primary sm" data-open data-study-id="${it.id}">Open</button>
-          <button class="btn danger sm" data-del  data-study-id="${it.id}">Delete</button>
+        <div class="paperCardFooterRight">
+          <div class="cardStatusChips" id="schips-${it.id}">${cardStatusChipsHtml(it)}</div>
+          <div class="paperCardActions">
+            <button class="btn primary sm" data-open data-study-id="${it.id}">Open</button>
+            <button class="btn danger sm"  data-del  data-study-id="${it.id}">Delete</button>
+          </div>
         </div>
       </div>
     </div>
@@ -776,12 +896,43 @@ function renderPapers(filtered, total) {
           method: 'PATCH',
           body: { folder_id: sel.value ? parseInt(sel.value, 10) : null },
         });
-        if (msgEl) { msgEl.innerHTML = '<span class="badge green">✓ Saved</span>'; setTimeout(() => { msgEl.textContent = ''; }, 1800); }
+        if (msgEl) {
+          msgEl.innerHTML = '<span class="badge green">✓ Saved</span>';
+          setTimeout(() => { msgEl.textContent = ''; }, 1800);
+        }
         await loadStudies();
       } catch (e) {
         if (msgEl) msgEl.innerHTML = `<span style="color:var(--bad);">${esc(e.message)}</span>`;
       }
     };
+  });
+
+  /* Wire card status chips */
+  list.querySelectorAll('[data-card-status]').forEach(chip => {
+    chip.addEventListener('click', async e => {
+      e.stopPropagation();
+      const studyId = parseInt(chip.dataset.cardStatus, 10);
+      const val     = chip.dataset.val;
+      try {
+        await fetchJson(`/studies/${studyId}`, {
+          method: 'PATCH',
+          body: { reading_status: val },
+        });
+        /* Update left stripe colour */
+        const card = list.querySelector(`[data-paper-id="${studyId}"]`);
+        if (card) card.dataset.status = val;
+        /* Update chip active state */
+        const chipsEl = $id(`schips-${studyId}`);
+        if (chipsEl) {
+          chipsEl.querySelectorAll('[data-card-status]').forEach(c => {
+            c.classList.toggle('active', c.dataset.val === val);
+          });
+        }
+        showToast('Status updated', `Marked as ${STATUS_LABELS[val]}`, 'success');
+      } catch (err) {
+        showToast('Error', err.message, 'error');
+      }
+    });
   });
 }
 
@@ -795,6 +946,9 @@ async function loadStudies() {
   if (q) url += `&q=${encodeURIComponent(q)}`;
   if (activeFolderId && activeFolderId !== 'all' && activeFolderId !== 'none') {
     url += `&folder_id=${encodeURIComponent(activeFolderId)}`;
+  }
+  if (activeStatus) {
+    url += `&reading_status=${encodeURIComponent(activeStatus)}`;
   }
 
   try {
@@ -850,38 +1004,48 @@ function debounce(fn, ms = 250) {
 const debLoad = debounce(loadStudies, 280);
 
 /* ── Event wiring ── */
-$id('loadBtn').onclick     = loadStudies;
+$id('loadBtn').onclick      = loadStudies;
 $id('newFolderBtn').onclick = async () => { await newFolder(); };
 
 $id('clearBtn').onclick = async () => {
-  $id('q').value       = '';
-  $id('sort').value    = 'newest';
+  $id('q').value            = '';
+  $id('sort').value         = 'newest';
   $id('sourceFilter').value = 'all';
-  $id('yearFrom').value = '';
-  $id('yearTo').value   = '';
+  $id('yearFrom').value     = '';
+  $id('yearTo').value       = '';
   activeFolderId = 'all';
+  activeStatus   = null;
+  document.querySelectorAll('.statusChip[data-filter]').forEach(c => c.classList.remove('active'));
   renderFolderList();
   saveState();
   await loadStudies();
 };
 
-$id('q').addEventListener('input', () => { debLoad(); saveState(); });
-$id('sort').addEventListener('change', () => { loadStudies(); saveState(); });
-$id('sourceFilter').addEventListener('change', () => { loadStudies(); saveState(); });
-$id('yearFrom').addEventListener('input', () => { debLoad(); saveState(); });
-$id('yearTo').addEventListener('input', () => { debLoad(); saveState(); });
+$id('q').addEventListener('input',            () => { debLoad(); saveState(); });
+$id('sort').addEventListener('change',        () => { loadStudies(); saveState(); });
+$id('sourceFilter').addEventListener('change',() => { loadStudies(); saveState(); });
+$id('yearFrom').addEventListener('input',     () => { debLoad(); saveState(); });
+$id('yearTo').addEventListener('input',       () => { debLoad(); saveState(); });
 
 /* ── Init ── */
 (async function init() {
+  wireStatusFilterChips();
   await loadFolders();
 
   const st = loadState();
   if (st) {
-    $id('q').value    = st.q    || '';
-    $id('sort').value = st.sort || 'newest';
-    activeFolderId    = st.folder || 'all';
+    $id('q').value        = st.q        || '';
+    $id('sort').value     = st.sort     || 'newest';
+    activeFolderId        = st.folder   || 'all';
     $id('yearFrom').value = st.yearFrom || '';
     $id('yearTo').value   = st.yearTo   || '';
+
+    if (st.status) {
+      activeStatus = st.status;
+      const chip = document.querySelector(`.statusChip[data-filter="${st.status}"]`);
+      if (chip) chip.classList.add('active');
+    }
+
     renderFolderList();
   }
 

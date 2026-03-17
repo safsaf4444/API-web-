@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
+
+from backend.models import ReadingStatus
 
 
 # ---------- Auth ----------
@@ -71,6 +73,8 @@ class StudyRead(BaseModel):
     study_type: Optional[str]
     tags: Optional[str]
 
+    # Phase 3
+    reading_status: ReadingStatus
     ai_summary: Optional[str]
     ai_summary_updated_at: Optional[datetime]
 
@@ -78,6 +82,8 @@ class StudyRead(BaseModel):
 class StudyPatch(BaseModel):
     notes: Optional[str] = None
     folder_id: Optional[int] = None
+    # Phase 3
+    reading_status: Optional[ReadingStatus] = None
 
 
 # ---------- Comments ----------
@@ -174,3 +180,49 @@ class AIAskRequest(BaseModel):
 
 class AIAskResponse(BaseModel):
     text: str
+
+
+# ---------- Phase 3: Clinical Intelligence ----------
+class AIClinicalRequest(BaseModel):
+    study_id: int  # must be a saved study — we write results back to StudyMetrics + AIResult
+    title: str
+    abstract: Optional[str] = None
+    doi: Optional[str] = None
+    pmid: Optional[str] = None
+    pmcid: Optional[str] = None
+
+
+class PICOData(BaseModel):
+    population: Optional[str] = None
+    intervention: Optional[str] = None
+    comparator: Optional[str] = None
+    outcome: Optional[str] = None
+
+
+class StatisticalData(BaseModel):
+    sample_size: Optional[int] = None
+    p_value: Optional[str] = None
+    effect_size: Optional[str] = None
+    confidence_interval: Optional[str] = None
+    nnt_nnh: Optional[str] = None
+
+
+class AppraisalData(BaseModel):
+    evidence_strength: Optional[int] = None  # 1-5
+    bias_risk: Optional[str] = None           # Low / Moderate / High
+    limitations: Optional[List[str]] = None
+
+
+class RewritesData(BaseModel):
+    patient: Optional[str] = None
+    clinician: Optional[str] = None
+    student: Optional[str] = None
+
+
+class AIClinicalResponse(BaseModel):
+    study_id: int
+    pico: PICOData
+    stats: StatisticalData
+    appraisal: AppraisalData
+    rewrites: RewritesData
+    cached: bool = False

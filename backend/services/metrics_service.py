@@ -8,10 +8,6 @@ from backend.models import Study, StudyMetrics
 
 
 def get_or_create_metrics(session: Session, study_id: int, owner_username: str) -> StudyMetrics:
-    """
-    FIX: owner_username is now a required param.
-    Previous version omitted it, causing a DB NOT NULL constraint error on every call.
-    """
     m = session.exec(
         select(StudyMetrics).where(StudyMetrics.study_id == study_id)
     ).first()
@@ -19,7 +15,7 @@ def get_or_create_metrics(session: Session, study_id: int, owner_username: str) 
         return m
     m = StudyMetrics(
         study_id=study_id,
-        owner_username=owner_username,  # FIX: was missing
+        owner_username=owner_username,
         save_count=0,
         folder_count=0,
         comment_count=0,
@@ -74,3 +70,32 @@ def on_study_saved(session: Session, study: Study) -> None:
     m.updated_at = datetime.now(timezone.utc)
     session.add(m)
     session.commit()
+
+
+# ── Phase 3: write clinical intelligence back to metrics row ──────────────────
+
+def write_clinical_data(
+    session: Session,
+    study_id: int,
+    owner_username: str,
+    pico_data: dict,
+    statistical_data: dict,
+    evidence_strength: int | None,
+    risk_of_bias: str | None,
+) -> StudyMetrics:
+    """
+    Persist structured clinical extraction to the StudyMetrics row.
+    Called by the /ai/clinical endpoint after a successful AI extraction.
+    """
+    m = get_or_create_metrics(session, study_id, owner_username)
+    m.pico_data = pico_data
+    m.statistical_data = statistical_data
+    if evidence_strength is not None:
+        m.evidence_strength = max(0, min(5, evidence_strength))
+    if risk_of_bias is not None:
+        m.risk_of_bias = risk_of_bias
+    m.updated_at = datetime.now(timezone.utc)
+    session.add(m)
+    session.commit()
+    session.refresh(m)
+    return m

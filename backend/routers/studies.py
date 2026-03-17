@@ -9,10 +9,9 @@ from sqlmodel import Session, select
 
 from backend.db import get_session
 from backend.deps.auth import get_current_user
-from backend.models import Comment, Folder, Study, StudyMetrics, User
+from backend.models import Comment, Folder, ReadingStatus, Study, StudyMetrics, User
 from backend.schemas import StudyPatch, StudyRead
 
-# These are optional Phase-2 helpers. They must NEVER break Phase-1 reads.
 try:
     from backend.services.metrics_service import sync_folder_count, touch_metrics
 except Exception:  # pragma: no cover
@@ -31,11 +30,15 @@ def list_studies(
     q: Optional[str] = Query(default=None, description="Search title + abstract"),
     sort: str = Query(default="newest", description="newest|oldest|year_desc|year_asc|title_asc|title_desc"),
     folder_id: Optional[int] = Query(default=None),
+    reading_status: Optional[ReadingStatus] = Query(default=None, description="Filter by reading status"),
 ):
     stmt = select(Study).where(Study.owner_username == current_user.username)
 
     if folder_id is not None:
         stmt = stmt.where(Study.folder_id == folder_id)
+
+    if reading_status is not None:
+        stmt = stmt.where(Study.reading_status == reading_status)
 
     if q and q.strip():
         needle = f"%{q.strip()}%"
@@ -70,10 +73,9 @@ def get_study(
     if study.owner_username != current_user.username:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    # Phase 2 metrics: NEVER allow this to crash core reads.
     if touch_metrics is not None:
         try:
-            touch_metrics(session, study.id)
+            touch_metrics(session, study.id, study.owner_username)
         except Exception as e:
             logger.warning("touch_metrics failed (non-fatal) for study_id=%s: %s", study.id, e)
 
@@ -107,11 +109,14 @@ def patch_study(
                 raise HTTPException(status_code=400, detail="Invalid folder_id")
             study.folder_id = payload.folder_id
 
+    # Phase 3: reading status
+    if "reading_status" in fields_set and payload.reading_status is not None:
+        study.reading_status = payload.reading_status
+
     session.add(study)
     session.commit()
     session.refresh(study)
 
-    # Phase 2 metrics: NEVER allow this to crash core edits.
     if sync_folder_count is not None:
         try:
             sync_folder_count(session, study)
@@ -133,18 +138,15 @@ def delete_study(
     if study.owner_username != current_user.username:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    # delete comments
     comments = session.exec(select(Comment).where(Comment.study_id == study_id)).all()
     for c in comments:
         session.delete(c)
 
-    # delete metrics row if exists
     try:
         m = session.exec(select(StudyMetrics).where(StudyMetrics.study_id == study_id)).first()
         if m:
             session.delete(m)
     except Exception as e:
-        # If metrics table isn't present / migrations not done, deletion should still succeed.
         logger.warning("StudyMetrics delete cleanup failed (non-fatal) for study_id=%s: %s", study_id, e)
 
     session.delete(study)

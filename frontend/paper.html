@@ -6,7 +6,6 @@
   <title>Paper — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    /* ── Paper layout overrides ── */
     #paperSplit {
       display: grid;
       grid-template-columns: minmax(0, 1.4fr) 380px;
@@ -14,7 +13,7 @@
       align-items: start;
       max-width: none;
     }
-    #paperSplit.drawerMode       { grid-template-columns: 1fr; }
+    #paperSplit.drawerMode { grid-template-columns: 1fr; }
     #paperSplit.panelClosed .paperRight { display: none; }
     #paperSplit.drawerMode .paperRight {
       position: fixed;
@@ -31,7 +30,6 @@
     .paperLeft  { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
     .paperRight { position: sticky; top: 76px; min-width: 0; }
 
-    /* Panel card fills available height */
     .paperRight .card {
       height: calc(100vh - 100px);
       min-height: 420px;
@@ -43,18 +41,17 @@
       .paperRight .card { height: auto; min-height: 500px; }
     }
 
-    /* Paper title */
+    /* Bold editorial paper title */
     .paperTitle {
       font-family: var(--font-display);
-      font-size: 19px;
+      font-size: 20px;
       font-weight: 700;
       color: var(--navy);
       line-height: 1.4;
-      letter-spacing: -0.015em;
+      letter-spacing: -0.02em;
       margin-bottom: 10px;
     }
 
-    /* Save row */
     .saveRow {
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
       margin-top: 14px; padding-top: 14px;
@@ -63,22 +60,36 @@
     .saveRow select { width: auto; min-width: 130px; padding: 7px 10px; font-size: 13px; }
     #saveMsg { font-size: 12.5px; min-height: 16px; margin-top: 6px; }
 
-    /* Section headers */
+    /* Reading status row — only shown when paper is saved */
+    .readingStatusRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .readingStatusLabel {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      flex-shrink: 0;
+    }
+
     .sectionLabel {
       font-size: 10.5px; font-weight: 700;
       letter-spacing: 0.1em; text-transform: uppercase;
       color: var(--subtle); margin-bottom: 10px;
     }
 
-    /* Abstract */
     .abstractBox { font-size: 13.5px; line-height: 1.78; color: var(--text2); }
     .abstractBox p { margin: 0 0 10px; }
     .abstractBox p:last-child { margin-bottom: 0; }
 
-    /* Authors */
     #authorsBox { font-size: 13px; color: var(--muted); line-height: 1.7; }
 
-    /* Full text */
     #fullTextBox {
       font-size: 13px; line-height: 1.78; color: var(--text2);
       max-height: 520px; overflow-y: auto; margin-top: 12px;
@@ -86,7 +97,6 @@
     #fullTextBox p { margin: 0 0 12px; }
     #fullTextHint { font-size: 12.5px; color: var(--subtle); line-height: 1.6; }
 
-    /* Panel internals */
     .panelTopRow {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
       margin-bottom: 12px; flex-shrink: 0;
@@ -96,6 +106,17 @@
     .panelBody  { flex: 1; overflow-y: auto; margin-top: 12px; }
 
     .hr { border: none; border-top: 1px solid var(--line2); margin: 12px 0; }
+
+    /* Streaming cursor */
+    .streamCursor {
+      display: inline-block;
+      width: 2px; height: 1em;
+      background: var(--brass);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink .7s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
   </style>
 </head>
 
@@ -107,6 +128,16 @@
     <div class="card">
       <div class="paperTitle" id="title">Loading…</div>
       <div id="meta"></div>
+
+      <!-- Reading status chips — hidden until paper is saved -->
+      <div class="readingStatusRow" id="readingStatusRow" style="display:none;">
+        <span class="readingStatusLabel">Status</span>
+        <span class="statusChip" data-status="unread"  data-rs="unread">○ Unread</span>
+        <span class="statusChip" data-status="reading" data-rs="reading">◐ Reading</span>
+        <span class="statusChip" data-status="done"    data-rs="done">● Done</span>
+        <span class="statusChip" data-status="flagged" data-rs="flagged">⚑ Flagged</span>
+      </div>
+
       <div class="saveRow">
         <button type="button" class="btn primary" id="saveBtn">Save to library</button>
         <button type="button" class="btn" id="openBtn" disabled>Open DOI ↗</button>
@@ -158,6 +189,7 @@
       <div class="tabPills" style="flex-shrink:0;">
         <div class="tabPill active" data-tab="thread">Thread</div>
         <div class="tabPill" data-tab="ai">AI</div>
+        <div class="tabPill" data-tab="evidence">Evidence</div>
         <div class="tabPill" data-tab="related">Related</div>
       </div>
 
@@ -240,7 +272,6 @@ async function ensureSavedStudy() {
 function normStr(x) { return (x || "").toString().trim(); }
 
 function stripHtml(s) {
-  // Enhanced to strip all entities and malformed tags safely
   return (s || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -432,15 +463,42 @@ function detectStudyTypePaper(p) {
   if (p.study_type) return p.study_type.toLowerCase().replace(/[\s-]/g, "_");
   const text = ((p.title || "") + " " + (p.abstract || "")).toLowerCase();
   if (/\brandom(is|iz)ed\b|\brct\b/.test(text))  return "rct";
-  if (/\bmeta.?analy/.test(text))                   return "meta_analysis";
-  if (/\bsystematic\s+review\b/.test(text))        return "systematic_review";
-  if (/\bcohort\b/.test(text))                     return "cohort";
-  if (/\bcase.control\b/.test(text))               return "case_control";
-  if (/\bcase\s+report\b/.test(text))              return "case_report";
-  if (/\breview\b/.test(text))                     return "review";
-  if (/\beditorial\b/.test(text))                  return "editorial";
-  if (/\bobservational\b/.test(text))              return "observational";
+  if (/\bmeta.?analy/.test(text))                 return "meta_analysis";
+  if (/\bsystematic\s+review\b/.test(text))       return "systematic_review";
+  if (/\bcohort\b/.test(text))                    return "cohort";
+  if (/\bcase.control\b/.test(text))              return "case_control";
+  if (/\bcase\s+report\b/.test(text))             return "case_report";
+  if (/\breview\b/.test(text))                    return "review";
+  if (/\beditorial\b/.test(text))                 return "editorial";
+  if (/\bobservational\b/.test(text))             return "observational";
   return null;
+}
+
+/* ── Phase 3: Reading status chips on paper card ── */
+function renderReadingStatus(study) {
+  const row = qs("readingStatusRow");
+  if (!row || !study) return;
+  row.style.display = "flex";
+  const cur = study.reading_status || "unread";
+  row.querySelectorAll('[data-rs]').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.rs === cur);
+    chip.onclick = async () => {
+      const newStatus = chip.dataset.rs;
+      try {
+        await fetchJson(`/studies/${study.id}`, {
+          method: 'PATCH',
+          body: { reading_status: newStatus },
+        });
+        savedStudy = { ...savedStudy, reading_status: newStatus };
+        row.querySelectorAll('[data-rs]').forEach(c => {
+          c.classList.toggle('active', c.dataset.rs === newStatus);
+        });
+        showToast('Status updated', `Marked as ${newStatus}`, 'success');
+      } catch (err) {
+        showToast('Error', err.message, 'error');
+      }
+    };
+  });
 }
 
 function renderPaper(p) {
@@ -556,6 +614,7 @@ function markSavedUI(saved) {
   setSaveMsg(`<span class="badge green">✓ Saved to library</span>`);
   qs("saveBtn").textContent = "Saved";
   qs("saveBtn").disabled = true;
+  renderReadingStatus(saved);
 }
 
 function isProbablyNetworkError(e) {
@@ -610,11 +669,14 @@ function setActiveTab(tab) {
     const pill = e.target.closest(".tabPill");
     if (!pill) return;
     const tab = pill.getAttribute("data-tab");
-    if (tab === "thread")  return showThread(true);
-    if (tab === "ai")      return showAI();
-    if (tab === "related") return showRelated();
+    if (tab === "thread")   return showThread(true);
+    if (tab === "ai")       return showAI();
+    if (tab === "evidence") return showEvidence();
+    if (tab === "related")  return showRelated();
   });
 })();
+
+/* ══ THREAD ══════════════════════════════════════════════════ */
 
 function isThreadShellPresent() {
   return !!(qs("commentList") && qs("commentBox") && qs("postBtn") && qs("threadHint"));
@@ -799,6 +861,8 @@ async function showThread(force = false) {
   }
 }
 
+/* ══ AI TAB — with streaming ═════════════════════════════════ */
+
 function _aiMsgHtml(msg) {
   const time = new Date(msg.ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
 
@@ -823,11 +887,13 @@ function _aiMsgHtml(msg) {
     .replace(/^- (.+)$/gm,      '<div class="aiBullet">• $1</div>')
     .replace(/\n/g, '<br>');
 
+  const cursor = msg.streaming ? '<span class="streamCursor"></span>' : '';
+
   return `
     <div class="aiMsg aiMsg--ai">
       <div class="aiMsgAvatar">S</div>
       <div class="aiMsgBody">
-        <div class="aiMsgBubble">${html}</div>
+        <div class="aiMsgBubble">${html}${cursor}</div>
         <div class="aiMsgMeta">${time}</div>
       </div>
     </div>`;
@@ -863,6 +929,86 @@ function _aiSetBusy(on) {
     if (el) el.disabled = on;
   });
   _aiTyping(on);
+}
+
+/* Streaming summarize — falls back to standard if stream fails */
+async function _streamSummarize() {
+  if (!__AI_BASE__) return;
+  _aiSetBusy(true);
+
+  const streamId = Date.now();
+  __AI_MESSAGES__.push({ role:"ai", text:"", ts: streamId, streaming: true });
+  _aiRender();
+
+  try {
+    const token = getToken();
+    const resp  = await fetch("/ai/summarize/stream", {
+      method: "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(__AI_BASE__),
+    });
+
+    if (!resp.ok || !resp.body) {
+      /* Fallback to standard endpoint */
+      const r = await fetchJson("/ai/summarize", { method:"POST", body: __AI_BASE__ });
+      const idx = __AI_MESSAGES__.findIndex(m => m.ts === streamId);
+      if (idx !== -1) __AI_MESSAGES__[idx] = { role:"ai", text: r.text || "(no output)", ts: streamId };
+      _aiRender();
+      return;
+    }
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer    = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") break;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && typeof parsed === "object" && parsed.error) {
+            const idx = __AI_MESSAGES__.findIndex(m => m.ts === streamId);
+            if (idx !== -1) __AI_MESSAGES__[idx] = { role:"error", text: parsed.error, ts: streamId };
+            _aiRender();
+            return;
+          }
+          /* parsed is a string token */
+          const token_text = typeof parsed === "string" ? parsed : "";
+          if (token_text) {
+            const idx = __AI_MESSAGES__.findIndex(m => m.ts === streamId);
+            if (idx !== -1) {
+              __AI_MESSAGES__[idx].text += token_text;
+              _aiRender();
+            }
+          }
+        } catch { /* malformed chunk, skip */ }
+      }
+    }
+
+    /* Finalise — remove streaming flag so cursor disappears */
+    const idx = __AI_MESSAGES__.findIndex(m => m.ts === streamId);
+    if (idx !== -1) delete __AI_MESSAGES__[idx].streaming;
+    _aiRender();
+
+  } catch(e) {
+    const idx = __AI_MESSAGES__.findIndex(m => m.ts === streamId);
+    if (idx !== -1) __AI_MESSAGES__[idx] = { role:"error", text: e.message, ts: streamId };
+    _aiRender();
+    showToast("AI unavailable", e.message, "error");
+  } finally {
+    _aiSetBusy(false);
+  }
 }
 
 async function showAI() {
@@ -904,18 +1050,8 @@ async function showAI() {
     __AI_WIRED__ = true;
     _aiRender();
 
-    document.getElementById("aiSumBtn").onclick = async () => {
-      _aiSetBusy(true);
-      try {
-        const r = await fetchJson("/ai/summarize", { method:"POST", body: __AI_BASE__ });
-        _aiPush("ai", r.text || "(no output)");
-      } catch(e) {
-        _aiPush("error", e.message);
-        showToast("AI unavailable", e.message, "error");
-      } finally {
-        _aiSetBusy(false);
-      }
-    };
+    /* Summarize now uses streaming */
+    document.getElementById("aiSumBtn").onclick = _streamSummarize;
 
     document.getElementById("aiAskBtn").onclick = async () => {
       const box = document.getElementById("aiQBox");
@@ -947,6 +1083,214 @@ async function showAI() {
   }
 }
 
+/* ══ EVIDENCE TAB — Phase 3 ══════════════════════════════════ */
+
+async function showEvidence() {
+  __THREAD_SHELL_READY__ = false;
+  setActiveTab("evidence");
+
+  if (!getToken()) {
+    setPanel(`<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Login required.</div><a class="btn primary" href="login.html">Sign in</a>`);
+    return;
+  }
+
+  const s = savedStudy;
+  if (!s) {
+    setPanel(`<div style="font-size:13px;color:var(--subtle);padding:12px 0;">Save this paper to your library first, then run clinical intelligence.</div>`);
+    return;
+  }
+
+  setPanel(`<div style="font-size:13px;color:var(--subtle);padding:12px 0;">Loading clinical data…</div>`);
+
+  /* Try to load previously saved clinical data */
+  let data = null;
+  try {
+    data = await fetchJson(`/ai/clinical/${s.id}`);
+  } catch(e) {
+    /* 404 = not run yet, anything else = real error */
+    const msg = String(e?.message || "");
+    if (!msg.includes("404") && !msg.includes("No clinical")) {
+      setPanel(`<div style="color:var(--bad);font-size:13px;">${escapeHtml(msg)}</div>`);
+      return;
+    }
+    data = null;
+  }
+
+  renderEvidencePanel(data, s);
+}
+
+function renderEvidencePanel(data, study) {
+  const p       = savedStudy || external;
+  const hasData = !!(data && (data.pico || data.stats || data.rewrites));
+
+  /* ── Header row ── */
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0;">
+      <div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.09em;text-transform:uppercase;">Clinical Intelligence</div>
+      <button class="btn primary sm" id="runClinicalBtn">${hasData ? '↺ Re-run' : '▶ Analyse'}</button>
+    </div>`;
+
+  if (!hasData) {
+    html += `
+      <div style="font-size:13px;color:var(--subtle);line-height:1.75;padding:8px 0 12px;">
+        No clinical analysis yet. Click <b>Analyse</b> to extract PICO, statistics, evidence strength, bias assessment, and audience rewrites in one pass.
+      </div>`;
+  } else {
+    const pico      = data.pico      || {};
+    const stats     = data.stats     || {};
+    const appraisal = data.appraisal || {};
+    const rewrites  = data.rewrites  || {};
+
+    /* Evidence strength dots */
+    const strength = parseInt(appraisal.evidence_strength) || 0;
+    const dotClass = strength >= 4 ? 'filled strong' : strength >= 2 ? 'filled' : 'filled weak';
+    const strengthDots = [1,2,3,4,5].map(i =>
+      `<div class="strengthDot${i <= strength ? ' ' + dotClass : ''}"></div>`
+    ).join('');
+
+    /* Bias badge */
+    const biasRaw = (appraisal.bias_risk || '').toLowerCase();
+    const biasCls = biasRaw === 'low' ? 'low' : biasRaw === 'high' ? 'high' : 'moderate';
+    const biasHtml = appraisal.bias_risk
+      ? `<span class="biasTag ${biasCls}">${escapeHtml(appraisal.bias_risk)}</span>`
+      : `<span style="color:var(--subtle);font-size:12px;font-style:italic;">Unknown</span>`;
+
+    /* PICO */
+    html += `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">PICO Framework</div>
+        <div class="evidenceGrid">
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">Population</div>
+            <div class="evidenceCellValue${!pico.population ? ' empty' : ''}">${pico.population ? escapeHtml(pico.population) : 'Not specified'}</div>
+          </div>
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">Intervention</div>
+            <div class="evidenceCellValue${!pico.intervention ? ' empty' : ''}">${pico.intervention ? escapeHtml(pico.intervention) : 'Not specified'}</div>
+          </div>
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">Comparator</div>
+            <div class="evidenceCellValue${!pico.comparator ? ' empty' : ''}">${pico.comparator ? escapeHtml(pico.comparator) : 'Not specified'}</div>
+          </div>
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">Outcome</div>
+            <div class="evidenceCellValue${!pico.outcome ? ' empty' : ''}">${pico.outcome ? escapeHtml(pico.outcome) : 'Not specified'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">Statistics &amp; Appraisal</div>
+        <div class="evidenceGrid">
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">Sample size</div>
+            <div class="evidenceCellValue">${stats.sample_size != null ? escapeHtml(String(stats.sample_size)) : '<span style="color:var(--subtle);font-style:italic;font-size:12px;">—</span>'}</div>
+          </div>
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">P-value</div>
+            <div class="evidenceCellValue">${stats.p_value ? escapeHtml(String(stats.p_value)) : '<span style="color:var(--subtle);font-style:italic;font-size:12px;">—</span>'}</div>
+          </div>
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">Effect size</div>
+            <div class="evidenceCellValue">${stats.effect_size ? escapeHtml(String(stats.effect_size)) : '<span style="color:var(--subtle);font-style:italic;font-size:12px;">—</span>'}</div>
+          </div>
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">95% CI</div>
+            <div class="evidenceCellValue">${stats.confidence_interval ? escapeHtml(String(stats.confidence_interval)) : '<span style="color:var(--subtle);font-style:italic;font-size:12px;">—</span>'}</div>
+          </div>
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">NNT / NNH</div>
+            <div class="evidenceCellValue">${stats.nnt_nnh ? escapeHtml(String(stats.nnt_nnh)) : '<span style="color:var(--subtle);font-style:italic;font-size:12px;">—</span>'}</div>
+          </div>
+          <div class="evidenceCell">
+            <div class="evidenceCellLabel">Risk of bias</div>
+            <div class="evidenceCellValue">${biasHtml}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;align-items:center;gap:10px;">
+          <span style="font-size:10px;font-weight:700;color:var(--subtle);text-transform:uppercase;letter-spacing:.06em;">Evidence strength</span>
+          <div class="strengthBar">${strengthDots}</div>
+          <span style="font-size:12px;color:var(--muted);">${strength}/5</span>
+        </div>
+      </div>`;
+
+    /* Audience rewrites */
+    if (rewrites.patient || rewrites.clinician || rewrites.student) {
+      html += `
+        <div class="hr"></div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">Audience Rewrites</div>
+          <div class="audienceToggle">
+            <button class="audienceBtn active" data-audience="patient">Patient</button>
+            <button class="audienceBtn" data-audience="clinician">Clinician</button>
+            <button class="audienceBtn" data-audience="student">Student</button>
+          </div>
+          <div class="audienceContent" id="audienceContent">${escapeHtml(rewrites.patient || '')}</div>
+        </div>`;
+    }
+
+    /* Limitations */
+    if (appraisal.limitations && appraisal.limitations.length) {
+      html += `
+        <div class="hr"></div>
+        <div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">Limitations</div>
+          <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text2);line-height:1.75;">
+            ${appraisal.limitations.map(l => `<li>${escapeHtml(l)}</li>`).join('')}
+          </ul>
+        </div>`;
+    }
+  }
+
+  setPanel(html);
+
+  /* Wire audience toggle */
+  if (hasData && data.rewrites) {
+    const audienceContent = document.getElementById("audienceContent");
+    if (audienceContent) {
+      document.querySelectorAll('.audienceBtn').forEach(btn => {
+        btn.onclick = () => {
+          document.querySelectorAll('.audienceBtn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const key = btn.dataset.audience;
+          audienceContent.textContent = (data.rewrites || {})[key] || 'Not available for this paper.';
+        };
+      });
+    }
+  }
+
+  /* Wire run / re-run button */
+  const runBtn = document.getElementById("runClinicalBtn");
+  if (runBtn && study) {
+    runBtn.onclick = async () => {
+      await withBtnLoading(runBtn, async () => {
+        try {
+          const result = await fetchJson("/ai/clinical", {
+            method: "POST",
+            body: {
+              study_id: study.id,
+              title:    p.title    || "",
+              abstract: p.abstract || "",
+              doi:      p.doi      || "",
+              pmid:     p.pmid     || "",
+              pmcid:    p.pmcid    || "",
+            },
+          });
+          renderEvidencePanel(result, study);
+          showToast("Analysis complete", "Clinical intelligence updated.", "success");
+        } catch(err) {
+          showToast("Analysis failed", err.message, "error");
+        }
+      }, "Analysing…");
+    };
+  }
+}
+
+/* ══ RELATED TAB ═════════════════════════════════════════════ */
+
 async function showRelated() {
   __THREAD_SHELL_READY__ = false;
   setActiveTab("related");
@@ -968,21 +1312,24 @@ async function showRelated() {
       .sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0))
       .slice(0, 10);
 
-    if (!items.length) { setPanel(`<div style="font-size:13px;color:var(--subtle);">No related results found for: <b>${escapeHtml(q)}</b></div>`); return; }
+    if (!items.length) {
+      setPanel(`<div style="font-size:13px;color:var(--subtle);">No related results found for: <b>${escapeHtml(q)}</b></div>`);
+      return;
+    }
 
     let html = `<div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">Related · sorted by year</div>`;
     for (const it of items) {
-      const relType = detectStudyTypePaper(it);
+      const relType      = detectStudyTypePaper(it);
       const relTypeLabel = relType ? (STUDY_TYPE_LABELS_PAPER[relType] || relType) : null;
-      const relOA = !!((it.pmcid || "").toString().trim());
+      const relOA        = !!((it.pmcid || "").toString().trim());
       html += `
         <div style="background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color .12s;" data-open-rel="1">
           <div style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:6px;">${escapeHtml(it.title)}</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;">
-            ${it.year ? `<span class="badge blue">${escapeHtml(String(it.year))}</span>` : ""}
+            ${it.year      ? `<span class="badge blue">${escapeHtml(String(it.year))}</span>` : ""}
             <span class="badge coffee">${escapeHtml(SOURCE_LABELS_PAPER[it.source] || it.source)}</span>
             ${relTypeLabel ? `<span class="badge green">${escapeHtml(relTypeLabel)}</span>` : ""}
-            ${relOA ? `<span class="badge sage">OA</span>` : ""}
+            ${relOA        ? `<span class="badge sage">OA</span>` : ""}
           </div>
         </div>`;
     }
@@ -1001,6 +1348,8 @@ async function showRelated() {
   }
 }
 
+/* ══ PANEL MODE / CLOSE ══════════════════════════════════════ */
+
 function setMode(mode) {
   qs("paperSplit").classList.toggle("drawerMode", mode === "drawer");
   qs("modeBtn").textContent = mode === "drawer" ? "⇄ Drawer" : "⇄ Side";
@@ -1011,25 +1360,24 @@ qs("modeBtn").onclick  = () => {
   const cur = sessionStorage.getItem("paper_panel_mode") || "side";
   setMode(cur === "side" ? "drawer" : "side");
 };
+
 qs("closeBtn").onclick = () => {
   const split  = qs("paperSplit");
   const closed = split.classList.toggle("panelClosed");
   qs("closeBtn").textContent = closed ? "Open panel" : "✕";
-
-  // If reopening, make sure panel right is visible
   if (!closed) {
     const right = document.querySelector(".paperRight");
     if (right) right.style.display = "";
   }
 };
 
-// Reopen button — shown when panel is closed
+/* Reopen button — shown when panel is closed */
 (function addReopenBtn() {
   const btn = document.createElement("button");
-  btn.type = "button";
+  btn.type      = "button";
   btn.className = "btn sm ghost";
-  btn.id = "reopenPanelBtn";
-  btn.title = "Open panel";
+  btn.id        = "reopenPanelBtn";
+  btn.title     = "Open panel";
   btn.style.cssText = `
     position: fixed; bottom: 24px; right: 24px;
     z-index: 1300; display: none;
@@ -1048,7 +1396,6 @@ qs("closeBtn").onclick = () => {
     btn.style.display = "none";
   };
 
-  // Watch for panel close state
   const observer = new MutationObserver(() => {
     const closed = qs("paperSplit")?.classList.contains("panelClosed");
     btn.style.display = closed ? "block" : "none";
@@ -1056,6 +1403,8 @@ qs("closeBtn").onclick = () => {
   const split = qs("paperSplit");
   if (split) observer.observe(split, { attributes: true, attributeFilter: ["class"] });
 })();
+
+/* ══ INIT ════════════════════════════════════════════════════ */
 
 (async function init() {
   const ref = getCurrentPaper();
@@ -1067,7 +1416,7 @@ qs("closeBtn").onclick = () => {
     if (requireAuthOrRedirect()) {
       try {
         savedStudy = await fetchJson(`/studies/${ref.id}`);
-        p = savedStudy;
+        p          = savedStudy;
         qs("saveBtn").textContent = "Saved";
         qs("saveBtn").disabled    = true;
         external = null;
@@ -1093,7 +1442,7 @@ qs("closeBtn").onclick = () => {
     }
   } else if (ref.mode === "external") {
     external = ref.paper;
-    p = external;
+    p        = external;
     qs("saveBtn").disabled = !getToken();
   } else {
     qs("title").textContent    = "No paper selected";
@@ -1107,6 +1456,9 @@ qs("closeBtn").onclick = () => {
   }
 
   renderPaper(p);
+
+  /* Show reading status chips if this is a saved study */
+  if (savedStudy) renderReadingStatus(savedStudy);
 
   const enriched = await ensureAbstractAndPMC(p);
 
