@@ -666,9 +666,13 @@ def get_clinical(
         select(StudyMetrics).where(StudyMetrics.study_id == study_id)
     ).first()
 
+    # FIX: We must generate the cache key for this specific paper so we don't grab the wrong one!
+    ck = _cache_key("clinical", study.title, study.doi, study.pmid, study.pmcid)
+
     cached = session.exec(
         select(AIResult).where(
             (AIResult.owner_username == current_user.username)
+            & (AIResult.cache_key == ck) # << Added specific paper filter
             & (AIResult.kind == "clinical")
             & (AIResult.patient_summary != None)  # noqa: E711
         )
