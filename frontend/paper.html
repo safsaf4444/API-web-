@@ -102,7 +102,6 @@
 <body>
 <main id="paperSplit">
 
-  <!-- ══════════ LEFT ══════════ -->
   <div class="paperLeft">
 
     <div class="card">
@@ -146,7 +145,6 @@
 
   </div>
 
-  <!-- ══════════ RIGHT (PANEL) ══════════ -->
   <div class="paperRight">
     <div class="card">
       <div class="panelTopRow">
@@ -242,10 +240,13 @@ async function ensureSavedStudy() {
 function normStr(x) { return (x || "").toString().trim(); }
 
 function stripHtml(s) {
+  // Enhanced to strip all entities and malformed tags safely
   return (s || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/&#\d+;/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

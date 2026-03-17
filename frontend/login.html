@@ -164,7 +164,6 @@
   <div class="authShell">
     <div class="authCard">
 
-      <!-- LEFT: visual -->
       <section class="authVisual">
         <div>
           <div class="authLogo">
@@ -201,10 +200,8 @@
         </div>
       </section>
 
-      <!-- RIGHT: form panels -->
       <section class="authForm">
 
-        <!-- ── MAIN PANEL (login / register) ── -->
         <div id="mainPanel">
           <div style="margin-bottom:20px;">
             <h2 id="formTitle" style="margin-bottom:4px;">Welcome back</h2>
@@ -218,7 +215,6 @@
             <button class="authTab" id="tabRegister" type="button">Create account</button>
           </div>
 
-          <!-- LOGIN FORM -->
           <form id="loginForm">
             <div class="authFields">
               <div>
@@ -258,7 +254,6 @@
             </div>
           </form>
 
-          <!-- REGISTER FORM -->
           <form id="registerForm" style="display:none;">
             <div class="authFields">
               <div class="authGrid2">
@@ -308,7 +303,6 @@
           </form>
         </div>
 
-        <!-- ── FORGOT PASSWORD PANEL ── -->
         <div id="forgotPanel" class="authOverlay">
           <button class="backLink" id="backFromForgot">← Back to sign in</button>
           <h2 style="margin-bottom:4px;">Reset your password</h2>
@@ -323,7 +317,6 @@
           <div class="authMsg" id="forgotMsg" style="min-height:18px;"></div>
         </div>
 
-        <!-- ── RESET PASSWORD PANEL ── -->
         <div id="resetPanel" class="authOverlay">
           <button class="backLink" id="backFromReset">← Back to sign in</button>
           <h2 style="margin-bottom:4px;">Set new password</h2>
@@ -382,6 +375,26 @@
         const dest = sessionStorage.getItem('after_login') || 'search.html';
         sessionStorage.removeItem('after_login');
         window.location.href = dest;
+      }
+    })();
+
+    // ── Email Verification Handler ───────────────────────────────────────────
+    (function checkVerifyToken() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      const mode  = params.get('mode');
+      if (token && mode === 'verify') {
+        fetchJson(`/auth/verify-email?token=${token}`)
+          .then(() => {
+            history.replaceState({}, '', window.location.pathname);
+            showPanel('main');
+            setMode('login');
+            setMsg('loginMsg', '<span class="authOk">✓ Email verified. You can now sign in.</span>');
+          })
+          .catch(err => {
+            showPanel('main');
+            setMsg('loginMsg', `<span class="authErr">Verification failed: ${esc(err.message)}</span>`);
+          });
       }
     })();
 

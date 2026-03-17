@@ -128,6 +128,11 @@ if os.path.exists(FRONTEND_DIR):
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
+    # Attempt to load the new SVG favicon first
+    svg_fav = os.path.join(FRONTEND_DIR, "favicon.svg")
+    if os.path.exists(svg_fav):
+        return FileResponse(svg_fav)
+        
     ico = os.path.join(FRONTEND_DIR, "favicon.ico")
     if os.path.exists(ico):
         return FileResponse(ico)
