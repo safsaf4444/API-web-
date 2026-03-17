@@ -17,6 +17,19 @@ if (window.__SEREN_APPJS_WIRED__) {
       .replaceAll("'", '&#039;');
   }
 
+  /* Phase 3: Ensure data is compatible with the new Enum/Database columns */
+  function preparePaperForSave(paper) {
+    if (!paper) return {};
+    return {
+      ...paper,
+      // Backend Enum requires lowercase 'unread', 'reading', 'done', or 'flagged'
+      reading_status: (paper.reading_status || 'unread').toLowerCase(),
+      // Ensure folders are handled correctly
+      folder_id: paper.folder_id || null
+    };
+  }
+  window.preparePaperForSave = preparePaperForSave;
+
   /* SVG icon set — refined, consistent stroke-based icons */
   function icon(name) {
     const size = '18';
@@ -162,8 +175,8 @@ if (window.__SEREN_APPJS_WIRED__) {
     const navLinks = [
       { key: 'search',  href: 'search.html',  label: 'Search',  requiresLogin: false },
       { key: 'library', href: 'library.html', label: 'Library', requiresLogin: true  },
-      { key: 'ai',      href: 'ai.html',       label: 'AI',      requiresLogin: true  },
-      { key: 'info',    href: 'info.html',     label: 'About',   requiresLogin: false },
+      { key: 'ai',      href: 'ai.html',      label: 'AI',      requiresLogin: true  },
+      { key: 'info',    href: 'info.html',    label: 'About',   requiresLogin: false },
     ];
 
     side.innerHTML = `

@@ -257,7 +257,7 @@ async function ensureSavedStudy() {
     }
   }
   if (external && getToken()) {
-    const saved = await fetchJson("/external/import", { method:"POST", body: external });
+    const saved = await fetchJson("/external/import", { method:"POST", body: preparePaperForSave(external) });
     savedStudy = saved;
     sessionStorage.setItem("open_study_id", String(saved.id));
     sessionStorage.removeItem("last_external");
@@ -631,7 +631,7 @@ async function doSave() {
   setSaveMsg("");
   await withBtnLoading(qs("saveBtn"), async () => {
     try {
-      const saved = await fetchJson("/external/import", { method:"POST", body: external });
+      const saved = await fetchJson("/external/import", { method:"POST", body: preparePaperForSave(external) });
       markSavedUI(saved);
       const folderId = qs("saveFolderPick")?.value || "";
       if (folderId) {
