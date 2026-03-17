@@ -107,34 +107,12 @@
       <div class="infoCard">
         <div class="infoCardTitle">BYOK (Bring Your Own Key)</div>
         <div class="infoCardBody">
-          Power users can set their own API keys on the <a href="ai.html" style="color:var(--brass2);text-decoration:none;font-weight:600;">AI settings page</a> to unlock premium models. Keys are auto-routed based on their prefix:<br/><br/>
-          <span class="mono">sk-ant-</span> → Anthropic Claude &nbsp;·&nbsp;
-          <span class="mono">AIza</span> → Gemini Pro &nbsp;·&nbsp;
-          <span class="mono">gsk_</span> → Groq &nbsp;·&nbsp;
-          anything else → OpenAI<br/><br/>
-          <em>Security note: Keys are encrypted at rest using Fernet symmetric encryption. The frontend never stores your key in localStorage.</em>
-        </div>
-      </div>
-
-      <div class="infoCard">
-        <div class="infoCardTitle">API Endpoints</div>
-        <div class="infoCardBody">
-          <span class="mono">POST /ai/summarize</span> — Generates a structured summary of a paper's abstract.<br/>
-          <span class="mono">POST /ai/ask</span> — Runs a custom Q&A against the paper's metadata.<br/>
-          <span class="mono">POST /ai/set_key</span> · <span class="mono">GET /ai/key_status</span> · <span class="mono">DELETE /ai/clear_key</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="infoSection">
-      <div class="sectionHeading">External Providers</div>
-
-      <div class="infoCard">
-        <div class="infoCardTitle">Semantic Scholar API Limits</div>
-        <div class="infoCardBody">
-          Semantic Scholar aggressively rate-limits unauthenticated requests. To reduce 429 errors in your own deployment, add an API key to the backend environment variables:<br/><br/>
-          <span class="mono">SEMANTIC_SCHOLAR_API_KEY=your_key_here</span><br/><br/>
-          This key remains strictly on the backend and is never exposed to the client.
+          Power users can set their own API keys on the <a href="ai.html" style="color:var(--brass2);text-decoration:none;font-weight:600;">AI settings page</a> to unlock premium models. We currently support automatic routing for:<br><br>
+          • <strong>OpenAI</strong> (GPT-4o, GPT-4o-mini)<br>
+          • <strong>Anthropic</strong> (Claude 3.5 Sonnet)<br>
+          • <strong>Google</strong> (Gemini Pro)<br>
+          • <strong>Groq</strong> (Llama 3.3)<br><br>
+          <em>Security note: Keys are encrypted at rest using secure symmetric encryption. The frontend never stores your key in your browser's local storage.</em>
         </div>
       </div>
     </div>
@@ -143,6 +121,7 @@
       <div class="sectionHeading">Key Management</div>
       <div class="infoCard">
         <div class="infoCardTitle">Check AI Key Status</div>
+        <div class="infoCardBody">Verify if your custom API key is actively linked to your account or clear it to return to the free tier.</div>
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
           <button class="btn primary sm" id="checkAiBtn">Check status</button>
           <button class="btn danger sm" id="clearAiBtn">Clear key</button>
