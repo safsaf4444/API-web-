@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 from backend.db import get_session
 from backend.deps.auth import get_current_user
 from backend.models import Comment, Folder, ReadingStatus, Study, StudyMetrics, User
-from backend.schemas import StudyPatch, StudyRead
+from backend.schemas import StudyRead, StudyPatch
 
 try:
     from backend.services.metrics_service import sync_folder_count, touch_metrics
@@ -44,6 +44,7 @@ def list_studies(
         needle = f"%{q.strip()}%"
         stmt = stmt.where(or_(Study.title.ilike(needle), Study.abstract.ilike(needle)))
 
+    # --- Existing Sorting Logic ---
     sort_key = (sort or "newest").strip().lower()
     if sort_key == "oldest":
         stmt = stmt.order_by(Study.id.asc())
@@ -58,7 +59,17 @@ def list_studies(
     else:
         stmt = stmt.order_by(Study.id.desc())
 
-    return session.exec(stmt).all()
+    # --- Safe Data Fix for Phase 3 ---
+    # Fetch results first
+    results = session.exec(stmt).all()
+    
+    # If any existing studies have no status (old data), default them to 'unread'
+    # so the Enum validation doesn't crash the response.
+    for study in results:
+        if not study.reading_status:
+            study.reading_status = ReadingStatus.UNREAD
+            
+    return results
 
 
 @router.get("/studies/{study_id}", response_model=StudyRead)
