@@ -60,11 +60,9 @@ def list_studies(
         stmt = stmt.order_by(Study.id.desc())
 
     # --- Safe Data Fix for Phase 3 ---
-    # Fetch results first
     results = session.exec(stmt).all()
     
-    # If any existing studies have no status (old data), default them to 'unread'
-    # so the Enum validation doesn't crash the response.
+    # If any existing studies have no status, default them to 'unread'
     for study in results:
         if not study.reading_status:
             study.reading_status = ReadingStatus.UNREAD
