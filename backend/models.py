@@ -59,8 +59,8 @@ class Study(SQLModel, table=True):
     study_type: Optional[str] = None
     tags: Optional[str] = None
 
-    # PHASE 3 UPGRADES
-    reading_status: ReadingStatus = Field(default=ReadingStatus.UNREAD, index=True) #
+    # PHASE 3 FIX: Changed from ReadingStatus to str to completely bypass the 500 error crash
+    reading_status: str = Field(default="unread", index=True)
     ai_summary: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
 

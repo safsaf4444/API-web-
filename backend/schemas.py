@@ -82,8 +82,8 @@ class StudyRead(BaseModel):
 class StudyPatch(BaseModel):
     notes: Optional[str] = None
     folder_id: Optional[int] = None
-    # Phase 3
-    reading_status: Optional[ReadingStatus] = None
+    # PHASE 3 FIX: Use string to bypass Enum crash
+    reading_status: Optional[str] = None
 
 
 # ---------- Comments ----------

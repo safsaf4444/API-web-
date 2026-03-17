@@ -30,7 +30,8 @@ def list_studies(
     q: Optional[str] = Query(default=None, description="Search title + abstract"),
     sort: str = Query(default="newest", description="newest|oldest|year_desc|year_asc|title_asc|title_desc"),
     folder_id: Optional[int] = Query(default=None),
-    reading_status: Optional[ReadingStatus] = Query(default=None, description="Filter by reading status"),
+    # PHASE 3 FIX: Changed to Optional[str]
+    reading_status: Optional[str] = Query(default=None, description="Filter by reading status"),
 ):
     stmt = select(Study).where(Study.owner_username == current_user.username)
 
@@ -64,7 +65,7 @@ def list_studies(
     # If any existing studies have no status (old data), default them to 'unread'
     for study in results:
         if not study.reading_status:
-            study.reading_status = ReadingStatus.UNREAD
+            study.reading_status = "unread"
             
     return results
 
