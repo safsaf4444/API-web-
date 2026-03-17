@@ -167,7 +167,9 @@ if (window.__SEREN_APPJS_WIRED__) {
     ];
 
     side.innerHTML = `
-      <a class="brandMark" href="/" title="Seren">S</a>
+      <a class="brandMark" href="/" title="Seren" style="display:flex; align-items:center; gap:8px; text-decoration:none; background:none; padding:16px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </a>
 
       <div class="sideGroup">
         ${navLinks.map(({ key, href, label, requiresLogin }) => {
