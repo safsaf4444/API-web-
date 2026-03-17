@@ -59,10 +59,9 @@ def list_studies(
     else:
         stmt = stmt.order_by(Study.id.desc())
 
-    # --- Safe Data Fix for Phase 3 ---
     results = session.exec(stmt).all()
     
-    # If any existing studies have no status, default them to 'unread'
+    # If any existing studies have no status (old data), default them to 'unread'
     for study in results:
         if not study.reading_status:
             study.reading_status = ReadingStatus.UNREAD
@@ -118,7 +117,6 @@ def patch_study(
                 raise HTTPException(status_code=400, detail="Invalid folder_id")
             study.folder_id = payload.folder_id
 
-    # Phase 3: reading status
     if "reading_status" in fields_set and payload.reading_status is not None:
         study.reading_status = payload.reading_status
 
