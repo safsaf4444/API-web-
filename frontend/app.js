@@ -22,8 +22,8 @@ if (window.__SEREN_APPJS_WIRED__) {
     if (!paper) return {};
     return {
       ...paper,
-      // Backend Enum requires lowercase 'unread', 'reading', 'done', or 'flagged'
-      reading_status: (paper.reading_status || 'unread').toLowerCase(),
+      // FIX: Backend Enum requires uppercase 'UNREAD', 'READING', 'DONE', or 'FLAGGED'
+      reading_status: (paper.reading_status || 'UNREAD').toUpperCase(),
       // Ensure folders are handled correctly
       folder_id: paper.folder_id || null
     };

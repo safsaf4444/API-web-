@@ -73,10 +73,8 @@ class StudyRead(BaseModel):
     study_type: Optional[str] = None
     tags: Optional[str] = None
 
-    # PHASE 3 "FORGIVING" FIX:
-    # Changed from ReadingStatus (Enum) to Optional[str].
-    # This prevents Pydantic from crashing if the DB has NULL or unexpected strings.
-    reading_status: Optional[str] = "unread" 
+    # PHASE 3 "FORGIVING" FIX: Default to Uppercase UNREAD
+    reading_status: Optional[str] = "UNREAD" 
     ai_summary: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
 
