@@ -55,28 +55,28 @@ class StudyRead(BaseModel):
 
     id: int
     owner_username: str
-    folder_id: Optional[int]
+    folder_id: Optional[int] = None
 
     source: str
     source_id: str
     title: str
-    year: Optional[int]
-    venue: Optional[str]
-    authors: Optional[str]
-    doi: Optional[str]
-    url: Optional[str]
-    abstract: Optional[str]
-    pmid: Optional[str]
-    pmcid: Optional[str]
+    year: Optional[int] = None
+    venue: Optional[str] = None
+    authors: Optional[str] = None
+    doi: Optional[str] = None
+    url: Optional[str] = None
+    abstract: Optional[str] = None
+    pmid: Optional[str] = None
+    pmcid: Optional[str] = None
 
-    notes: Optional[str]
-    study_type: Optional[str]
-    tags: Optional[str]
+    notes: Optional[str] = None
+    study_type: Optional[str] = None
+    tags: Optional[str] = None
 
-    # Phase 3
-    reading_status: ReadingStatus
-    ai_summary: Optional[str]
-    ai_summary_updated_at: Optional[datetime]
+    # Phase 3: Made Optional with a default to prevent "Internal Server Error" on old data
+    reading_status: Optional[ReadingStatus] = ReadingStatus.UNREAD
+    ai_summary: Optional[str] = None
+    ai_summary_updated_at: Optional[datetime] = None
 
 
 class StudyPatch(BaseModel):
@@ -184,7 +184,7 @@ class AIAskResponse(BaseModel):
 
 # ---------- Phase 3: Clinical Intelligence ----------
 class AIClinicalRequest(BaseModel):
-    study_id: int  # must be a saved study — we write results back to StudyMetrics + AIResult
+    study_id: int 
     title: str
     abstract: Optional[str] = None
     doi: Optional[str] = None
@@ -208,8 +208,8 @@ class StatisticalData(BaseModel):
 
 
 class AppraisalData(BaseModel):
-    evidence_strength: Optional[int] = None  # 1-5
-    bias_risk: Optional[str] = None           # Low / Moderate / High
+    evidence_strength: Optional[int] = None
+    bias_risk: Optional[str] = None
     limitations: Optional[List[str]] = None
 
 

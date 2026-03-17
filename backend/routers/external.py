@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 from backend.db import get_session
 from backend.deps.auth import get_current_user
 from backend.external_providers import ProviderError, get_provider, list_sources
-from backend.models import Study, StudyExternalRef, User
+from backend.models import Study, StudyExternalRef, User, ReadingStatus
 from backend.schemas import ExternalImportRequest, ExternalPaperOut, FullTextResponse, StudyRead
 from backend.services.study_analysis import detect_study_type_and_tags
 
@@ -93,7 +93,7 @@ class _CacheEntry:
     value: dict
 
 
-# ✅ include year_from/year_to in cache key
+# include year_from/year_to in cache key
 _EXTERNAL_SEARCH_CACHE: dict[Tuple[str, str, int, str, Optional[int], Optional[int]], _CacheEntry] = {}
 _EXTERNAL_SEARCH_TTL_SECONDS = 600  # 10 minutes
 
@@ -123,7 +123,6 @@ async def external_search(
     source: str = Query("europepmc"),
     limit: int = Query(25, ge=1, le=100),
     cursor_mark: Optional[str] = Query(default=None),
-    # ✅ NEW: year range filters (optional)
     year_from: Optional[int] = Query(default=None, ge=1000, le=3000),
     year_to: Optional[int] = Query(default=None, ge=1000, le=3000),
 ):
@@ -135,13 +134,11 @@ async def external_search(
     cursor = str(cursor_mark)
 
     # Cache only the common first pages (keeps UX snappy, reduces provider calls).
-    # - europepmc: cursor_mark == "*" is the first page
-    # - semantic_scholar: offset "0" is the first page
     cacheable = (src == "europepmc" and cursor == "*") or (
         src in ("semantic_scholar", "semanticscholar") and cursor == "0"
     )
 
-    # ✅ include year bounds in cache key
+    # include year bounds in cache key
     key = (src, q.strip().lower(), int(limit), cursor, year_from, year_to)
     if cacheable:
         cached = _cache_get(key)
@@ -154,7 +151,7 @@ async def external_search(
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        # ✅ pass year bounds to providers (providers must accept these kwargs)
+        # pass year bounds to providers
         papers, next_cursor, hit_count = await provider.search(
             q=q,
             limit=limit,
@@ -164,12 +161,6 @@ async def external_search(
         )
     except ProviderError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
-    except TypeError as e:
-        # Helpful error if providers weren't updated yet
-        raise HTTPException(
-            status_code=500,
-            detail=f"Provider search() does not support year filters yet. Update external_providers.py. ({e})",
-        )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"External provider error: {type(e).__name__}: {e}")
 
@@ -265,6 +256,7 @@ def external_import(
     study_type, tags = detect_study_type_and_tags(payload.title or "", payload.abstract)
     tags_str = ", ".join(tags) if tags else None
 
+    # PHASE 3: Explicitly set reading_status to unread for new imports
     study = Study(
         owner_username=owner,
         source=src,
@@ -280,6 +272,7 @@ def external_import(
         pmcid=payload.pmcid,
         study_type=study_type,
         tags=tags_str,
+        reading_status=ReadingStatus.UNREAD
     )
     session.add(study)
     session.commit()
