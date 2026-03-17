@@ -35,6 +35,7 @@ if (window.__SEREN_APPJS_WIRED__) {
 
   function currentPage() {
     const p = (location.pathname.split('/').pop() || '').toLowerCase();
+    if (p === '' || p === 'index.html' || location.pathname === '/') return 'home';
     if (p.includes('search'))  return 'search';
     if (p.includes('library')) return 'library';
     if (p.includes('ai'))      return 'ai';
@@ -76,7 +77,8 @@ if (window.__SEREN_APPJS_WIRED__) {
 
   /* ── Shell construction ──────────────────────────────────── */
   function ensureDashboardShell() {
-    if (currentPage() === 'login') return;
+    const page = currentPage();
+    if (page === 'login' || page === 'home') return;
     if (document.querySelector('.appShell')) return;
 
     const bodyKids = Array.from(document.body.children);
@@ -145,13 +147,13 @@ if (window.__SEREN_APPJS_WIRED__) {
 
   /* ── Render nav ──────────────────────────────────────────── */
   function renderShellNav() {
-    if (currentPage() === 'login') return;
+    const page = currentPage();
+    if (page === 'login' || page === 'home') return;
     ensureDashboardShell();
 
     const token    = getToken();
     const username = getUsername();
     const isGuest  = !token;
-    const page     = currentPage();
 
     const side = document.querySelector('.sidebar');
     const top  = document.getElementById('topbar');
@@ -165,7 +167,7 @@ if (window.__SEREN_APPJS_WIRED__) {
     ];
 
     side.innerHTML = `
-      <a class="brandMark" href="search.html" title="Seren">S</a>
+      <a class="brandMark" href="/" title="Seren">S</a>
 
       <div class="sideGroup">
         ${navLinks.map(({ key, href, label, requiresLogin }) => {
@@ -221,7 +223,7 @@ if (window.__SEREN_APPJS_WIRED__) {
       setUsername('');
       sessionStorage.removeItem('last_external');
       sessionStorage.removeItem('open_study_id');
-      window.location.href = 'search.html';
+      window.location.href = '/';
     }
 
     const lo1 = document.getElementById('logoutBtn');
@@ -243,8 +245,9 @@ if (window.__SEREN_APPJS_WIRED__) {
         });
       } else {
         topInput.addEventListener('keydown', e => {
-          if (e.key === 'Enter')
-            showToast('Tip', 'Head to the Search page to run a literature query.', 'info');
+          if (e.key === 'Enter') {
+            window.location.href = `search.html?q=${encodeURIComponent(topInput.value)}`;
+          }
         });
       }
     }
