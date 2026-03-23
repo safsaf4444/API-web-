@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 import httpx
@@ -22,6 +22,8 @@ class ExternalPaper:
     abstract: Optional[str] = None
     pmid: Optional[str] = None
     pmcid: Optional[str] = None
+    citation_count: Optional[int] = None
+    is_retracted: bool = False
     raw: Optional[Dict[str, Any]] = None
 
 
@@ -83,7 +85,6 @@ def _year_bounds(year_from: Optional[int], year_to: Optional[int]) -> Tuple[Opti
         yf = None
     if yt is not None and (yt < 1000 or yt > 3000):
         yt = None
-    # If reversed, swap
     if yf is not None and yt is not None and yf > yt:
         yf, yt = yt, yf
     return yf, yt
@@ -104,7 +105,6 @@ async def _request_with_retries(
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
                 r = await client.request(method, url, params=params, headers=headers)
 
-            # Retry on rate-limit and transient 5xx
             if r.status_code in (429,) or (500 <= r.status_code <= 599):
                 if attempt < max_retries:
                     ra = r.headers.get("Retry-After")
@@ -140,7 +140,6 @@ class EuropePMCProvider:
 
         yf, yt = _year_bounds(year_from, year_to)
         query = q
-        # Apply year bounds at source level to avoid "page filtered down to 1/25"
         if yf is not None or yt is not None:
             yf2 = yf if yf is not None else 1000
             yt2 = yt if yt is not None else 3000
@@ -193,9 +192,9 @@ class EuropePMCProvider:
             if not title:
                 continue
 
-            pmid = item.get("pmid")
+            pmid  = item.get("pmid")
             pmcid = item.get("pmcid")
-            doi = item.get("doi")
+            doi   = item.get("doi")
 
             source_id = item.get("id") or pmid or pmcid or doi
             if not source_id:
@@ -220,6 +219,13 @@ class EuropePMCProvider:
 
             abstract = item.get("abstractText")
 
+            # Retraction: Europe PMC returns "Y" / "N" string
+            retracted_raw = item.get("isRetracted", "N")
+            is_retracted = str(retracted_raw).strip().upper() == "Y"
+
+            # Citation count: Europe PMC returns citedByCount
+            citation_count = _int_or_none(item.get("citedByCount"))
+
             out.append(
                 ExternalPaper(
                     source=self.source_name,
@@ -233,6 +239,8 @@ class EuropePMCProvider:
                     abstract=abstract,
                     pmid=str(pmid) if pmid else None,
                     pmcid=str(pmcid) if pmcid else None,
+                    citation_count=citation_count,
+                    is_retracted=is_retracted,
                     raw=item,
                 )
             )
@@ -269,14 +277,12 @@ class SemanticScholarProvider:
             "query": q,
             "limit": page_size,
             "offset": offset,
-            "fields": "paperId,title,abstract,year,venue,authors,url,externalIds",
+            # Added citationCount to fields
+            "fields": "paperId,title,abstract,year,venue,authors,url,externalIds,citationCount,isOpenAccess",
         }
 
-        # Apply year bounds at source level if user set them.
         yf, yt = _year_bounds(year_from, year_to)
         if yf is not None or yt is not None:
-            # Semantic Scholar supports a "year" query parameter using "YYYY-", "-YYYY", or "YYYY-YYYY" syntax.
-            # Example: year=2023- for >= 2023. :contentReference[oaicite:3]{index=3}
             if yf is not None and yt is not None:
                 params["year"] = f"{yf}-{yt}"
             elif yf is not None:
@@ -339,8 +345,8 @@ class SemanticScholarProvider:
             if not isinstance(ext, dict):
                 ext = {}
 
-            doi = ext.get("DOI")
-            pmid = ext.get("PubMed")
+            doi   = ext.get("DOI")
+            pmid  = ext.get("PubMed")
             pmcid = ext.get("PubMedCentral")
 
             authors = None
@@ -348,10 +354,13 @@ class SemanticScholarProvider:
             if isinstance(a_in, list):
                 authors = [a.get("name") for a in a_in if isinstance(a, dict) and a.get("name")]
 
-            venue = item.get("venue")
-            url = item.get("url") or f"https://www.semanticscholar.org/paper/{paper_id}"
+            venue    = item.get("venue")
+            url      = item.get("url") or f"https://www.semanticscholar.org/paper/{paper_id}"
             abstract = item.get("abstract")
-            year = _int_or_none(item.get("year"))
+            year     = _int_or_none(item.get("year"))
+
+            # Citation count: Semantic Scholar returns citationCount directly
+            citation_count = _int_or_none(item.get("citationCount"))
 
             out.append(
                 ExternalPaper(
@@ -366,6 +375,8 @@ class SemanticScholarProvider:
                     abstract=abstract,
                     pmid=str(pmid) if pmid else None,
                     pmcid=str(pmcid) if pmcid else None,
+                    citation_count=citation_count,
+                    is_retracted=False,  # Semantic Scholar doesn't expose retraction status
                     raw=item,
                 )
             )
@@ -378,11 +389,6 @@ class SemanticScholarProvider:
 
 
 class OpenAlexProvider:
-    """OpenAlex is a broad, open index of scholarly works.
-
-    We keep it metadata-first (title/year/authors/venue/doi/url/abstract when available).
-    """
-
     source_name = "openalex"
     BASE = "https://api.openalex.org"
 
@@ -396,7 +402,6 @@ class OpenAlexProvider:
         year_to: Optional[int] = None,
     ) -> SearchResult:
         page_size = _clamp_limit(limit, 200)
-
         cursor = (cursor_mark or "*").strip() or "*"
 
         params = {
@@ -405,8 +410,6 @@ class OpenAlexProvider:
             "cursor": cursor,
         }
 
-        # Apply year bounds at source level using OpenAlex filters.
-        # OpenAlex supports from_publication_date/to_publication_date. :contentReference[oaicite:4]{index=4}
         yf, yt = _year_bounds(year_from, year_to)
         filters: List[str] = []
         if yf is not None:
@@ -443,8 +446,8 @@ class OpenAlexProvider:
         except Exception:
             raise ProviderError("OpenAlex returned non-JSON response.", status_code=502)
 
-        results = data.get("results") or []
-        meta = data.get("meta") or {}
+        results  = data.get("results") or []
+        meta     = data.get("meta") or {}
         hit_count = _int_or_none(meta.get("count")) or 0
         next_cursor = None
         if isinstance(meta, dict) and meta.get("next_cursor"):
@@ -457,7 +460,7 @@ class OpenAlexProvider:
         for item in results:
             if not isinstance(item, dict):
                 continue
-            title = (item.get("title") or "").strip()
+            title   = (item.get("title") or "").strip()
             work_id = item.get("id")
             if not title or not work_id:
                 continue
@@ -510,6 +513,9 @@ class OpenAlexProvider:
                 except Exception:
                     abstract = None
 
+            # OpenAlex returns cited_by_count
+            citation_count = _int_or_none(item.get("cited_by_count"))
+
             out.append(
                 ExternalPaper(
                     source=self.source_name,
@@ -521,6 +527,8 @@ class OpenAlexProvider:
                     doi=doi,
                     url=url,
                     abstract=abstract,
+                    citation_count=citation_count,
+                    is_retracted=False,
                     raw=item,
                 )
             )
@@ -529,8 +537,6 @@ class OpenAlexProvider:
 
 
 class CrossrefProvider:
-    """Crossref is a DOI metadata backbone. Abstracts are rare; use for breadth."""
-
     source_name = "crossref"
     BASE = "https://api.crossref.org"
 
@@ -558,8 +564,6 @@ class CrossrefProvider:
             "select": "DOI,title,author,issued,container-title,URL,abstract",
         }
 
-        # Apply year bounds at source level using Crossref filters.
-        # Crossref supports from-pub-date / until-pub-date. :contentReference[oaicite:5]{index=5}
         yf, yt = _year_bounds(year_from, year_to)
         filt_parts: List[str] = []
         if yf is not None:
@@ -596,7 +600,7 @@ class CrossrefProvider:
         except Exception:
             raise ProviderError("Crossref returned non-JSON response.", status_code=502)
 
-        msg = data.get("message") or {}
+        msg   = data.get("message") or {}
         items = msg.get("items") or []
         total = _int_or_none(msg.get("total-results")) or 0
 
@@ -638,7 +642,7 @@ class CrossrefProvider:
                 for a in au:
                     if not isinstance(a, dict):
                         continue
-                    given = (a.get("given") or "").strip()
+                    given  = (a.get("given") or "").strip()
                     family = (a.get("family") or "").strip()
                     nm = (given + " " + family).strip()
                     if nm:
@@ -665,6 +669,8 @@ class CrossrefProvider:
                     doi=doi,
                     url=url,
                     abstract=str(abstract) if isinstance(abstract, str) and abstract.strip() else None,
+                    citation_count=None,  # Crossref doesn't expose citation counts
+                    is_retracted=False,
                     raw=item,
                 )
             )
@@ -677,22 +683,22 @@ class CrossrefProvider:
 
 
 PROVIDERS: Dict[str, Provider] = {
-    EuropePMCProvider.source_name: EuropePMCProvider(),
+    EuropePMCProvider.source_name:    EuropePMCProvider(),
     SemanticScholarProvider.source_name: SemanticScholarProvider(),
-    OpenAlexProvider.source_name: OpenAlexProvider(),
-    CrossrefProvider.source_name: CrossrefProvider(),
+    OpenAlexProvider.source_name:     OpenAlexProvider(),
+    CrossrefProvider.source_name:     CrossrefProvider(),
 }
 
 ALIASES: Dict[str, str] = {
-    "europe_pmc": "europepmc",
-    "europepmc": "europepmc",
-    "semantic": "semantic_scholar",
+    "europe_pmc":     "europepmc",
+    "europepmc":      "europepmc",
+    "semantic":       "semantic_scholar",
     "semantic_scholar": "semantic_scholar",
     "semanticscholar": "semantic_scholar",
-    "open_alex": "openalex",
-    "openalex": "openalex",
-    "cross_ref": "crossref",
-    "crossref": "crossref",
+    "open_alex":      "openalex",
+    "openalex":       "openalex",
+    "cross_ref":      "crossref",
+    "crossref":       "crossref",
 }
 
 
