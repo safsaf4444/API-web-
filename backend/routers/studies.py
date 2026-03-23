@@ -63,9 +63,24 @@ def list_studies(
     results = session.exec(stmt).all()
     
     # If any existing studies have no status (old data), default them to 'unread'
+    # Also attach comment_count for each study
+    study_ids = [s.id for s in results]
+    comment_counts: dict[int, int] = {}
+    if study_ids:
+        from sqlalchemy import func
+        count_stmt = (
+            select(Comment.study_id, func.count(Comment.id))
+            .where(Comment.study_id.in_(study_ids))
+            .group_by(Comment.study_id)
+        )
+        for sid, cnt in session.exec(count_stmt).all():
+            comment_counts[sid] = cnt
+
     for study in results:
         if not study.reading_status:
             study.reading_status = "unread"
+        # Attach comment_count (not a model field, but Pydantic will pick it up from dict)
+        study.comment_count = comment_counts.get(study.id, 0)  # type: ignore[attr-defined]
             
     return results
 

@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Shared Evidence — Seren</title>
+  <meta name="description" content="Clinical evidence analysis shared via Seren — Evidence & Research Exploration Network."/>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .sharedWrap {
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    .sharedHeader {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .sharedBrand {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--brass2);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .sharedTitle {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.4;
+      letter-spacing: -0.02em;
+    }
+
+    .sharedSubtitle {
+      font-size: 12.5px;
+      color: var(--subtle);
+      margin-top: 6px;
+    }
+
+    .sharedCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 16px;
+    }
+
+    .sharedSectionLabel {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      margin-bottom: 10px;
+    }
+
+    .sharedGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    @media (max-width: 500px) {
+      .sharedGrid { grid-template-columns: 1fr; }
+    }
+
+    .sharedCell {
+      background: var(--cream3);
+      border: 1px solid var(--line2);
+      border-radius: var(--r-sm);
+      padding: 10px 12px;
+    }
+
+    .sharedCellLabel {
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--subtle);
+      margin-bottom: 4px;
+    }
+
+    .sharedCellValue {
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.5;
+    }
+
+    .sharedCellValue.empty {
+      font-style: italic;
+      color: var(--subtle);
+      font-size: 12px;
+    }
+
+    .sharedHr {
+      border: none;
+      border-top: 1px solid var(--line2);
+      margin: 16px 0;
+    }
+
+    .sharedRewrite {
+      font-size: 13px;
+      line-height: 1.75;
+      color: var(--text2);
+      padding: 8px 0;
+    }
+
+    .sharedToggle {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .sharedToggle button {
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: var(--r-pill);
+      border: 1.5px solid var(--line);
+      background: transparent;
+      color: var(--subtle);
+      cursor: pointer;
+      transition: all .12s;
+    }
+
+    .sharedToggle button.active {
+      background: var(--navy);
+      border-color: var(--navy);
+      color: var(--cream);
+    }
+
+    .serenBrand {
+      font-size: 10.5px;
+      color: var(--subtle);
+      text-align: center;
+      margin-top: 24px;
+      font-style: italic;
+      letter-spacing: 0.04em;
+    }
+
+    .serenBrand a {
+      color: var(--brass2);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .sharedError {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--subtle);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="sharedWrap">
+  <div class="sharedHeader">
+    <div class="sharedBrand">Seren</div>
+    <div class="sharedTitle" id="sharedTitle">Loading…</div>
+    <div class="sharedSubtitle">Clinical Evidence Analysis</div>
+  </div>
+
+  <div id="sharedContent">
+    <div style="text-align:center;color:var(--subtle);padding:20px;">Loading analysis…</div>
+  </div>
+
+  <div class="serenBrand">Extracted by <a href="/">Seren</a> Clinical AI</div>
+</div>
+
+<script src="api.js"></script>
+<script>
+(async function init() {
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token');
+  const titleEl = document.getElementById('sharedTitle');
+  const content = document.getElementById('sharedContent');
+
+  if (!token) {
+    titleEl.textContent = 'Invalid link';
+    content.innerHTML = '<div class="sharedError">No share token provided. This link may be broken.</div>';
+    return;
+  }
+
+  try {
+    const data = await fetchJson(`/ai/shared/${encodeURIComponent(token)}`, { auth: false });
+
+    titleEl.textContent = data.title || 'Untitled';
+    document.title = `${data.title || 'Evidence'} — Seren`;
+
+    const pico     = data.pico || {};
+    const stats    = data.stats || {};
+    const appr     = data.appraisal || {};
+    const rewrites = data.rewrites || {};
+
+    function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+    function cell(label, val) {
+      return `<div class="sharedCell">
+        <div class="sharedCellLabel">${esc(label)}</div>
+        <div class="sharedCellValue${!val ? ' empty' : ''}">${val ? esc(String(val)) : 'Not specified'}</div>
+      </div>`;
+    }
+
+    /* Evidence strength dots */
+    const strength = parseInt(appr.evidence_strength) || 0;
+    const dots = [1,2,3,4,5].map(i =>
+      `<div class="strengthDot${i <= strength ? (strength >= 4 ? ' filled strong' : strength >= 2 ? ' filled' : ' filled weak') : ''}"></div>`
+    ).join('');
+
+    /* Bias */
+    const biasRaw = (appr.bias_risk || '').toLowerCase();
+    const biasCls = biasRaw === 'low' ? 'low' : biasRaw === 'high' ? 'high' : 'moderate';
+    const biasHtml = appr.bias_risk
+      ? `<span class="biasTag ${biasCls}">${esc(appr.bias_risk)}</span>`
+      : '<span style="color:var(--subtle);font-size:12px;font-style:italic;">Unknown</span>';
+
+    let html = `
+      <div class="sharedCard">
+        <div class="sharedSectionLabel">PICO Framework</div>
+        <div class="sharedGrid">
+          ${cell('Population', pico.population)}
+          ${cell('Intervention', pico.intervention)}
+          ${cell('Comparator', pico.comparator)}
+          ${cell('Outcome', pico.outcome)}
+        </div>
+      </div>
+
+      <div class="sharedCard">
+        <div class="sharedSectionLabel">Statistics & Appraisal</div>
+        <div class="sharedGrid">
+          ${cell('Sample size', stats.sample_size)}
+          ${cell('P-value', stats.p_value)}
+          ${cell('Effect size', stats.effect_size)}
+          ${cell('95% CI', stats.confidence_interval)}
+          ${cell('NNT / NNH', stats.nnt_nnh)}
+          <div class="sharedCell">
+            <div class="sharedCellLabel">Risk of bias</div>
+            <div class="sharedCellValue">${biasHtml}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;display:flex;align-items:center;gap:10px;">
+          <span style="font-size:10px;font-weight:700;color:var(--subtle);text-transform:uppercase;letter-spacing:.06em;">Evidence strength</span>
+          <div class="strengthBar">${dots}</div>
+          <span style="font-size:12px;color:var(--muted);">${strength}/5</span>
+        </div>
+      </div>`;
+
+    /* Audience rewrites */
+    if (rewrites.patient || rewrites.clinician || rewrites.student) {
+      html += `
+        <div class="sharedCard">
+          <div class="sharedSectionLabel">Audience Rewrites</div>
+          <div class="sharedToggle" id="sharedToggle">
+            <button class="active" data-aud="patient">Patient</button>
+            <button data-aud="clinician">Clinician</button>
+            <button data-aud="student">Student</button>
+          </div>
+          <div class="sharedRewrite" id="sharedRewrite">${esc(rewrites.patient || 'Not available.')}</div>
+        </div>`;
+    }
+
+    content.innerHTML = html;
+
+    /* Wire audience toggle */
+    const toggle = document.getElementById('sharedToggle');
+    const rewrite = document.getElementById('sharedRewrite');
+    if (toggle && rewrite) {
+      toggle.addEventListener('click', e => {
+        const btn = e.target.closest('[data-aud]');
+        if (!btn) return;
+        toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        rewrite.textContent = rewrites[btn.dataset.aud] || 'Not available for this paper.';
+      });
+    }
+
+  } catch (e) {
+    titleEl.textContent = 'Not found';
+    content.innerHTML = `<div class="sharedError">${e.message || 'This shared link could not be loaded.'}</div>`;
+  }
+})();
+</script>
+
+</body>
+</html>

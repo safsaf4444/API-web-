@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -1127,7 +1127,10 @@ function renderEvidencePanel(data, study) {
   let html = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0;">
       <div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.09em;text-transform:uppercase;">Clinical Intelligence</div>
-      <button class="btn primary sm" id="runClinicalBtn">${hasData ? '↺ Re-run' : '▶ Analyse'}</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn primary sm" id="runClinicalBtn">${hasData ? '↺ Re-run' : '▶ Analyse'}</button>
+        ${hasData ? '<button class="btn sm" id="shareClinicalBtn">🔗 Share</button>' : ''}
+      </div>
     </div>`;
 
   if (!hasData) {
@@ -1243,6 +1246,8 @@ function renderEvidencePanel(data, study) {
           </ul>
         </div>`;
     }
+    /* Powered by */
+    html += `<div style="font-size:10.5px;color:var(--subtle);text-align:center;margin-top:18px;font-style:italic;letter-spacing:.04em;">Extracted by Seren Clinical AI</div>`;
   }
 
   setPanel(html);
@@ -1287,8 +1292,28 @@ function renderEvidencePanel(data, study) {
       }, "Analysing…");
     };
   }
+  /* Wire share button */
+  const shareBtn = document.getElementById("shareClinicalBtn");
+  if (shareBtn && study) {
+    shareBtn.onclick = async () => {
+      await withBtnLoading(shareBtn, async () => {
+        try {
+          const result = await fetchJson(`/ai/clinical/${study.id}/share`, { method: "POST" });
+          const shareUrl = `${location.origin}/shared.html?token=${result.share_token}`;
+          try {
+            await navigator.clipboard.writeText(shareUrl);
+            showToast("Link copied!", "Shareable URL copied to clipboard.", "success");
+          } catch {
+            /* Fallback: show URL in prompt */
+            prompt("Copy this shareable link:", shareUrl);
+          }
+        } catch(err) {
+          showToast("Share failed", err.message, "error");
+        }
+      }, "Generating…");
+    };
+  }
 }
-
 /* ══ RELATED TAB ═════════════════════════════════════════════ */
 
 async function showRelated() {

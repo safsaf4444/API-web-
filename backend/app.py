@@ -50,7 +50,7 @@ def _check_production_secrets():
     secret = os.getenv("SECRET_KEY", "dev-secret-change-me")
     db_url = os.getenv("DATABASE_URL", "")
     logger.info(f"🚀 Environment: {env}")
-    if env == "production" or os.getenv("VERCEL") or os.getenv("RAILWAY_ENVIRONMENT"):
+    if env == "production" or os.getenv("VERCEL"):
         if secret == "dev-secret-change-me":
             logger.error("❌ Default SECRET_KEY detected in production!")
         if "sqlite" in db_url or not db_url:
@@ -90,7 +90,6 @@ raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "").split(",")
 allowed_origins = [
     "http://127.0.0.1:5500",
     "http://localhost:5500",
-    "https://api-web-production-89b9.up.railway.app",
 ]
 
 vercel_url = os.getenv("VERCEL_URL")

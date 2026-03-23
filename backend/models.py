@@ -129,6 +129,9 @@ class AIResult(SQLModel, table=True):
     clinician_summary: Optional[str] = None
     student_summary: Optional[str] = None
 
+    # Shareable public link
+    share_token: Optional[str] = Field(default=None, index=True)
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

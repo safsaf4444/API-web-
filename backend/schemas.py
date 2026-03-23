@@ -77,6 +77,7 @@ class StudyRead(BaseModel):
     reading_status: Optional[str] = "unread" 
     ai_summary: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
+    comment_count: int = 0
 
 
 class StudyPatch(BaseModel):

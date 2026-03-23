@@ -865,9 +865,11 @@ function renderPapers(filtered, total) {
           ${it.source     ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
           ${it.venue      ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
           ${it.tags       ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass">${esc(t.trim())}</span>`).join('') : ''}
+          ${it.comment_count ? `<span class="badge">💬 ${it.comment_count}</span>` : ''}
         </div>
 
         ${it.abstract ? `<p class="paperCardAbstract">${esc(stripHtml(it.abstract))}</p>` : ''}
+        ${it.notes ? `<p class="paperCardAbstract" style="font-style:italic;color:var(--brass2);margin-top:4px;">📝 ${esc(stripHtml(it.notes).slice(0,120))}${stripHtml(it.notes).length > 120 ? '…' : ''}</p>` : ''}
       </div>
 
       <div class="paperCardFooter">

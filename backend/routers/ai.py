@@ -722,6 +722,119 @@ def get_clinical(
     )
 
 
+# ── Shareable public link ─────────────────────────────────────────────────────
+
+@router.post("/ai/clinical/{study_id}/share")
+def create_share_link(
+    study_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a shareable public URL for a study's clinical analysis."""
+    import uuid
+
+    study = session.get(Study, study_id)
+    if not study:
+        raise HTTPException(status_code=404, detail="Study not found")
+    if study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    ck = _cache_key("clinical", study.title, study.doi, study.pmid, study.pmcid)
+    cached = session.exec(
+        select(AIResult).where(
+            (AIResult.owner_username == current_user.username)
+            & (AIResult.cache_key == ck)
+            & (AIResult.kind == "clinical")
+        )
+    ).first()
+
+    if not cached:
+        raise HTTPException(status_code=404, detail="Run clinical analysis first before sharing.")
+
+    if not cached.share_token:
+        cached.share_token = uuid.uuid4().hex
+        session.add(cached)
+        session.commit()
+        session.refresh(cached)
+
+    return {
+        "share_token": cached.share_token,
+        "title": study.title,
+    }
+
+
+@router.get("/ai/shared/{token}")
+def get_shared_evidence(
+    token: str,
+    session: Session = Depends(get_session),
+):
+    """Public endpoint — no auth. Returns clinical evidence for a shared token."""
+    cached = session.exec(
+        select(AIResult).where(AIResult.share_token == token)
+    ).first()
+
+    if not cached:
+        raise HTTPException(status_code=404, detail="Shared analysis not found or link expired.")
+
+    # Load the study title
+    from backend.models import StudyMetrics
+    study = session.get(Study, None)  # We need the study via owner + cache_key
+    # Find the study via the owner's studies
+    owner_studies = session.exec(
+        select(Study).where(Study.owner_username == cached.owner_username)
+    ).all()
+
+    title = "Untitled"
+    study_id = None
+    for s in owner_studies:
+        ck = _cache_key("clinical", s.title, s.doi, s.pmid, s.pmcid)
+        if ck == cached.cache_key:
+            title = s.title
+            study_id = s.id
+            break
+
+    pico_raw = {}
+    stats_raw = {}
+    try:
+        pico_raw = json.loads(cached.question or "{}")
+        stats_raw = json.loads(cached.summary or "{}")
+    except Exception:
+        pass
+
+    # Load metrics for evidence strength / bias
+    m = None
+    if study_id:
+        m = session.exec(
+            select(StudyMetrics).where(StudyMetrics.study_id == study_id)
+        ).first()
+
+    return {
+        "title": title,
+        "pico": {
+            "population": pico_raw.get("population"),
+            "intervention": pico_raw.get("intervention"),
+            "comparator": pico_raw.get("comparator"),
+            "outcome": pico_raw.get("outcome"),
+        },
+        "stats": {
+            "sample_size": stats_raw.get("sample_size"),
+            "p_value": stats_raw.get("p_value"),
+            "effect_size": stats_raw.get("effect_size"),
+            "confidence_interval": stats_raw.get("confidence_interval"),
+            "nnt_nnh": stats_raw.get("nnt_nnh"),
+        },
+        "appraisal": {
+            "evidence_strength": m.evidence_strength if m else None,
+            "bias_risk": m.risk_of_bias if m else None,
+        },
+        "rewrites": {
+            "patient": cached.patient_summary,
+            "clinician": cached.clinician_summary,
+            "student": cached.student_summary,
+        },
+    }
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @router.get("/ai/health")
