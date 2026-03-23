@@ -35,13 +35,15 @@ if (window.__SEREN_APPJS_WIRED__) {
     const size = '18';
     const base = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"`;
     const icons = {
-      search:  `<svg ${base}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`,
-      library: `<svg ${base}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
-      ai:      `<svg ${base}><path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 0 6h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1 0-6h1V6a4 4 0 0 1 4-4z"/><circle cx="12" cy="10" r="2"/></svg>`,
-      info:    `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`,
-      paper:   `<svg ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
-      login:   `<svg ${base}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`,
-      logout:  `<svg ${base}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+      search:    `<svg ${base}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`,
+      library:   `<svg ${base}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+      // Phase 4: synthesis icon — three nodes connected
+      synthesis: `<svg ${base}><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><line x1="12" y1="7.5" x2="5.8" y2="16.7"/><line x1="12" y1="7.5" x2="18.2" y2="16.7"/><line x1="7.5" y1="19" x2="16.5" y2="19"/></svg>`,
+      ai:        `<svg ${base}><path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 0 6h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1 0-6h1V6a4 4 0 0 1 4-4z"/><circle cx="12" cy="10" r="2"/></svg>`,
+      info:      `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`,
+      paper:     `<svg ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+      login:     `<svg ${base}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`,
+      logout:    `<svg ${base}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
     };
     return icons[name] || `<svg ${base}><circle cx="12" cy="12" r="3"/></svg>`;
   }
@@ -49,22 +51,24 @@ if (window.__SEREN_APPJS_WIRED__) {
   function currentPage() {
     const p = (location.pathname.split('/').pop() || '').toLowerCase();
     if (p === '' || p === 'index.html' || location.pathname === '/') return 'home';
-    if (p.includes('search'))  return 'search';
-    if (p.includes('library')) return 'library';
-    if (p.includes('ai'))      return 'ai';
-    if (p.includes('info'))    return 'info';
-    if (p.includes('paper'))   return 'paper';
-    if (p.includes('login'))   return 'login';
+    if (p.includes('search'))    return 'search';
+    if (p.includes('library'))   return 'library';
+    if (p.includes('synthesis')) return 'synthesis'; // Phase 4
+    if (p.includes('ai'))        return 'ai';
+    if (p.includes('info'))      return 'info';
+    if (p.includes('paper'))     return 'paper';
+    if (p.includes('login'))     return 'login';
     return 'search';
   }
 
   function pageTitle() {
     const titles = {
-      search:  'Search',
-      library: 'Library',
-      ai:      'AI Assistant',
-      info:    'About',
-      paper:   'Paper',
+      search:    'Search',
+      library:   'Library',
+      synthesis: 'Synthesis', // Phase 4
+      ai:        'AI Assistant',
+      info:      'About',
+      paper:     'Paper',
     };
     return titles[currentPage()] || 'Seren';
   }
@@ -172,11 +176,13 @@ if (window.__SEREN_APPJS_WIRED__) {
     const top  = document.getElementById('topbar');
     if (!side || !top) return;
 
+    // Phase 4: synthesis added between library and ai
     const navLinks = [
-      { key: 'search',  href: 'search.html',  label: 'Search',  requiresLogin: false },
-      { key: 'library', href: 'library.html', label: 'Library', requiresLogin: true  },
-      { key: 'ai',      href: 'ai.html',      label: 'AI',      requiresLogin: true  },
-      { key: 'info',    href: 'info.html',    label: 'About',   requiresLogin: false },
+      { key: 'search',    href: 'search.html',    label: 'Search',     requiresLogin: false },
+      { key: 'library',  href: 'library.html',   label: 'Library',    requiresLogin: true  },
+      { key: 'synthesis',href: 'synthesis.html', label: 'Synthesise', requiresLogin: true  },
+      { key: 'ai',       href: 'ai.html',        label: 'AI',         requiresLogin: true  },
+      { key: 'info',     href: 'info.html',      label: 'About',      requiresLogin: false },
     ];
 
     side.innerHTML = `
@@ -273,7 +279,7 @@ if (window.__SEREN_APPJS_WIRED__) {
   /* ── Pill refresh (throttled) ────────────────────────────── */
   let __mePillFlight = false, __tokenPillFlight = false;
   let __mePillLast   = 0,     __tokenPillLast   = 0;
-  const PILL_THROTTLE = 30000; // poll every 30s, not 5s — prevents flicker
+  const PILL_THROTTLE = 30000; // poll every 30s
 
   async function refreshUserPill() {
     const el = document.getElementById('userPill');
@@ -315,11 +321,9 @@ if (window.__SEREN_APPJS_WIRED__) {
         const mins = Math.max(0, Math.floor((res.seconds_left || 0) / 60));
         setTokenPill('ok', `Active · ${mins}m`);
       } else {
-        // Token expired — update pill only, don't force redirect or re-render
         setTokenPill('bad', 'Session expired', 'Please sign in again.');
       }
     } catch (e) {
-      // Network error (e.g. server restarting) — show offline, don't re-render shell
       setTokenPill('warn', 'Offline', 'Backend unreachable');
     } finally {
       __tokenPillFlight = false;

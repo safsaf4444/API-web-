@@ -182,7 +182,6 @@
       border-bottom: 1px solid var(--line);
     }
 
-    /* Bold editorial title matching reference image */
     .libTitle {
       font-family: var(--font-display);
       font-size: 38px;
@@ -212,7 +211,7 @@
       padding-bottom: 4px;
     }
 
-    /* Paper cards — redesigned */
+    /* Paper cards */
     .paperCard {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -234,8 +233,26 @@
     .paperCard[data-status="done"]    { border-left: 3px solid var(--good); }
     .paperCard[data-status="flagged"] { border-left: 3px solid var(--bad); }
 
+    /* Phase 4: selected card highlight */
+    .paperCard.selected {
+      border-color: var(--navy) !important;
+      box-shadow: 0 0 0 2px rgba(12,17,23,.12), var(--shadow-sm);
+    }
+
     .paperCardInner {
       padding: 18px 20px 14px;
+    }
+
+    /* Phase 4: flex row so checkbox sits left of card content */
+    .paperCardInnerRow {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .paperCardContent {
+      flex: 1;
+      min-width: 0;
     }
 
     .paperCardTitle {
@@ -268,7 +285,7 @@
       overflow: hidden;
     }
 
-    /* Footer: tinted background strip */
+    /* Footer */
     .paperCardFooter {
       display: flex;
       align-items: center;
@@ -312,14 +329,13 @@
       flex-shrink: 0;
     }
 
-    /* Inline status chips row in card footer */
+    /* Inline status chips */
     .cardStatusChips {
       display: flex;
       gap: 4px;
       flex-wrap: wrap;
     }
 
-    /* Mini status chip for card footer (smaller than sidebar filter chips) */
     .statusChipMini {
       display: inline-flex;
       align-items: center;
@@ -416,6 +432,108 @@
     }
 
     .folderContextMenu .danger { color: var(--bad); font-weight: 600; }
+
+    /* ── Phase 4: Selection checkbox ── */
+    .selectCheckbox {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      accent-color: var(--navy);
+      display: none;
+      margin-top: 3px;
+      flex-shrink: 0;
+    }
+
+    /* In select mode, show checkboxes and hide non-relevant controls */
+    body.selectMode .selectCheckbox              { display: block; }
+    body.selectMode .paperCardActions            { display: none; }
+    body.selectMode .cardStatusChips             { display: none; }
+    body.selectMode .paperCardFooterLeft select  { display: none; }
+    body.selectMode .paperCard                   { cursor: pointer; }
+
+    /* Select mode toggle button — active state */
+    #selectModeBtn.active {
+      background: var(--navy);
+      color: var(--cream);
+      border-color: var(--navy);
+    }
+
+    /* ── Phase 4: Floating synthesis action bar ── */
+    #synthesisBar {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--navy);
+      color: var(--cream);
+      border-radius: var(--r-pill);
+      padding: 12px 20px 12px 18px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255,255,255,.08);
+      z-index: 2000;
+      transition: transform .28s cubic-bezier(.34,1.56,.64,1), opacity .18s ease;
+      pointer-events: none;
+      opacity: 0;
+      min-width: 340px;
+      white-space: nowrap;
+    }
+
+    #synthesisBar.visible {
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+      opacity: 1;
+    }
+
+    .synthCount {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .synthCountBadge {
+      background: var(--brass);
+      color: var(--navy);
+      border-radius: var(--r-pill);
+      padding: 2px 10px;
+      font-size: 13px;
+      font-weight: 800;
+      min-width: 28px;
+      text-align: center;
+      display: inline-block;
+    }
+
+    .synthActions {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .btnSynth {
+      background: var(--brass);
+      color: var(--navy);
+      border-color: var(--brass2);
+      font-weight: 700;
+      font-size: 12.5px;
+      padding: 7px 16px;
+    }
+
+    .btnSynth:hover { background: var(--brass-light); transform: translateY(-1px); }
+
+    .btnCancel {
+      background: rgba(255,255,255,.08);
+      color: rgba(245,240,232,.75);
+      border-color: rgba(255,255,255,.12);
+      font-size: 12.5px;
+      padding: 7px 14px;
+    }
+
+    .btnCancel:hover { background: rgba(255,255,255,.14); transform: none; }
   </style>
 </head>
 <body>
@@ -509,7 +627,16 @@
           <div class="libTitle">Your <span class="libTitleAccent">Library</span></div>
           <div class="libSubtitle" id="libSubtitle">All saved papers</div>
         </div>
-        <div class="libCount" id="countLabel"></div>
+        <!-- Phase 4: header right — count + select/synthesise buttons -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="libCount" id="countLabel"></div>
+          <button class="btn sm" id="selectModeBtn" title="Select papers to synthesise together">
+            &#9638; Select
+          </button>
+          <a class="btn sm primary" href="synthesis.html" title="Open synthesis workspace">
+            &#10227; Synthesise
+          </a>
+        </div>
       </div>
 
       <div id="paperList"></div>
@@ -517,6 +644,18 @@
     </div>
   </div>
 </main>
+
+<!-- Phase 4: Floating synthesis action bar -->
+<div id="synthesisBar">
+  <div class="synthCount">
+    <span class="synthCountBadge" id="synthSelectedCount">0</span>
+    papers selected
+  </div>
+  <div class="synthActions">
+    <button class="btn sm btnCancel" id="cancelSelectBtn">Cancel</button>
+    <button class="btn sm btnSynth"  id="synthSelectedBtn">&#10227; Synthesise these papers</button>
+  </div>
+</div>
 
 <script src="api.js"></script>
 <script src="app.js"></script>
@@ -530,7 +669,11 @@ let activeFolderId = 'all';
 let activeStatus   = null;
 let openMenuId     = null;
 
-const STATUS_ICONS = { unread: '○', reading: '◐', done: '●', flagged: '⚑' };
+// Phase 4: selection state
+let selectedStudyIds = new Set();
+let selectModeActive = false;
+
+const STATUS_ICONS  = { unread: '○', reading: '◐', done: '●', flagged: '⚑' };
 const STATUS_LABELS = { unread: 'Unread', reading: 'Reading', done: 'Done', flagged: 'Flagged' };
 
 /* ── Utilities ── */
@@ -563,6 +706,69 @@ function setCountLabel(text) {
   const el = $id('countLabel');
   if (el) el.textContent = text || '';
 }
+
+/* ── Phase 4: Select mode ── */
+function enterSelectMode() {
+  selectModeActive = true;
+  selectedStudyIds.clear();
+  document.body.classList.add('selectMode');
+  const btn = $id('selectModeBtn');
+  if (btn) btn.classList.add('active');
+  updateSynthesisBar();
+}
+
+function exitSelectMode() {
+  selectModeActive = false;
+  selectedStudyIds.clear();
+  document.body.classList.remove('selectMode');
+  const btn = $id('selectModeBtn');
+  if (btn) btn.classList.remove('active');
+  document.querySelectorAll('.selectCheckbox').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.paperCard.selected').forEach(c => c.classList.remove('selected'));
+  updateSynthesisBar();
+}
+
+function updateSynthesisBar() {
+  const bar     = $id('synthesisBar');
+  const countEl = $id('synthSelectedCount');
+  if (!bar || !countEl) return;
+  countEl.textContent = selectedStudyIds.size;
+  if (selectModeActive && selectedStudyIds.size >= 2) {
+    bar.classList.add('visible');
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+function toggleStudySelection(studyId, checked) {
+  if (checked) {
+    if (selectedStudyIds.size >= 10) {
+      showToast('Limit reached', 'Maximum 10 papers per synthesis.', 'info');
+      return false;
+    }
+    selectedStudyIds.add(studyId);
+  } else {
+    selectedStudyIds.delete(studyId);
+  }
+  updateSynthesisBar();
+  return true;
+}
+
+$id('selectModeBtn').onclick = () => {
+  if (selectModeActive) exitSelectMode();
+  else enterSelectMode();
+};
+
+$id('cancelSelectBtn').onclick = exitSelectMode;
+
+$id('synthSelectedBtn').onclick = () => {
+  if (selectedStudyIds.size < 2) {
+    showToast('Select papers', 'Select at least 2 papers to synthesise.', 'info');
+    return;
+  }
+  sessionStorage.setItem('synthesis_study_ids', JSON.stringify([...selectedStudyIds]));
+  location.href = 'synthesis.html';
+};
 
 /* ── State persistence ── */
 function saveState() {
@@ -853,23 +1059,31 @@ function renderPapers(filtered, total) {
     return;
   }
 
-  list.innerHTML = filtered.map(it => `
-    <div class="paperCard" data-paper-id="${it.id}" data-status="${esc(it.reading_status || 'unread')}">
+  list.innerHTML = filtered.map(it => {
+    const isSelected = selectedStudyIds.has(it.id);
+    return `
+    <div class="paperCard${isSelected ? ' selected' : ''}" data-paper-id="${it.id}" data-status="${esc(it.reading_status || 'unread')}">
 
       <div class="paperCardInner">
-        <div class="paperCardTitle">${esc(it.title || 'Untitled')}</div>
+        <!-- Phase 4: flex row wraps checkbox + all existing card content -->
+        <div class="paperCardInnerRow">
+          <input type="checkbox" class="selectCheckbox" data-select-id="${it.id}" ${isSelected ? 'checked' : ''}/>
+          <div class="paperCardContent">
+            <div class="paperCardTitle">${esc(it.title || 'Untitled')}</div>
 
-        <div class="paperCardMeta">
-          ${it.year       ? `<span class="badge blue">${esc(String(it.year))}</span>` : ''}
-          ${it.study_type ? `<span class="badge green">${esc(it.study_type)}</span>` : ''}
-          ${it.source     ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
-          ${it.venue      ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
-          ${it.tags       ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass">${esc(t.trim())}</span>`).join('') : ''}
-          ${it.comment_count ? `<span class="badge">💬 ${it.comment_count}</span>` : ''}
+            <div class="paperCardMeta">
+              ${it.year       ? `<span class="badge blue">${esc(String(it.year))}</span>` : ''}
+              ${it.study_type ? `<span class="badge green">${esc(it.study_type)}</span>` : ''}
+              ${it.source     ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
+              ${it.venue      ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
+              ${it.tags       ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass">${esc(t.trim())}</span>`).join('') : ''}
+              ${it.comment_count ? `<span class="badge">&#x1F4AC; ${it.comment_count}</span>` : ''}
+            </div>
+
+            ${it.abstract ? `<p class="paperCardAbstract">${esc(stripHtml(it.abstract))}</p>` : ''}
+            ${it.notes ? `<p class="paperCardAbstract" style="font-style:italic;color:var(--brass2);margin-top:4px;">&#x1F4DD; ${esc(stripHtml(it.notes).slice(0,120))}${stripHtml(it.notes).length > 120 ? '&hellip;' : ''}</p>` : ''}
+          </div>
         </div>
-
-        ${it.abstract ? `<p class="paperCardAbstract">${esc(stripHtml(it.abstract))}</p>` : ''}
-        ${it.notes ? `<p class="paperCardAbstract" style="font-style:italic;color:var(--brass2);margin-top:4px;">📝 ${esc(stripHtml(it.notes).slice(0,120))}${stripHtml(it.notes).length > 120 ? '…' : ''}</p>` : ''}
       </div>
 
       <div class="paperCardFooter">
@@ -885,8 +1099,8 @@ function renderPapers(filtered, total) {
           </div>
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   /* Wire folder selects */
   list.querySelectorAll('[data-folder-pick]').forEach(sel => {
@@ -937,6 +1151,18 @@ function renderPapers(filtered, total) {
       }
     });
   });
+
+  /* Phase 4: Wire selection checkboxes */
+  list.querySelectorAll('.selectCheckbox').forEach(cb => {
+    cb.addEventListener('change', e => {
+      e.stopPropagation();
+      const studyId = parseInt(cb.dataset.selectId, 10);
+      const ok = toggleStudySelection(studyId, cb.checked);
+      if (!ok) { cb.checked = false; return; }
+      const card = list.querySelector(`[data-paper-id="${studyId}"]`);
+      if (card) card.classList.toggle('selected', cb.checked);
+    });
+  });
 }
 
 /* ── Load studies ── */
@@ -968,8 +1194,27 @@ async function loadStudies() {
   }
 }
 
-/* ── Delegated click handler (open / delete) ── */
+/* ── Delegated click handler (open / delete / Phase 4 select) ── */
 $id('paperList').addEventListener('click', async e => {
+
+  /* Phase 4: in select mode, clicking card body toggles selection */
+  if (selectModeActive) {
+    const card  = e.target.closest('.paperCard');
+    const isCb  = e.target.closest('.selectCheckbox');
+    const isBtn = e.target.closest('button');
+    if (card && !isCb && !isBtn) {
+      const studyId = parseInt(card.dataset.paperId, 10);
+      const cb = card.querySelector('.selectCheckbox');
+      if (cb) {
+        cb.checked = !cb.checked;
+        const ok = toggleStudySelection(studyId, cb.checked);
+        if (!ok) { cb.checked = false; return; }
+        card.classList.toggle('selected', cb.checked);
+      }
+    }
+    return;
+  }
+
   const btnOpen = e.target.closest('[data-open]');
   const btnDel  = e.target.closest('[data-del]');
 
