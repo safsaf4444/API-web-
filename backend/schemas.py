@@ -78,7 +78,6 @@ class StudyRead(BaseModel):
     ai_summary_updated_at: Optional[datetime] = None
     comment_count: int = 0
 
-    # Batch 3
     citation_count: Optional[int] = None
     is_retracted: bool = False
 
@@ -244,3 +243,84 @@ class AIClinicalResponse(BaseModel):
     jargon: Optional[List[JargonItem]] = None
     cached: bool = False
     prompt_version: Optional[str] = None
+
+
+# ---------- Phase 4: Multi-Paper Synthesis ----------
+
+class PaperContext(BaseModel):
+    """Minimal paper data passed into a synthesis request."""
+    study_id: int
+    title: str
+    abstract: Optional[str] = None
+    year: Optional[int] = None
+    study_type: Optional[str] = None
+    evidence_strength: Optional[int] = None
+    doi: Optional[str] = None
+
+
+class AISynthesisRequest(BaseModel):
+    study_ids: List[int] = Field(min_length=2, max_length=10)
+
+
+class ConsensusPoint(BaseModel):
+    finding: str
+    supporting_studies: List[str] = []
+    strength: Optional[str] = None  # "strong" | "moderate" | "weak"
+
+
+class ContradictionItem(BaseModel):
+    issue: str
+    side_a_studies: List[str] = []
+    side_a_position: str = ""
+    side_b_studies: List[str] = []
+    side_b_position: str = ""
+    likely_explanation: Optional[str] = None
+
+
+class WeightingItem(BaseModel):
+    study_title: str
+    study_type: Optional[str] = None
+    year: Optional[int] = None
+    base_score: float
+    recency_bonus: bool = False
+    final_score: float
+    weight_pct: float
+
+
+class AISynthesisResponse(BaseModel):
+    synthesis_id: int
+    study_ids: List[int]
+    paper_count: int
+    synthesis_narrative: Optional[str] = None
+    consensus_points: List[ConsensusPoint] = []
+    contradictions: List[ContradictionItem] = []
+    gap_analysis: List[str] = []
+    weighted_conclusion: Optional[str] = None
+    steel_man: Optional[str] = None
+    comparative_methodology: Optional[str] = None
+    weighting_breakdown: List[WeightingItem] = []
+    cached: bool = False
+    prompt_version: str = "4.0"
+
+
+# ---------- Phase 4: Subject Query (General Query Mode) ----------
+
+class AISubjectQueryRequest(BaseModel):
+    query: str = Field(min_length=5, max_length=500)
+    max_papers: int = Field(default=5, ge=2, le=10)
+    source: str = Field(default="europepmc")
+
+
+class AISubjectQueryResponse(BaseModel):
+    synthesis_id: int
+    query: str
+    papers_found: int
+    synthesis_narrative: Optional[str] = None
+    consensus_points: List[ConsensusPoint] = []
+    contradictions: List[ContradictionItem] = []
+    gap_analysis: List[str] = []
+    weighted_conclusion: Optional[str] = None
+    steel_man: Optional[str] = None
+    papers_used: List[dict] = []   # [{title, year, source, study_type}]
+    cached: bool = False
+    prompt_version: str = "4.0"

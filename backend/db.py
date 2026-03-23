@@ -19,19 +19,20 @@ else:
 
 
 def _run_migrations():
-    """Add any new columns that SQLModel.metadata.create_all won't handle on existing tables."""
+    """Add any new columns/tables that SQLModel.metadata.create_all won't handle on existing tables."""
     import logging
     logger = logging.getLogger("uvicorn")
-    
-    migrations = [
+
+    column_migrations = [
         # (table, column, type)
         ("airesult", "share_token", "VARCHAR"),
+        ("study", "citation_count", "INTEGER"),
+        ("study", "is_retracted", "BOOLEAN DEFAULT FALSE"),
     ]
-    
+
     with engine.connect() as conn:
-        for table, column, col_type in migrations:
+        for table, column, col_type in column_migrations:
             try:
-                # PostgreSQL supports IF NOT EXISTS on ADD COLUMN
                 if str(engine.url).startswith("postgresql"):
                     conn.execute(
                         __import__("sqlalchemy").text(
@@ -40,7 +41,6 @@ def _run_migrations():
                     )
                     conn.commit()
                 else:
-                    # SQLite: check if column exists first
                     result = conn.execute(__import__("sqlalchemy").text(f"PRAGMA table_info({table})"))
                     cols = [row[1] for row in result]
                     if column not in cols:

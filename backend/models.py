@@ -9,7 +9,6 @@ from sqlmodel import Field, SQLModel
 
 # --- Phase 3 Enums ---
 class ReadingStatus(str, enum.Enum):
-    """Tracks the user's progress through a paper."""
     UNREAD = "unread"
     READING = "reading"
     DONE = "done"
@@ -67,13 +66,11 @@ class Study(SQLModel, table=True):
     ai_summary: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
 
-    # Batch 3: Retraction + citation data
     citation_count: Optional[int] = Field(default=None)
     is_retracted: bool = Field(default=False)
 
 
 class StudyExternalRef(SQLModel, table=True):
-    """Links one saved paper to multiple providers."""
     __table_args__ = (
         UniqueConstraint("owner_username", "source", "source_id", name="uq_studyext_owner_source_sourceid"),
         UniqueConstraint("study_id", "source", name="uq_studyext_study_source"),
@@ -82,16 +79,13 @@ class StudyExternalRef(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     owner_username: str = Field(index=True)
     study_id: int = Field(foreign_key="study.id", index=True)
-
     source: str = Field(index=True)
     source_id: str = Field(index=True)
-
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
 
 # --- Evidence & Intelligence ---
 class StudyMetrics(SQLModel, table=True):
-    """Usage + high-fidelity clinical data."""
     id: Optional[int] = Field(default=None, primary_key=True)
 
     owner_username: str = Field(index=True)
@@ -116,7 +110,6 @@ class StudyMetrics(SQLModel, table=True):
 
 
 class AIResult(SQLModel, table=True):
-    """Cache for specialized AI extractions and translations."""
     __table_args__ = (UniqueConstraint("owner_username", "cache_key", "kind", name="uq_airesult_owner_key_kind"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -135,6 +128,37 @@ class AIResult(SQLModel, table=True):
     student_summary: Optional[str] = None
 
     share_token: Optional[str] = Field(default=None, index=True)
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# --- Phase 4: Multi-Paper Synthesis ---
+class SynthesisResult(SQLModel, table=True):
+    """Stores multi-paper and subject-query synthesis results."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    owner_username: str = Field(index=True)
+    cache_key: str = Field(index=True)      # SHA-256 of sorted study IDs or query hash
+    study_ids: str = Field(default="[]")    # JSON array of study IDs used
+
+    # "multi_paper" | "subject_query"
+    mode: str = Field(default="multi_paper", index=True)
+    query: Optional[str] = None             # Subject query text for subject_query mode
+
+    # Synthesis output (stored as JSON strings for flexibility)
+    synthesis_narrative: Optional[str] = None
+    consensus_points: Optional[str] = None     # JSON: [{finding, supporting_studies, strength}]
+    contradictions: Optional[str] = None       # JSON: [{issue, side_a, side_b, explanation}]
+    gap_analysis: Optional[str] = None         # JSON: [str]
+    weighted_conclusion: Optional[str] = None
+    steel_man: Optional[str] = None
+    comparative_methodology: Optional[str] = None
+    weighting_breakdown: Optional[str] = None  # JSON: [{study_title, score, weight_pct}]
+
+    prompt_version: str = Field(default="4.0")
+    model_used: str = Field(default="unknown")
+    paper_count: int = Field(default=0)
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
