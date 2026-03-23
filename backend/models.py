@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy import UniqueConstraint, Column, JSON
 from sqlmodel import Field, SQLModel
 
+
 # --- Phase 3 Enums ---
 class ReadingStatus(str, enum.Enum):
     """Tracks the user's progress through a paper."""
@@ -14,6 +15,7 @@ class ReadingStatus(str, enum.Enum):
     DONE = "done"
     FLAGGED = "flagged"
 
+
 # --- User Management ---
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -21,7 +23,8 @@ class User(SQLModel, table=True):
     email: str = Field(index=True, unique=True)
     hashed_password: str
     ai_key_enc: Optional[str] = Field(default=None)
-    is_verified: bool = Field(default=False)  # From Phase 2.5
+    is_verified: bool = Field(default=False)
+
 
 # --- Organization ---
 class Folder(SQLModel, table=True):
@@ -30,6 +33,7 @@ class Folder(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     owner_username: str = Field(index=True)
     name: str = Field(index=True)
+
 
 # --- Core Research Data ---
 class Study(SQLModel, table=True):
@@ -59,10 +63,14 @@ class Study(SQLModel, table=True):
     study_type: Optional[str] = None
     tags: Optional[str] = None
 
-    # PHASE 3 FIX: Changed from ReadingStatus to str to completely bypass the 500 error crash
     reading_status: str = Field(default="unread", index=True)
     ai_summary: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
+
+    # Batch 3: Retraction + citation data
+    citation_count: Optional[int] = Field(default=None)
+    is_retracted: bool = Field(default=False)
+
 
 class StudyExternalRef(SQLModel, table=True):
     """Links one saved paper to multiple providers."""
@@ -80,6 +88,7 @@ class StudyExternalRef(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
+
 # --- Evidence & Intelligence ---
 class StudyMetrics(SQLModel, table=True):
     """Usage + high-fidelity clinical data."""
@@ -88,18 +97,14 @@ class StudyMetrics(SQLModel, table=True):
     owner_username: str = Field(index=True)
     study_id: int = Field(foreign_key="study.id", index=True)
 
-    # Evidence quality (Phase 3 Structured Data)
     study_type: Optional[str] = Field(default=None, index=True)
-    evidence_strength: Optional[int] = Field(default=None, ge=0, le=5) 
-    risk_of_bias: Optional[str] = Field(default=None) # e.g., "Low", "Moderate", "High"
+    evidence_strength: Optional[int] = Field(default=None, ge=0, le=5)
+    risk_of_bias: Optional[str] = Field(default=None)
     sample_size: Optional[int] = Field(default=None, ge=0)
-    
-    # PICO & Stats JSON Storage
-    # Includes: Population, Intervention, Comparator, Outcome, NNT/NNH, CIs
+
     pico_data: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     statistical_data: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
 
-    # Usage counters (Dormant hooks to be wired)
     save_count: int = Field(default=0)
     folder_count: int = Field(default=0)
     comment_count: int = Field(default=0)
@@ -109,6 +114,7 @@ class StudyMetrics(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_accessed: Optional[datetime] = Field(default=None)
 
+
 class AIResult(SQLModel, table=True):
     """Cache for specialized AI extractions and translations."""
     __table_args__ = (UniqueConstraint("owner_username", "cache_key", "kind", name="uq_airesult_owner_key_kind"),)
@@ -117,23 +123,22 @@ class AIResult(SQLModel, table=True):
 
     owner_username: str = Field(index=True)
     cache_key: str = Field(index=True)
-    kind: str = Field(index=True) # "summarize" | "pico" | "bias" | "translate"
+    kind: str = Field(index=True)
 
     model_used: str = Field(default="byok")
-    prompt_version: str = Field(default="3.0") #
+    prompt_version: str = Field(default="3.0")
     question: Optional[str] = None
-    summary: Optional[str] = None 
-    
-    # Research Translation Rewrites
+    summary: Optional[str] = None
+
     patient_summary: Optional[str] = None
     clinician_summary: Optional[str] = None
     student_summary: Optional[str] = None
 
-    # Shareable public link
     share_token: Optional[str] = Field(default=None, index=True)
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 
 # --- Social ---
 class Comment(SQLModel, table=True):

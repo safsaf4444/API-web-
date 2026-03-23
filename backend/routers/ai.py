@@ -256,7 +256,7 @@ async def ai_summarize_stream(
         provider_used = "unknown"
 
         try:
-            chunks = await _stream_from_provider(system, user_msg, byok)
+            chunks = _stream_from_provider(system, user_msg, byok)
             async for chunk in chunks:
                 if chunk.get("provider"):
                     provider_used = chunk["provider"]

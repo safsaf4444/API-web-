@@ -73,17 +73,19 @@ class StudyRead(BaseModel):
     study_type: Optional[str] = None
     tags: Optional[str] = None
 
-    # PHASE 3 FIX: Forgiving string default, securely locked to lowercase.
-    reading_status: Optional[str] = "unread" 
+    reading_status: Optional[str] = "unread"
     ai_summary: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
     comment_count: int = 0
+
+    # Batch 3
+    citation_count: Optional[int] = None
+    is_retracted: bool = False
 
 
 class StudyPatch(BaseModel):
     notes: Optional[str] = None
     folder_id: Optional[int] = None
-    # PHASE 3 FIX: Use string to bypass Enum crash
     reading_status: Optional[str] = None
 
 
@@ -121,6 +123,8 @@ class ExternalPaperOut(BaseModel):
     abstract: Optional[str] = None
     pmid: Optional[str] = None
     pmcid: Optional[str] = None
+    citation_count: Optional[int] = None
+    is_retracted: bool = False
 
 
 class ExternalImportRequest(BaseModel):
@@ -135,6 +139,8 @@ class ExternalImportRequest(BaseModel):
     abstract: Optional[str] = None
     pmid: Optional[str] = None
     pmcid: Optional[str] = None
+    citation_count: Optional[int] = None
+    is_retracted: bool = False
 
 
 class FullTextResponse(BaseModel):
@@ -185,7 +191,7 @@ class AIAskResponse(BaseModel):
 
 # ---------- Phase 3: Clinical Intelligence ----------
 class AIClinicalRequest(BaseModel):
-    study_id: int 
+    study_id: int
     title: str
     abstract: Optional[str] = None
     doi: Optional[str] = None
@@ -237,3 +243,4 @@ class AIClinicalResponse(BaseModel):
     key_claims: Optional[List[str]] = None
     jargon: Optional[List[JargonItem]] = None
     cached: bool = False
+    prompt_version: Optional[str] = None
