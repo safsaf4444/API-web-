@@ -23,6 +23,7 @@ from backend.schemas import (
     AISummarizeRequest,
     AISummarizeResponse,
     AppraisalData,
+    JargonItem,
     PICOData,
     RewritesData,
     StatisticalData,
@@ -504,11 +505,19 @@ async def ai_ask(
 _CLINICAL_SYSTEM = """You are a senior clinical evidence appraiser.
 Analyze the provided abstract and title. Return a valid JSON object with exactly these keys:
 {
-  "pico": {"population": str, "intervention": str, "comparator": str, "outcome": str},
-  "stats": {"sample_size": int_or_null, "p_value": str_or_null, "effect_size": str_or_null, "confidence_interval": str_or_null, "nnt_nnh": str_or_null},
-  "appraisal": {"evidence_strength": int_1_to_5, "bias_risk": "Low"|"Moderate"|"High", "limitations": [str]},
+  "pico": {"population": str, "intervention": str, "comparator": str, "outcome": str, "primary_outcome": str_or_null},
+  "stats": {"sample_size": int_or_null, "p_value": str_or_null, "effect_size": str_or_null, "confidence_interval": str_or_null, "nnt_nnh": str_or_null, "clinical_significance": str_or_null},
+  "appraisal": {"evidence_strength": int_1_to_5, "evidence_explanation": str, "bias_risk": "Low"|"Moderate"|"High", "limitations": [str]},
+  "key_claims": [str],
+  "jargon": [{"term": str, "definition": str}],
   "rewrites": {"patient": str, "clinician": str, "student": str}
 }
+Rules:
+- primary_outcome: the single primary endpoint/outcome if identifiable, else null
+- clinical_significance: whether findings are clinically meaningful (separate from statistical p-values), e.g. "Effect size of 0.3 is below minimal clinically important difference" or "NNT of 8 suggests meaningful benefit"
+- evidence_explanation: 1-2 sentence reasoning for the evidence_strength score, e.g. "Moderate (3/5) — open-label design increases performance bias, but large sample provides reliability"
+- key_claims: 3-6 main claims or findings from the study, as concise bullet-point strings
+- jargon: 3-8 technical terms used in the abstract with plain-English definitions
 Return JSON only. No prose, no markdown fences, no keys outside this structure.
 If a value cannot be determined from the abstract, use null."""
 
@@ -577,6 +586,8 @@ async def ai_clinical(
     stats_raw     = data.get("stats", {}) or {}
     appraisal_raw = data.get("appraisal", {}) or {}
     rewrites_raw  = data.get("rewrites", {}) or {}
+    key_claims    = data.get("key_claims") or []
+    jargon_raw    = data.get("jargon") or []
 
     try:
         write_clinical_data(
@@ -591,14 +602,23 @@ async def ai_clinical(
     except Exception as e:
         logger.warning("write_clinical_data failed (non-fatal): %s", e)
 
+    # Store full extracted data in cache for retrieval
+    cache_data = {
+        "pico": pico_raw,
+        "stats": stats_raw,
+        "appraisal": appraisal_raw,
+        "key_claims": key_claims,
+        "jargon": jargon_raw,
+    }
+
     try:
         rec = AIResult(
             owner_username=current_user.username,
             cache_key=ck,
             kind="clinical",
             model_used=result.provider.value,
-            prompt_version="3.0",
-            question=json.dumps(pico_raw),
+            prompt_version="3.1",
+            question=json.dumps(cache_data),
             summary=json.dumps(stats_raw),
             patient_summary=rewrites_raw.get("patient"),
             clinician_summary=rewrites_raw.get("clinician"),
@@ -614,6 +634,8 @@ async def ai_clinical(
     except Exception:
         pass
 
+    jargon_items = [JargonItem(term=j.get("term", ""), definition=j.get("definition", "")) for j in jargon_raw if isinstance(j, dict)]
+
     return AIClinicalResponse(
         study_id=payload.study_id,
         pico=PICOData(
@@ -621,6 +643,7 @@ async def ai_clinical(
             intervention=pico_raw.get("intervention"),
             comparator=pico_raw.get("comparator"),
             outcome=pico_raw.get("outcome"),
+            primary_outcome=pico_raw.get("primary_outcome"),
         ),
         stats=StatisticalData(
             sample_size=stats_raw.get("sample_size"),
@@ -628,9 +651,11 @@ async def ai_clinical(
             effect_size=stats_raw.get("effect_size"),
             confidence_interval=stats_raw.get("confidence_interval"),
             nnt_nnh=stats_raw.get("nnt_nnh"),
+            clinical_significance=stats_raw.get("clinical_significance"),
         ),
         appraisal=AppraisalData(
             evidence_strength=appraisal_raw.get("evidence_strength"),
+            evidence_explanation=appraisal_raw.get("evidence_explanation"),
             bias_risk=appraisal_raw.get("bias_risk"),
             limitations=appraisal_raw.get("limitations") or [],
         ),
@@ -639,6 +664,8 @@ async def ai_clinical(
             clinician=rewrites_raw.get("clinician"),
             student=rewrites_raw.get("student"),
         ),
+        key_claims=key_claims,
+        jargon=jargon_items,
         cached=False,
     )
 
@@ -684,15 +711,30 @@ def get_clinical(
             detail="No clinical analysis found for this study. Run POST /ai/clinical first.",
         )
 
-    pico_raw  = {}
-    stats_raw = {}
+    pico_raw      = {}
+    stats_raw     = {}
+    appraisal_raw = {}
+    key_claims    = []
+    jargon_raw    = []
 
     if cached:
         try:
-            pico_raw  = json.loads(cached.question or "{}")
-            stats_raw = json.loads(cached.summary or "{}")
+            raw_q = json.loads(cached.question or "{}")
+            # v3.1 stores full cache_data; v3.0 stored just pico
+            if "pico" in raw_q:
+                pico_raw      = raw_q.get("pico", {})
+                stats_raw     = raw_q.get("stats", {})
+                appraisal_raw = raw_q.get("appraisal", {})
+                key_claims    = raw_q.get("key_claims", [])
+                jargon_raw    = raw_q.get("jargon", [])
+            else:
+                pico_raw = raw_q
+            if not stats_raw:
+                stats_raw = json.loads(cached.summary or "{}")
         except Exception:
             pass
+
+    jargon_items = [JargonItem(term=j.get("term", ""), definition=j.get("definition", "")) for j in jargon_raw if isinstance(j, dict)]
 
     return AIClinicalResponse(
         study_id=study_id,
@@ -701,6 +743,7 @@ def get_clinical(
             intervention=pico_raw.get("intervention"),
             comparator=pico_raw.get("comparator"),
             outcome=pico_raw.get("outcome"),
+            primary_outcome=pico_raw.get("primary_outcome"),
         ),
         stats=StatisticalData(
             sample_size=stats_raw.get("sample_size"),
@@ -708,16 +751,21 @@ def get_clinical(
             effect_size=stats_raw.get("effect_size"),
             confidence_interval=stats_raw.get("confidence_interval"),
             nnt_nnh=stats_raw.get("nnt_nnh"),
+            clinical_significance=stats_raw.get("clinical_significance"),
         ),
         appraisal=AppraisalData(
-            evidence_strength=m.evidence_strength if m else None,
-            bias_risk=m.risk_of_bias if m else None,
+            evidence_strength=appraisal_raw.get("evidence_strength") or (m.evidence_strength if m else None),
+            evidence_explanation=appraisal_raw.get("evidence_explanation"),
+            bias_risk=appraisal_raw.get("bias_risk") or (m.risk_of_bias if m else None),
+            limitations=appraisal_raw.get("limitations") or [],
         ),
         rewrites=RewritesData(
             patient=cached.patient_summary if cached else None,
             clinician=cached.clinician_summary if cached else None,
             student=cached.student_summary if cached else None,
         ),
+        key_claims=key_claims,
+        jargon=jargon_items,
         cached=True,
     )
 

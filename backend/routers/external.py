@@ -69,7 +69,6 @@ def _ensure_external_ref(
         )
     ).first()
     if existing:
-        # ensure it points at the right study (should, but keep safe)
         if existing.study_id != study_id:
             existing.study_id = study_id
             session.add(existing)
@@ -84,16 +83,14 @@ def _ensure_external_ref(
     session.add(ref)
 
 
-# -----------------------------
-# Tiny in-memory cache (dev / single-process)
-# -----------------------------
+# ── In-memory cache ────────────────────────────────────────────────────────────
+
 @dataclass
 class _CacheEntry:
     expires_at: float
     value: dict
 
 
-# include year_from/year_to in cache key
 _EXTERNAL_SEARCH_CACHE: dict[Tuple[str, str, int, str, Optional[int], Optional[int]], _CacheEntry] = {}
 _EXTERNAL_SEARCH_TTL_SECONDS = 600  # 10 minutes
 
@@ -111,6 +108,39 @@ def _cache_get(key: Tuple[str, str, int, str, Optional[int], Optional[int]]) -> 
 def _cache_set(key: Tuple[str, str, int, str, Optional[int], Optional[int]], value: dict) -> None:
     _EXTERNAL_SEARCH_CACHE[key] = _CacheEntry(expires_at=time.time() + _EXTERNAL_SEARCH_TTL_SECONDS, value=value)
 
+
+# ── Retraction check (Europe PMC) ─────────────────────────────────────────────
+
+async def _check_retraction_epmc(pmid: Optional[str], doi: Optional[str]) -> bool:
+    """
+    Check Europe PMC for retraction status.
+    Returns True if the paper is retracted, False otherwise.
+    Fails silently — never raises.
+    """
+    try:
+        query = pmid or doi
+        if not query:
+            return False
+        url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/search?query={query}&format=json&resultType=core&pageSize=1"
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(url)
+        if r.status_code != 200:
+            return False
+        data = r.json()
+        results = data.get("resultList", {}).get("result", [])
+        if not results:
+            return False
+        first = results[0]
+        # Europe PMC returns `isRetracted` as "Y" / "N" or bool
+        retracted = first.get("isRetracted", "N")
+        if isinstance(retracted, bool):
+            return retracted
+        return str(retracted).strip().upper() == "Y"
+    except Exception:
+        return False
+
+
+# ── Routes ─────────────────────────────────────────────────────────────────────
 
 @router.get("/external/sources")
 def external_sources():
@@ -133,12 +163,10 @@ async def external_search(
 
     cursor = str(cursor_mark)
 
-    # Cache only the common first pages (keeps UX snappy, reduces provider calls).
     cacheable = (src == "europepmc" and cursor == "*") or (
         src in ("semantic_scholar", "semanticscholar") and cursor == "0"
     )
 
-    # include year bounds in cache key
     key = (src, q.strip().lower(), int(limit), cursor, year_from, year_to)
     if cacheable:
         cached = _cache_get(key)
@@ -151,7 +179,6 @@ async def external_search(
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        # pass year bounds to providers
         papers, next_cursor, hit_count = await provider.search(
             q=q,
             limit=limit,
@@ -164,22 +191,31 @@ async def external_search(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"External provider error: {type(e).__name__}: {e}")
 
-    items = [
-        ExternalPaperOut(
-            source=p.source,
-            source_id=p.source_id,
-            title=p.title,
-            year=p.year,
-            authors=p.authors,
-            venue=p.venue,
-            doi=p.doi,
-            url=p.url,
-            abstract=p.abstract,
-            pmid=p.pmid,
-            pmcid=p.pmcid,
+    items = []
+    for p in papers:
+        # citation_count: Semantic Scholar returns this natively; Europe PMC/OpenAlex may not
+        citation_count = getattr(p, "citation_count", None)
+
+        # is_retracted: Europe PMC returns this field; others may not
+        is_retracted = getattr(p, "is_retracted", False)
+
+        items.append(
+            ExternalPaperOut(
+                source=p.source,
+                source_id=p.source_id,
+                title=p.title,
+                year=p.year,
+                authors=p.authors,
+                venue=p.venue,
+                doi=p.doi,
+                url=p.url,
+                abstract=p.abstract,
+                pmid=p.pmid,
+                pmcid=p.pmcid,
+                citation_count=citation_count,
+                is_retracted=is_retracted,
+            )
         )
-        for p in papers
-    ]
 
     out = {"items": items, "next_cursor_mark": next_cursor, "hit_count": hit_count}
 
@@ -200,7 +236,7 @@ def external_import(
     sid = (payload.source_id or "").strip()
     doi_clean = _clean_doi(payload.doi)
 
-    # 1) Dedupe by DOI (cross-source), if DOI exists
+    # 1) Dedupe by DOI (cross-source)
     existing_by_doi = None
     if doi_clean:
         existing_by_doi = session.exec(
@@ -208,7 +244,6 @@ def external_import(
         ).first()
 
     if existing_by_doi:
-        # Record that we also saw it on this provider
         _ensure_external_ref(
             session=session,
             owner_username=owner,
@@ -217,13 +252,12 @@ def external_import(
             source_id=sid,
         )
 
-        # Fill missing fields (don’t overwrite)
-        existing_by_doi.title = _merge_str_keep_existing(existing_by_doi.title, payload.title)
+        existing_by_doi.title    = _merge_str_keep_existing(existing_by_doi.title,    payload.title)
         existing_by_doi.abstract = _merge_str_keep_existing(existing_by_doi.abstract, payload.abstract)
-        existing_by_doi.url = _merge_str_keep_existing(existing_by_doi.url, payload.url)
-        existing_by_doi.pmid = _merge_str_keep_existing(existing_by_doi.pmid, payload.pmid)
-        existing_by_doi.pmcid = _merge_str_keep_existing(existing_by_doi.pmcid, payload.pmcid)
-        existing_by_doi.venue = _merge_str_keep_existing(existing_by_doi.venue, payload.venue)
+        existing_by_doi.url      = _merge_str_keep_existing(existing_by_doi.url,      payload.url)
+        existing_by_doi.pmid     = _merge_str_keep_existing(existing_by_doi.pmid,     payload.pmid)
+        existing_by_doi.pmcid    = _merge_str_keep_existing(existing_by_doi.pmcid,    payload.pmcid)
+        existing_by_doi.venue    = _merge_str_keep_existing(existing_by_doi.venue,    payload.venue)
 
         if existing_by_doi.year is None and payload.year is not None:
             existing_by_doi.year = payload.year
@@ -231,7 +265,12 @@ def external_import(
         if not (existing_by_doi.authors and str(existing_by_doi.authors).strip()) and payload.authors:
             existing_by_doi.authors = ", ".join([a for a in payload.authors if a])
 
-        # Keep DOI cleaned
+        # Update citation count and retraction if provided
+        if getattr(payload, "citation_count", None) is not None:
+            existing_by_doi.citation_count = payload.citation_count
+        if getattr(payload, "is_retracted", None) is not None:
+            existing_by_doi.is_retracted = payload.is_retracted
+
         existing_by_doi.doi = doi_clean
 
         session.add(existing_by_doi)
@@ -244,7 +283,6 @@ def external_import(
         select(Study).where((Study.owner_username == owner) & (Study.source == src) & (Study.source_id == sid))
     ).first()
     if existing:
-        # Record that we also saw it on this provider (still useful)
         _ensure_external_ref(session=session, owner_username=owner, study_id=existing.id, source=src, source_id=sid)
         session.commit()
         return existing
@@ -256,7 +294,6 @@ def external_import(
     study_type, tags = detect_study_type_and_tags(payload.title or "", payload.abstract)
     tags_str = ", ".join(tags) if tags else None
 
-    # PHASE 3: Explicitly set reading_status to unread for new imports
     study = Study(
         owner_username=owner,
         source=src,
@@ -272,22 +309,38 @@ def external_import(
         pmcid=payload.pmcid,
         study_type=study_type,
         tags=tags_str,
-        reading_status=ReadingStatus.UNREAD
+        reading_status=ReadingStatus.UNREAD,
+        citation_count=getattr(payload, "citation_count", None),
+        is_retracted=getattr(payload, "is_retracted", False) or False,
     )
     session.add(study)
     session.commit()
     session.refresh(study)
 
-    # Record external ref for the newly-created study
     _ensure_external_ref(session=session, owner_username=owner, study_id=study.id, source=src, source_id=sid)
     session.commit()
 
     return study
 
 
-# -----------------------------
-# Fulltext OA (Public) - Europe PMC PMCID XML only
-# -----------------------------
+# ── Retraction check endpoint (on-demand) ─────────────────────────────────────
+
+@router.get("/external/retraction_check")
+async def retraction_check(
+    pmid: Optional[str] = Query(default=None),
+    doi:  Optional[str] = Query(default=None),
+):
+    """
+    Check whether a paper is retracted via Europe PMC.
+    Called on paper load to update retraction status without blocking search.
+    """
+    if not pmid and not doi:
+        return {"is_retracted": False}
+    retracted = await _check_retraction_epmc(pmid, doi)
+    return {"is_retracted": retracted}
+
+
+# ── Fulltext OA (Public) ───────────────────────────────────────────────────────
 
 def _strip_ns(tag: str) -> str:
     return tag.split("}", 1)[1] if "}" in tag else tag

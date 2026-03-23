@@ -41,7 +41,6 @@
       .paperRight .card { height: auto; min-height: 500px; }
     }
 
-    /* Bold editorial paper title */
     .paperTitle {
       font-family: var(--font-display);
       font-size: 20px;
@@ -60,7 +59,6 @@
     .saveRow select { width: auto; min-width: 130px; padding: 7px 10px; font-size: 13px; }
     #saveMsg { font-size: 12.5px; min-height: 16px; margin-top: 6px; }
 
-    /* Reading status row — only shown when paper is saved */
     .readingStatusRow {
       display: flex;
       align-items: center;
@@ -107,7 +105,6 @@
 
     .hr { border: none; border-top: 1px solid var(--line2); margin: 12px 0; }
 
-    /* Streaming cursor */
     .streamCursor {
       display: inline-block;
       width: 2px; height: 1em;
@@ -117,6 +114,119 @@
       animation: blink .7s step-end infinite;
     }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* Retraction banner */
+    .retractionBanner {
+      background: #fff0f0;
+      border: 1.5px solid #e53e3e;
+      border-radius: var(--r-sm);
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #c53030;
+    }
+
+    /* Jargon tooltip */
+    .jargonTerm {
+      border-bottom: 1.5px dashed var(--brass2);
+      cursor: help;
+      position: relative;
+      display: inline;
+    }
+    .jargonTerm .jargonTip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      background: var(--navy);
+      color: var(--cream);
+      font-size: 11.5px;
+      font-weight: 400;
+      line-height: 1.5;
+      padding: 7px 10px;
+      border-radius: var(--r-sm);
+      width: 220px;
+      z-index: 9999;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      white-space: normal;
+    }
+    .jargonTerm:hover .jargonTip { display: block; }
+
+    /* AI History */
+    .historyItem {
+      background: var(--surface2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--text2);
+    }
+    .historyItemMeta {
+      font-size: 10.5px;
+      color: var(--subtle);
+      margin-bottom: 4px;
+    }
+
+    /* Evidence explanation */
+    .evidenceExplanation {
+      font-size: 12px;
+      color: var(--muted);
+      font-style: italic;
+      line-height: 1.6;
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: var(--cream3);
+      border-left: 3px solid var(--brass2);
+      border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    }
+
+    /* Clinical significance */
+    .clinicalSigBox {
+      background: var(--cream3);
+      border: 1px solid var(--line2);
+      border-radius: var(--r-sm);
+      padding: 10px 12px;
+      font-size: 12.5px;
+      color: var(--text2);
+      line-height: 1.6;
+      margin-top: 10px;
+    }
+    .clinicalSigBox strong {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--subtle);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* Key claims */
+    .keyClaimsList {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 12.5px;
+      color: var(--text2);
+      line-height: 1.75;
+    }
+    .keyClaimsList li { margin-bottom: 4px; }
+
+    /* Citation count badge */
+    .citationBadge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--line2);
+      border-radius: var(--r-pill);
+      padding: 2px 8px;
+    }
   </style>
 </head>
 
@@ -126,10 +236,14 @@
   <div class="paperLeft">
 
     <div class="card">
+      <!-- Retraction banner — hidden by default, shown if paper is retracted -->
+      <div class="retractionBanner" id="retractionBanner" style="display:none;">
+        ⚠ RETRACTED — This paper has been retracted. Treat its findings with caution.
+      </div>
+
       <div class="paperTitle" id="title">Loading…</div>
       <div id="meta"></div>
 
-      <!-- Reading status chips — hidden until paper is saved -->
       <div class="readingStatusRow" id="readingStatusRow" style="display:none;">
         <span class="readingStatusLabel">Status</span>
         <span class="statusChip" data-status="unread"  data-rs="unread">○ Unread</span>
@@ -484,7 +598,7 @@ function detectStudyTypePaper(p) {
   return null;
 }
 
-/* ── Phase 3: Reading status chips on paper card ── */
+/* ── Phase 3: Reading status chips ── */
 function renderReadingStatus(study) {
   const row = qs("readingStatusRow");
   if (!row || !study) return;
@@ -514,10 +628,21 @@ function renderReadingStatus(study) {
 function renderPaper(p) {
   qs("title").textContent = p.title || "(untitled)";
 
+  // Retraction banner
+  const banner = qs("retractionBanner");
+  if (banner) {
+    banner.style.display = p.is_retracted ? "flex" : "none";
+  }
+
   const studyType = detectStudyTypePaper(p);
   const typeLabel = studyType ? (STUDY_TYPE_LABELS_PAPER[studyType] || studyType) : null;
   const isOA = !!normStr(p.pmcid);
   const srcLabel = SOURCE_LABELS_PAPER[p.source] || p.source || "";
+
+  // Citation count badge
+  const citationBadge = (p.citation_count != null && p.citation_count > 0)
+    ? `<span class="citationBadge">📚 ${escapeHtml(String(p.citation_count))} citations</span>`
+    : "";
 
   const badges = [
     p.year    ? `<span class="badge blue">${escapeHtml(String(p.year))}</span>` : "",
@@ -525,6 +650,7 @@ function renderPaper(p) {
     srcLabel  ? `<span class="badge coffee">${escapeHtml(srcLabel)}</span>` : "",
     typeLabel ? `<span class="badge green">${escapeHtml(typeLabel)}</span>` : "",
     isOA      ? `<span class="badge sage">Open Access</span>` : "",
+    citationBadge,
     p.doi     ? `<span class="badge" style="font-family:monospace;font-size:10.5px;">DOI: ${escapeHtml(p.doi)}</span>` : "",
     p.pmid    ? `<span class="badge" style="font-size:10.5px;">PMID: ${escapeHtml(p.pmid)}</span>` : "",
     p.pmcid   ? `<span class="badge" style="font-size:10.5px;">PMC: ${escapeHtml(p.pmcid)}</span>` : "",
@@ -941,7 +1067,6 @@ function _aiSetBusy(on) {
   _aiTyping(on);
 }
 
-/* Streaming summarize — falls back to standard if stream fails */
 async function _streamSummarize() {
   if (!__AI_BASE__) return;
   _aiSetBusy(true);
@@ -962,7 +1087,6 @@ async function _streamSummarize() {
     });
 
     if (!resp.ok || !resp.body) {
-      /* Fallback to standard endpoint */
       const r = await fetchJson("/ai/summarize", { method:"POST", body: __AI_BASE__ });
       const idx = __AI_MESSAGES__.findIndex(m => m.ts === streamId);
       if (idx !== -1) __AI_MESSAGES__[idx] = { role:"ai", text: r.text || "(no output)", ts: streamId };
@@ -993,7 +1117,6 @@ async function _streamSummarize() {
             _aiRender();
             return;
           }
-          /* parsed is a string token */
           const token_text = typeof parsed === "string" ? parsed : "";
           if (token_text) {
             const idx = __AI_MESSAGES__.findIndex(m => m.ts === streamId);
@@ -1002,11 +1125,10 @@ async function _streamSummarize() {
               _aiRender();
             }
           }
-        } catch { /* malformed chunk, skip */ }
+        } catch { }
       }
     }
 
-    /* Finalise — remove streaming flag so cursor disappears */
     const idx = __AI_MESSAGES__.findIndex(m => m.ts === streamId);
     if (idx !== -1) delete __AI_MESSAGES__[idx].streaming;
     _aiRender();
@@ -1060,7 +1182,6 @@ async function showAI() {
     __AI_WIRED__ = true;
     _aiRender();
 
-    /* Summarize now uses streaming */
     document.getElementById("aiSumBtn").onclick = _streamSummarize;
 
     document.getElementById("aiAskBtn").onclick = async () => {
@@ -1112,12 +1233,10 @@ async function showEvidence() {
 
   setPanel(`<div style="font-size:13px;color:var(--subtle);padding:12px 0;">Loading clinical data…</div>`);
 
-  /* Try to load previously saved clinical data */
   let data = null;
   try {
     data = await fetchJson(`/ai/clinical/${s.id}`);
   } catch(e) {
-    /* 404 = not run yet, anything else = real error */
     const msg = String(e?.message || "");
     if (!msg.includes("404") && !msg.includes("No clinical")) {
       setPanel(`<div style="color:var(--bad);font-size:13px;">${escapeHtml(msg)}</div>`);
@@ -1129,11 +1248,36 @@ async function showEvidence() {
   renderEvidencePanel(data, s);
 }
 
+/* ── Jargon tooltip rendering ── */
+function buildJargonMap(jargonItems) {
+  const map = {};
+  if (!Array.isArray(jargonItems)) return map;
+  for (const j of jargonItems) {
+    if (j && j.term) map[j.term.toLowerCase()] = j.definition || "";
+  }
+  return map;
+}
+
+function renderWithJargonTooltips(text, jargonItems) {
+  if (!text || !jargonItems || !jargonItems.length) return escapeHtml(text || "");
+  let result = escapeHtml(text);
+  for (const j of jargonItems) {
+    if (!j.term || !j.definition) continue;
+    const escaped_term = escapeHtml(j.term);
+    const escaped_def  = escapeHtml(j.definition);
+    // Case-insensitive replace first occurrence only
+    const regex = new RegExp(`\\b${j.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    result = result.replace(regex,
+      `<span class="jargonTerm">${escaped_term}<span class="jargonTip">${escaped_def}</span></span>`
+    );
+  }
+  return result;
+}
+
 function renderEvidencePanel(data, study) {
   const p       = savedStudy || external;
   const hasData = !!(data && (data.pico || data.stats || data.rewrites));
 
-  /* ── Header row ── */
   let html = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0;">
       <div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.09em;text-transform:uppercase;">Clinical Intelligence</div>
@@ -1153,6 +1297,8 @@ function renderEvidencePanel(data, study) {
     const stats     = data.stats     || {};
     const appraisal = data.appraisal || {};
     const rewrites  = data.rewrites  || {};
+    const keyClaims = data.key_claims || [];
+    const jargon    = data.jargon    || [];
 
     /* Evidence strength dots */
     const strength = parseInt(appraisal.evidence_strength) || 0;
@@ -1168,7 +1314,14 @@ function renderEvidencePanel(data, study) {
       ? `<span class="biasTag ${biasCls}">${escapeHtml(appraisal.bias_risk)}</span>`
       : `<span style="color:var(--subtle);font-size:12px;font-style:italic;">Unknown</span>`;
 
-    /* PICO */
+    /* PICO — with primary outcome */
+    const primaryOutcome = pico.primary_outcome
+      ? `<div style="margin-top:8px;padding:8px 10px;background:var(--cream3);border-radius:var(--r-sm);border-left:3px solid var(--brass2);">
+           <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--subtle);margin-bottom:3px;">Primary Outcome</div>
+           <div style="font-size:12.5px;color:var(--text2);line-height:1.55;">${escapeHtml(pico.primary_outcome)}</div>
+         </div>`
+      : "";
+
     html += `
       <div style="margin-bottom:14px;">
         <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">PICO Framework</div>
@@ -1190,6 +1343,7 @@ function renderEvidencePanel(data, study) {
             <div class="evidenceCellValue${!pico.outcome ? ' empty' : ''}">${pico.outcome ? escapeHtml(pico.outcome) : 'Not specified'}</div>
           </div>
         </div>
+        ${primaryOutcome}
       </div>
 
       <div class="hr"></div>
@@ -1228,7 +1382,29 @@ function renderEvidencePanel(data, study) {
           <div class="strengthBar">${strengthDots}</div>
           <span style="font-size:12px;color:var(--muted);">${strength}/5</span>
         </div>
+        ${appraisal.evidence_explanation
+          ? `<div class="evidenceExplanation">${escapeHtml(appraisal.evidence_explanation)}</div>`
+          : ""}
+
+        ${stats.clinical_significance
+          ? `<div class="clinicalSigBox">
+               <strong>Clinical Significance</strong>
+               ${escapeHtml(stats.clinical_significance)}
+             </div>`
+          : ""}
       </div>`;
+
+    /* Key claims */
+    if (keyClaims && keyClaims.length) {
+      html += `
+        <div class="hr"></div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">Key Claims</div>
+          <ul class="keyClaimsList">
+            ${keyClaims.map(c => `<li>${escapeHtml(c)}</li>`).join('')}
+          </ul>
+        </div>`;
+    }
 
     /* Audience rewrites */
     if (rewrites.patient || rewrites.clinician || rewrites.student) {
@@ -1245,18 +1421,52 @@ function renderEvidencePanel(data, study) {
         </div>`;
     }
 
+    /* Jargon */
+    if (jargon && jargon.length) {
+      html += `
+        <div class="hr"></div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">Jargon Glossary</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${jargon.map(j => `
+              <div style="font-size:12.5px;line-height:1.55;">
+                <span class="jargonTerm" style="font-weight:600;color:var(--navy);">
+                  ${escapeHtml(j.term || '')}
+                  <span class="jargonTip">${escapeHtml(j.definition || '')}</span>
+                </span>
+                <span style="color:var(--subtle);font-size:11.5px;margin-left:6px;">— hover for definition</span>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }
+
     /* Limitations */
     if (appraisal.limitations && appraisal.limitations.length) {
       html += `
         <div class="hr"></div>
-        <div>
+        <div style="margin-bottom:14px;">
           <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">Limitations</div>
           <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text2);line-height:1.75;">
             ${appraisal.limitations.map(l => `<li>${escapeHtml(l)}</li>`).join('')}
           </ul>
         </div>`;
     }
-    /* Powered by */
+
+    /* AI History — collapsible */
+    html += `
+      <div class="hr"></div>
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" id="historyToggle">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);">AI Analysis History</div>
+          <span style="font-size:11px;color:var(--subtle);" id="historyToggleIcon">▶ Show</span>
+        </div>
+        <div id="historyContent" style="display:none;margin-top:8px;">
+          <div style="font-size:12px;color:var(--subtle);font-style:italic;">
+            Prompt version: <strong>${escapeHtml(data.prompt_version || '3.1')}</strong> · Cached: <strong>${data.cached ? 'Yes' : 'No'}</strong>
+          </div>
+        </div>
+      </div>`;
+
     html += `<div style="font-size:10.5px;color:var(--subtle);text-align:center;margin-top:18px;font-style:italic;letter-spacing:.04em;">Extracted by Seren Clinical AI</div>`;
   }
 
@@ -1275,6 +1485,18 @@ function renderEvidencePanel(data, study) {
         };
       });
     }
+  }
+
+  /* Wire history toggle */
+  const historyToggle = document.getElementById("historyToggle");
+  const historyContent = document.getElementById("historyContent");
+  const historyIcon = document.getElementById("historyToggleIcon");
+  if (historyToggle && historyContent) {
+    historyToggle.onclick = () => {
+      const open = historyContent.style.display === "none";
+      historyContent.style.display = open ? "block" : "none";
+      if (historyIcon) historyIcon.textContent = open ? "▼ Hide" : "▶ Show";
+    };
   }
 
   /* Wire run / re-run button */
@@ -1302,6 +1524,7 @@ function renderEvidencePanel(data, study) {
       }, "Analysing…");
     };
   }
+
   /* Wire share button */
   const shareBtn = document.getElementById("shareClinicalBtn");
   if (shareBtn && study) {
@@ -1314,7 +1537,6 @@ function renderEvidencePanel(data, study) {
             await navigator.clipboard.writeText(shareUrl);
             showToast("Link copied!", "Shareable URL copied to clipboard.", "success");
           } catch {
-            /* Fallback: show URL in prompt */
             prompt("Copy this shareable link:", shareUrl);
           }
         } catch(err) {
@@ -1324,6 +1546,7 @@ function renderEvidencePanel(data, study) {
     };
   }
 }
+
 /* ══ RELATED TAB ═════════════════════════════════════════════ */
 
 async function showRelated() {
@@ -1357,6 +1580,9 @@ async function showRelated() {
       const relType      = detectStudyTypePaper(it);
       const relTypeLabel = relType ? (STUDY_TYPE_LABELS_PAPER[relType] || relType) : null;
       const relOA        = !!((it.pmcid || "").toString().trim());
+      const relCitations = (it.citation_count != null && it.citation_count > 0)
+        ? `<span class="citationBadge">📚 ${escapeHtml(String(it.citation_count))}</span>`
+        : "";
       html += `
         <div style="background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color .12s;" data-open-rel="1">
           <div style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:6px;">${escapeHtml(it.title)}</div>
@@ -1365,6 +1591,7 @@ async function showRelated() {
             <span class="badge coffee">${escapeHtml(SOURCE_LABELS_PAPER[it.source] || it.source)}</span>
             ${relTypeLabel ? `<span class="badge green">${escapeHtml(relTypeLabel)}</span>` : ""}
             ${relOA        ? `<span class="badge sage">OA</span>` : ""}
+            ${relCitations}
           </div>
         </div>`;
     }
@@ -1406,7 +1633,6 @@ qs("closeBtn").onclick = () => {
   }
 };
 
-/* Reopen button — shown when panel is closed */
 (function addReopenBtn() {
   const btn = document.createElement("button");
   btn.type      = "button";
@@ -1492,11 +1718,9 @@ qs("closeBtn").onclick = () => {
 
   renderPaper(p);
 
-  /* Show reading status chips if this is a saved study */
   if (savedStudy) {
     renderReadingStatus(savedStudy);
 
-    /* Show inline notes editor */
     const notesCard = qs("notesCard");
     const notesBox = qs("notesBox");
     const notesSaveStatus = qs("notesSaveStatus");

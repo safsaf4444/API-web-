@@ -198,6 +198,7 @@ class PICOData(BaseModel):
     intervention: Optional[str] = None
     comparator: Optional[str] = None
     outcome: Optional[str] = None
+    primary_outcome: Optional[str] = None
 
 
 class StatisticalData(BaseModel):
@@ -206,10 +207,12 @@ class StatisticalData(BaseModel):
     effect_size: Optional[str] = None
     confidence_interval: Optional[str] = None
     nnt_nnh: Optional[str] = None
+    clinical_significance: Optional[str] = None
 
 
 class AppraisalData(BaseModel):
     evidence_strength: Optional[int] = None
+    evidence_explanation: Optional[str] = None
     bias_risk: Optional[str] = None
     limitations: Optional[List[str]] = None
 
@@ -220,10 +223,17 @@ class RewritesData(BaseModel):
     student: Optional[str] = None
 
 
+class JargonItem(BaseModel):
+    term: str
+    definition: str
+
+
 class AIClinicalResponse(BaseModel):
     study_id: int
     pico: PICOData
     stats: StatisticalData
     appraisal: AppraisalData
     rewrites: RewritesData
+    key_claims: Optional[List[str]] = None
+    jargon: Optional[List[JargonItem]] = None
     cached: bool = False
