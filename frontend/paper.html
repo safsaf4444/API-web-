@@ -152,6 +152,16 @@
       <div id="authorsBox"></div>
     </div>
 
+    <div class="card" id="notesCard" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="sectionLabel" style="margin-bottom:0;">📝 Your Notes</div>
+        <span id="notesSaveStatus" style="font-size:10.5px;color:var(--subtle);"></span>
+      </div>
+      <div class="hr"></div>
+      <textarea id="notesBox" placeholder="Add private notes about this paper…"
+        style="min-height:80px;font-size:13px;line-height:1.65;resize:vertical;"></textarea>
+    </div>
+
     <div class="card">
       <div class="sectionLabel">Abstract</div>
       <div class="hr"></div>
@@ -1483,7 +1493,39 @@ qs("closeBtn").onclick = () => {
   renderPaper(p);
 
   /* Show reading status chips if this is a saved study */
-  if (savedStudy) renderReadingStatus(savedStudy);
+  if (savedStudy) {
+    renderReadingStatus(savedStudy);
+
+    /* Show inline notes editor */
+    const notesCard = qs("notesCard");
+    const notesBox = qs("notesBox");
+    const notesSaveStatus = qs("notesSaveStatus");
+    if (notesCard && notesBox) {
+      notesCard.style.display = "";
+      notesBox.value = savedStudy.notes || "";
+
+      let _notesTimer = null;
+      notesBox.addEventListener("input", () => {
+        if (notesSaveStatus) notesSaveStatus.textContent = "Saving…";
+        clearTimeout(_notesTimer);
+        _notesTimer = setTimeout(async () => {
+          try {
+            await fetchJson(`/studies/${savedStudy.id}`, {
+              method: "PATCH",
+              body: { notes: notesBox.value },
+            });
+            savedStudy.notes = notesBox.value;
+            if (notesSaveStatus) {
+              notesSaveStatus.textContent = "✓ Saved";
+              setTimeout(() => { notesSaveStatus.textContent = ""; }, 2000);
+            }
+          } catch (err) {
+            if (notesSaveStatus) notesSaveStatus.innerHTML = `<span style="color:var(--bad);">Save failed</span>`;
+          }
+        }, 800);
+      });
+    }
+  }
 
   const enriched = await ensureAbstractAndPMC(p);
 
