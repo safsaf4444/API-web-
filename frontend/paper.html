@@ -315,6 +315,7 @@
         <div class="tabPill" data-tab="ai">AI</div>
         <div class="tabPill" data-tab="evidence">Evidence</div>
         <div class="tabPill" data-tab="related">Related</div>
+        <div class="tabPill" data-tab="citation">Citation</div>
       </div>
 
       <div class="panelBody" id="panel"></div>
@@ -809,6 +810,7 @@ function setActiveTab(tab) {
     if (tab === "ai")       return showAI();
     if (tab === "evidence") return showEvidence();
     if (tab === "related")  return showRelated();
+    if (tab === "citation") return showCitation();
   });
 })();
 
@@ -1545,6 +1547,198 @@ function renderEvidencePanel(data, study) {
       }, "Generating…");
     };
   }
+}
+
+/* ══ SHARED CITATION FORMATTER (client-side) ════════════════ */
+
+const CITATION_STYLE_LABELS = {
+  harvard:   "Harvard",
+  apa:       "APA 7th",
+  vancouver: "Vancouver",
+  chicago:   "Chicago 17th",
+  mla:       "MLA 9th",
+  bibtex:    "BibTeX",
+  nature:    "Nature",
+  ama:       "AMA",
+};
+
+function _parseAuthorsStr(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(x => String(x).trim()).filter(Boolean);
+  return String(raw).split(",").map(x => x.trim()).filter(Boolean);
+}
+
+function _lastFirst(name) {
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2 ? `${parts[parts.length-1]}, ${parts.slice(0,-1).join(" ")}` : name;
+}
+
+function _initials(name) {
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2 ? `${parts[parts.length-1]} ${parts.slice(0,-1).map(p=>p[0]+".").join(" ")}` : name;
+}
+
+function _bibtexKey(authors, year) {
+  const last = authors.length ? authors[0].trim().split(/\s+/).pop().toLowerCase().replace(/[^a-z0-9]/g,"") : "anon";
+  return `${last}${year||"nd"}`;
+}
+
+function formatCitationJS(paper, fmt) {
+  const title   = paper.title   || "Unknown Title";
+  const year    = paper.year    ? String(paper.year) : "n.d.";
+  const venue   = paper.venue   || paper.journal || "";
+  const doi     = paper.doi     || "";
+  const doiUrl  = doi ? `https://doi.org/${doi}` : "";
+  const pmid    = paper.pmid    || "";
+  const authors = _parseAuthorsStr(paper.authors);
+
+  switch (fmt) {
+    case "harvard": {
+      let auth = authors.length ? authors.slice(0,3).map(_lastFirst).join(", ") + (authors.length>3?" et al.":"") : "Anon.";
+      let c = `${auth} (${year}) '${title}'`;
+      if (venue)  c += `, ${venue}`;
+      if (doiUrl) c += `. Available at: ${doiUrl}`;
+      return c;
+    }
+    case "apa": {
+      let auth = authors.length ? authors.slice(0,6).map(_initials).join(", ") + (authors.length>6?`, … ${_initials(authors[authors.length-1])}`:"") : "Anonymous";
+      let c = `${auth} (${year}). ${title}.`;
+      if (venue)  c += ` ${venue}.`;
+      if (doiUrl) c += ` ${doiUrl}`;
+      return c;
+    }
+    case "vancouver": {
+      let auth = authors.length ? authors.slice(0,6).map(_initials).join(", ") + (authors.length>6?" et al.":"") : "Anonymous";
+      let c = `${auth}. ${title}.`;
+      if (venue) c += ` ${venue}.`;
+      c += ` ${year}`;
+      if (doiUrl) c += `. doi: ${doiUrl}`;
+      return c;
+    }
+    case "chicago": {
+      let auth = authors.length ? _lastFirst(authors[0]) + (authors.length>1?", "+authors.slice(1).join(", "):"") : "Anonymous";
+      let c = `${auth}. "${title}."`;
+      if (venue)  c += ` ${venue}`;
+      c += ` (${year})`;
+      if (doiUrl) c += `. ${doiUrl}`;
+      return c;
+    }
+    case "mla": {
+      let auth = authors.length ? _lastFirst(authors[0]) + (authors.length>1?", et al.":"") : "Anonymous";
+      let c = `${auth}. "${title}."`;
+      if (venue)  c += ` ${venue},`;
+      c += ` ${year}`;
+      if (doiUrl) c += `, ${doiUrl}`;
+      return c;
+    }
+    case "nature": {
+      let auth = authors.length ? authors.slice(0,6).map(_initials).join(", ") + (authors.length>6?" et al.":"") : "Anon.";
+      let c = `${auth}. ${title}.`;
+      if (venue) c += ` ${venue}`;
+      c += ` (${year})`;
+      if (doi) c += `. https://doi.org/${doi}`;
+      return c;
+    }
+    case "ama": {
+      let auth = authors.length ? authors.slice(0,6).map(_initials).join(", ") + (authors.length>6?" et al.":"") : "Anonymous";
+      let c = `${auth}. ${title}.`;
+      if (venue) c += ` ${venue}.`;
+      c += ` ${year}`;
+      if (doi) c += `;doi:${doi}`;
+      return c;
+    }
+    case "bibtex": {
+      const key  = _bibtexKey(authors, paper.year);
+      const auth = authors.length ? authors.join(" and ") : "Anonymous";
+      const lines = [
+        `@article{${key},`,
+        `  author  = {${auth}},`,
+        `  title   = {${title}},`,
+        `  year    = {${year}},`,
+      ];
+      if (venue) lines.push(`  journal = {${venue}},`);
+      if (doi)   lines.push(`  doi     = {${doi}},`);
+      if (pmid)  lines.push(`  pmid    = {${pmid}},`);
+      lines.push("}");
+      return lines.join("\n");
+    }
+    default: {
+      const auth = authors.join(", ") || "Unknown";
+      return `${auth} (${year}). ${title}. ${venue}. ${doiUrl}`.replace(/\. \.$/, ".").trim();
+    }
+  }
+}
+
+/* ══ CITATION TAB ════════════════════════════════════════════ */
+
+function showCitation() {
+  __THREAD_SHELL_READY__ = false;
+  setActiveTab("citation");
+
+  const p = savedStudy || external;
+  if (!p) {
+    setPanel(`<div style="font-size:13px;color:var(--subtle);padding:12px 0;">No paper loaded.</div>`);
+    return;
+  }
+
+  function renderCitationPanel(fmt) {
+    const formatted = formatCitationJS(p, fmt);
+    const isBibtex  = fmt === "bibtex";
+
+    const styleOptions = Object.entries(CITATION_STYLE_LABELS).map(([val, lbl]) =>
+      `<option value="${val}"${val===fmt?" selected":""}>${escapeHtml(lbl)}</option>`
+    ).join("");
+
+    const html = `
+      <div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.09em;text-transform:uppercase;margin-bottom:12px;">Citation</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <label style="font-size:11.5px;color:var(--muted);margin:0;white-space:nowrap;">Style</label>
+        <select id="citStylePick" style="width:auto;min-width:150px;font-size:13px;padding:7px 10px;">
+          ${styleOptions}
+        </select>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 16px;margin-bottom:12px;">
+        <pre id="citOutput" style="margin:0;font-size:${isBibtex?"11.5":"13"}px;font-family:${isBibtex?"'Courier New',monospace":"Georgia,serif"};line-height:1.7;color:var(--text2);white-space:pre-wrap;word-break:break-word;">${escapeHtml(formatted)}</pre>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn primary sm" id="copyCitBtn">Copy</button>
+        <button class="btn sm" id="exportCitBtn">${isBibtex ? "Download .bib" : "Download .txt"}</button>
+      </div>
+      <div style="font-size:11px;color:var(--subtle);margin-top:10px;line-height:1.6;font-style:italic;">
+        Citations are generated from stored metadata. Verify accuracy before submission.
+      </div>`;
+
+    setPanel(html);
+
+    // Re-wire style picker
+    qs("citStylePick").onchange = (e) => renderCitationPanel(e.target.value);
+
+    // Copy
+    qs("copyCitBtn").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(formatted);
+        qs("copyCitBtn").textContent = "✓ Copied";
+        setTimeout(() => { if (qs("copyCitBtn")) qs("copyCitBtn").textContent = "Copy"; }, 1800);
+      } catch {
+        prompt("Copy this citation:", formatted);
+      }
+    };
+
+    // Export/download
+    qs("exportCitBtn").onclick = () => {
+      const ext      = fmt === "bibtex" ? ".bib" : ".txt";
+      const filename = `citation_${(p.title||"paper").slice(0,30).replace(/[^a-z0-9]/gi,"_")}${ext}`;
+      const blob     = new Blob([formatted], { type: "text/plain" });
+      const url      = URL.createObjectURL(blob);
+      const a        = document.createElement("a");
+      a.href         = url;
+      a.download     = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+  }
+
+  renderCitationPanel("harvard");
 }
 
 /* ══ RELATED TAB ═════════════════════════════════════════════ */

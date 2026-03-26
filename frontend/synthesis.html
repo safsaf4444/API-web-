@@ -568,7 +568,7 @@ function renderResults(data, mode, query) {
     <div class="synthTab" data-tab="gaps">Evidence Gaps<span class="synthTabCount">${gaps.length}</span></div>
     <div class="synthTab" data-tab="steelman">Steel-man</div>
     ${weighting.length ? '<div class="synthTab" data-tab="weighting">Weighting</div>' : ''}
-    ${mode==='cross_paper' ? '<div class="synthTab" data-tab="citations">References</div>' : ''}
+    <div class="synthTab" data-tab="citations">Citation</div>
     <div class="synthTab" data-tab="papers">Papers Used<span class="synthTabCount">${allPapers.length}</span></div>
     <div class="synthTab" data-tab="ask">Ask AI</div>
   </div>`;
@@ -625,20 +625,24 @@ function renderResults(data, mode, query) {
         <label>Format</label>
         <select id="citationFormat">
           <option value="harvard" selected>Harvard</option>
-          <option value="apa">APA</option>
+          <option value="apa">APA 7th</option>
           <option value="vancouver">Vancouver</option>
-          <option value="chicago">Chicago</option>
-          <option value="mla">MLA</option>
+          <option value="chicago">Chicago 17th</option>
+          <option value="mla">MLA 9th</option>
           <option value="bibtex">BibTeX</option>
+          <option value="nature">Nature</option>
+          <option value="ama">AMA</option>
         </select>
         <button class="btn sm primary" id="generateCitationsBtn">&#128196; Generate</button>
       </div>
-      <div id="copyAllRow" style="display:none;margin-bottom:12px;">
+      <div id="copyAllRow" style="display:none;margin-bottom:12px;display:flex;gap:8px;">
         <button class="btn sm ghost" id="copyAllCitationsBtn">Copy all</button>
+        <button class="btn sm ghost" id="exportAllCitationsBtn">Download</button>
       </div>
       <div class="citationList" id="citationList">
         <div class="synthEmpty">Choose a format and click Generate.</div>
       </div>
+      <div style="font-size:11px;color:var(--subtle);margin-top:12px;font-style:italic;line-height:1.6;">Citations are generated from stored metadata. Verify accuracy before submission.</div>
     </div>`;
   }
 
@@ -710,17 +714,44 @@ function renderResults(data, mode, query) {
     const fmt     = document.getElementById('citationFormat').value;
     const list    = document.getElementById('citationList');
     const copyRow = document.getElementById('copyAllRow');
-    list.innerHTML = '<div class="synthEmpty">Generating references&#8230;</div>';
+    const isBibtex = fmt === 'bibtex';
+    list.innerHTML = '<div class="synthEmpty">Generating citations&#8230;</div>';
+
     try {
-      const res = await fetchJson('/ai/citations', {method:'POST', body:{study_ids:selectedStudyIds, format:fmt}});
-      if (!res.citations?.length) { list.innerHTML='<div class="synthEmpty">No citations generated &#8212; check papers have metadata.</div>'; return; }
+      let citations = [];
+
+      if (_currentMode === 'cross_paper' && selectedStudyIds.length > 0) {
+        // Saved papers — use backend for accurate metadata
+        const res = await fetchJson('/ai/citations', {method:'POST', body:{study_ids:selectedStudyIds, format:fmt}});
+        citations = (res.citations || []).map(c => ({ title: c.title, formatted: c.formatted }));
+      } else {
+        // Subject query — papers not in DB, format client-side from papers_used
+        const papers = (_currentData?.papers_used || allPapers || []);
+        citations = papers.map(p => ({
+          title:     p.title || 'Unknown',
+          formatted: formatCitationJS(p, fmt),
+        }));
+      }
+
+      if (!citations.length) {
+        list.innerHTML = '<div class="synthEmpty">No citation data available for these papers.</div>';
+        return;
+      }
+
       let allText = '';
-      list.innerHTML = res.citations.map((c,idx) => {
+      list.innerHTML = citations.map((c, idx) => {
         allText += c.formatted + '\n\n';
-        return `<div class="citationItem"><div class="citationItemTitle">${esc(c.title.slice(0,60))}${c.title.length>60?'&#8230;':''}</div><div class="citationText" id="citeText_${idx}">${esc(c.formatted)}</div><button class="btn sm ghost citationCopyBtn" data-cite-idx="${idx}">Copy</button></div>`;
+        const fontStyle = isBibtex ? 'font-family:monospace;font-size:11.5px;' : 'font-family:Georgia,serif;font-size:13px;';
+        return `<div class="citationItem">
+          <div class="citationItemTitle">${esc(c.title.slice(0,60))}${c.title.length>60?'&#8230;':''}</div>
+          <div class="citationText" id="citeText_${idx}" style="${fontStyle}">${esc(c.formatted)}</div>
+          <button class="btn sm ghost citationCopyBtn" data-cite-idx="${idx}">Copy</button>
+        </div>`;
       }).join('');
       allText = allText.trim();
-      if (copyRow) copyRow.style.display = '';
+
+      if (copyRow) copyRow.style.display = 'flex';
+
       list.querySelectorAll('[data-cite-idx]').forEach(btn => {
         btn.onclick = async () => {
           const text = document.getElementById(`citeText_${btn.dataset.citeIdx}`)?.textContent || '';
@@ -728,11 +759,24 @@ function renderResults(data, mode, query) {
           catch { prompt('Copy:', text); }
         };
       });
+
       const copyAllBtn = document.getElementById('copyAllCitationsBtn');
       if (copyAllBtn) copyAllBtn.onclick = async () => {
-        try { await navigator.clipboard.writeText(allText); showToast('Copied',`All ${res.count} citations copied.`,'success'); }
+        try { await navigator.clipboard.writeText(allText); showToast('Copied', `All ${citations.length} citations copied.`, 'success'); }
         catch { prompt('Copy all:', allText); }
       };
+
+      const exportAllBtn = document.getElementById('exportAllCitationsBtn');
+      if (exportAllBtn) exportAllBtn.onclick = () => {
+        const ext      = isBibtex ? '.bib' : '.txt';
+        const filename = `seren_citations${ext}`;
+        const blob     = new Blob([allText], { type: 'text/plain' });
+        const url      = URL.createObjectURL(blob);
+        const a        = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+      };
+
     } catch(e) {
       list.innerHTML = `<div class="synthEmpty" style="color:var(--bad);">${esc(e.message)}</div>`;
       showToast('Citations failed', e.message, 'error');
@@ -797,6 +841,68 @@ function renderResults(data, mode, query) {
   if (askInput) askInput.addEventListener('keydown', e => { if (e.key === 'Enter') runAskAnything(); });
 
   document.getElementById('synthResults').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ── Client-side citation formatter (mirrors backend logic) ───────────────────
+
+function _parseAuthorsStr(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(x => String(x).trim()).filter(Boolean);
+  return String(raw).split(',').map(x => x.trim()).filter(Boolean);
+}
+function _lastFirst(n) { const p=n.trim().split(/\s+/); return p.length>=2?`${p[p.length-1]}, ${p.slice(0,-1).join(' ')}`:n; }
+function _initials(n)  { const p=n.trim().split(/\s+/); return p.length>=2?`${p[p.length-1]} ${p.slice(0,-1).map(x=>x[0]+'.').join(' ')}`:n; }
+
+function formatCitationJS(paper, fmt) {
+  const title   = paper.title   || 'Unknown Title';
+  const year    = paper.year    ? String(paper.year) : 'n.d.';
+  const venue   = paper.venue   || paper.journal || '';
+  const doi     = paper.doi     || '';
+  const doiUrl  = doi ? `https://doi.org/${doi}` : '';
+  const pmid    = paper.pmid    || '';
+  const authors = _parseAuthorsStr(paper.authors);
+
+  if (fmt === 'harvard') {
+    const auth = authors.length ? authors.slice(0,3).map(_lastFirst).join(', ')+(authors.length>3?' et al.':'') : 'Anon.';
+    return `${auth} (${year}) '${title}'${venue?', '+venue:''}${doiUrl?'. Available at: '+doiUrl:''}`;
+  }
+  if (fmt === 'apa') {
+    const auth = authors.length ? authors.slice(0,6).map(_initials).join(', ')+(authors.length>6?`, … ${_initials(authors[authors.length-1])}`:'') : 'Anonymous';
+    return `${auth} (${year}). ${title}.${venue?' '+venue+'.':''}${doiUrl?' '+doiUrl:''}`;
+  }
+  if (fmt === 'vancouver') {
+    const auth = authors.length ? authors.slice(0,6).map(_initials).join(', ')+(authors.length>6?' et al.':'') : 'Anonymous';
+    return `${auth}. ${title}.${venue?' '+venue+'.':''} ${year}${doiUrl?'. doi: '+doiUrl:''}`;
+  }
+  if (fmt === 'chicago') {
+    const auth = authors.length ? _lastFirst(authors[0])+(authors.length>1?', '+authors.slice(1).join(', '):'') : 'Anonymous';
+    return `${auth}. "${title}."${venue?' '+venue:''} (${year})${doiUrl?'. '+doiUrl:''}`;
+  }
+  if (fmt === 'mla') {
+    const auth = authors.length ? _lastFirst(authors[0])+(authors.length>1?', et al.':'') : 'Anonymous';
+    return `${auth}. "${title}."${venue?' '+venue+',':''} ${year}${doiUrl?', '+doiUrl:''}`;
+  }
+  if (fmt === 'nature') {
+    const auth = authors.length ? authors.slice(0,6).map(_initials).join(', ')+(authors.length>6?' et al.':'') : 'Anon.';
+    return `${auth}. ${title}.${venue?' '+venue:''} (${year})${doi?'. https://doi.org/'+doi:''}`;
+  }
+  if (fmt === 'ama') {
+    const auth = authors.length ? authors.slice(0,6).map(_initials).join(', ')+(authors.length>6?' et al.':'') : 'Anonymous';
+    return `${auth}. ${title}.${venue?' '+venue+'.':''} ${year}${doi?';doi:'+doi:''}`;
+  }
+  if (fmt === 'bibtex') {
+    const first = authors.length ? authors[0].trim().split(/\s+/).pop().toLowerCase().replace(/[^a-z0-9]/g,'') : 'anon';
+    const key   = `${first}${paper.year||'nd'}`;
+    const auth  = authors.length ? authors.join(' and ') : 'Anonymous';
+    const lines = [`@article{${key},`,`  author  = {${auth}},`,`  title   = {${title}},`,`  year    = {${year}},`];
+    if (venue) lines.push(`  journal = {${venue}},`);
+    if (doi)   lines.push(`  doi     = {${doi}},`);
+    if (pmid)  lines.push(`  pmid    = {${pmid}},`);
+    lines.push('}');
+    return lines.join('\n');
+  }
+  const auth = authors.join(', ') || 'Unknown';
+  return `${auth} (${year}). ${title}. ${venue}. ${doiUrl}`.replace(/\. \.$/,'.').trim();
 }
 
 init();
