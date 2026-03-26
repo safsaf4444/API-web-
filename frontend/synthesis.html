@@ -6,31 +6,148 @@
   <title>Evidence Analysis — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    .synthWrap { max-width: 980px; }
+    /* ── Two-column layout ── */
+    .synthLayout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .synthLayout { grid-template-columns: 1fr; }
+      .synthHistoryPanel { position: static !important; }
+    }
+    .synthMain  { min-width: 0; }
+    .synthHistoryPanel {
+      position: sticky;
+      top: 80px;
+    }
+
+    /* ── History panel ── */
+    .historyPanelCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .historyPanelHead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--line2);
+    }
+    .historyPanelTitle {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: var(--subtle);
+    }
+    .historyEmpty {
+      padding: 24px 16px;
+      text-align: center;
+      font-size: 12.5px;
+      color: var(--subtle);
+      font-style: italic;
+      line-height: 1.6;
+    }
+    .historyList {
+      display: flex;
+      flex-direction: column;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    .historyItem {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line2);
+      cursor: pointer;
+      transition: background .12s;
+      position: relative;
+    }
+    .historyItem:last-child { border-bottom: none; }
+    .historyItem:hover { background: var(--surface2); }
+    .historyItem.active {
+      background: var(--cream3);
+      border-left: 3px solid var(--brass);
+    }
+    .historyItemIcon {
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      opacity: .7;
+    }
+    .historyItemInfo { flex: 1; min-width: 0; }
+    .historyItemTitle {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--navy);
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .historyItemMeta {
+      font-size: 10.5px;
+      color: var(--subtle);
+      margin-top: 2px;
+    }
+    .historyItemClose {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--subtle);
+      font-size: 12px;
+      flex-shrink: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity .12s;
+    }
+    .historyItem:hover .historyItemClose { opacity: 1; }
+    .historyItemClose:hover {
+      background: rgba(184,64,64,.1) !important;
+      color: var(--bad) !important;
+      transform: none;
+    }
+    .historyTypeBadge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      padding: 1px 6px;
+      border-radius: var(--r-pill);
+      border: 1px solid;
+      display: inline-flex;
+      margin-bottom: 2px;
+    }
+    .historyTypeBadge.cross  { color: var(--navy3); border-color: rgba(36,48,68,.2); background: rgba(36,48,68,.06); }
+    .historyTypeBadge.search { color: var(--good);  border-color: rgba(61,122,74,.2); background: rgba(61,122,74,.06); }
 
     /* ── Section cards ── */
     .synthSectionTitle {
       font-family: var(--font-display);
-      font-size: 17px;
-      font-weight: 700;
-      color: var(--navy);
-      letter-spacing: -0.01em;
-      margin-bottom: 4px;
+      font-size: 17px; font-weight: 700;
+      color: var(--navy); letter-spacing: -0.01em; margin-bottom: 4px;
     }
     .synthSectionSub {
-      font-size: 12.5px;
-      color: var(--subtle);
-      line-height: 1.55;
-      max-width: 560px;
-      margin-bottom: 14px;
+      font-size: 12.5px; color: var(--subtle);
+      line-height: 1.55; max-width: 560px; margin-bottom: 14px;
     }
     .synthSectionHead {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 4px;
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 12px;
+      flex-wrap: wrap; margin-bottom: 4px;
     }
 
     /* ── Selected papers list ── */
@@ -38,18 +155,17 @@
     .selectedPaperRow {
       display: flex; align-items: flex-start; gap: 12px;
       background: var(--surface2); border: 1px solid var(--line);
-      border-radius: var(--r-sm); padding: 11px 14px;
-      transition: border-color .12s;
+      border-radius: var(--r-sm); padding: 11px 14px; transition: border-color .12s;
     }
     .selectedPaperRow:hover { border-color: rgba(201,168,124,.3); }
     .selectedPaperInfo { flex: 1; min-width: 0; }
     .selectedPaperTitle { font-size: 13.5px; font-weight: 600; color: var(--navy); line-height: 1.4; margin-bottom: 4px; }
     .selectedPaperMeta  { font-size: 11.5px; color: var(--subtle); }
-    .weightBarWrap      { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
-    .weightBarTrack     { height: 5px; border-radius: 3px; background: var(--parchment); overflow: hidden; width: 80px; flex-shrink: 0; }
-    .weightBarFill      { height: 100%; background: var(--brass); border-radius: 3px; }
-    .weightLabel        { font-size: 10px; color: var(--subtle); }
-    .removeBtn          { padding: 3px 8px; font-size: 11px; flex-shrink: 0; margin-top: 2px; }
+    .weightBarWrap { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+    .weightBarTrack { height: 5px; border-radius: 3px; background: var(--parchment); overflow: hidden; width: 80px; flex-shrink: 0; }
+    .weightBarFill  { height: 100%; background: var(--brass); border-radius: 3px; }
+    .weightLabel    { font-size: 10px; color: var(--subtle); }
+    .removeBtn      { padding: 3px 8px; font-size: 11px; flex-shrink: 0; margin-top: 2px; }
 
     /* ── Cross-paper Q&A ── */
     .crossQABox {
@@ -84,7 +200,6 @@
     .synthResultMeta  { font-size: 12px; color: var(--subtle); }
     .synthResultActions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-    /* Tabs */
     .synthTabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 20px; }
     .synthTab {
       padding: 7px 14px; border-radius: var(--r-pill); border: 1px solid var(--line);
@@ -102,14 +217,12 @@
     .synthPane { display: none; }
     .synthPane.active { display: block; }
 
-    /* Overview */
     .conclusionBox { background: var(--navy); border-radius: var(--r); padding: 20px 24px; color: var(--cream); line-height: 1.75; font-size: 14px; margin-bottom: 16px; }
     .conclusionLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: rgba(245,240,232,.5); margin-bottom: 8px; }
     .narrativeCard { font-size: 13.5px; line-height: 1.8; color: var(--text2); }
     .narrativeCard p { margin: 0 0 12px; }
     .narrativeCard p:last-child { margin-bottom: 0; }
 
-    /* Consensus */
     .consensusItem { background: var(--surface2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 10px; }
     .consensusFinding { font-size: 13.5px; color: var(--navy); font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
     .consensusMeta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -118,7 +231,6 @@
     .strengthBadge.moderate { background: rgba(196,134,42,.1);  color: var(--warn); border-color: rgba(196,134,42,.25); }
     .strengthBadge.weak     { background: rgba(184,64,64,.1);   color: var(--bad);  border-color: rgba(184,64,64,.25); }
 
-    /* Contradictions */
     .contradictionItem { background: var(--surface); border: 1px solid rgba(184,64,64,.18); border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 10px; }
     .contradictionIssue { font-size: 13.5px; font-weight: 700; color: var(--navy); margin-bottom: 10px; }
     .contradictionSides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
@@ -129,22 +241,18 @@
     .sidePosition { font-size: 13px; color: var(--text2); line-height: 1.5; }
     .contradictionExplan { font-size: 12.5px; color: var(--muted); font-style: italic; line-height: 1.6; padding: 8px 10px; background: var(--cream3); border-left: 3px solid var(--brass2); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
 
-    /* Gaps */
     .gapList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
     .gapItem { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 13px; color: var(--text2); line-height: 1.55; }
     .gapIcon { font-size: 15px; flex-shrink: 0; margin-top: 1px; opacity: .6; }
 
-    /* Steel-man */
     .steelManBox { background: var(--cream3); border: 1px solid var(--line); border-left: 4px solid var(--navy); border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 16px 18px; font-size: 13.5px; color: var(--text2); line-height: 1.75; }
     .steelManLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--subtle); margin-bottom: 8px; }
 
-    /* Weighting table */
     .weightTable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
     .weightTable th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--subtle); padding: 6px 10px; border-bottom: 1px solid var(--line); }
     .weightTable td { padding: 8px 10px; border-bottom: 1px solid var(--line2); color: var(--text2); vertical-align: middle; }
     .weightTable tr:last-child td { border-bottom: none; }
 
-    /* Citations */
     .citationFormatRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
     .citationFormatRow label { margin: 0; white-space: nowrap; }
     .citationFormatRow select { width: auto; min-width: 160px; font-size: 13px; padding: 8px 12px; }
@@ -155,13 +263,11 @@
     .citationCopyBtn { margin-top: 7px; font-size: 11px; padding: 4px 10px; }
     .copyAllRow { margin-bottom: 12px; }
 
-    /* Papers used grid */
-    .papersUsedGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+    .papersUsedGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
     .paperUsedCard  { background: var(--surface2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; }
     .paperUsedTitle { font-size: 13px; font-weight: 600; color: var(--navy); line-height: 1.4; margin-bottom: 4px; }
     .paperUsedMeta  { font-size: 11px; color: var(--subtle); }
 
-    /* Loading */
     .synthLoadingWrap { display: flex; flex-direction: column; align-items: center; padding: 48px 20px; gap: 20px; }
     .synthSpinner { width: 40px; height: 40px; border: 3px solid var(--parchment); border-top-color: var(--brass); border-radius: 50%; animation: synthSpin .8s linear infinite; }
     @keyframes synthSpin { to { transform: rotate(360deg); } }
@@ -172,86 +278,103 @@
     .stepDot { width: 7px; height: 7px; border-radius: 50%; background: var(--parchment); flex-shrink: 0; }
     .synthLoadingStep.active .stepDot { background: var(--brass); }
     .synthLoadingStep.done   .stepDot { background: var(--good); }
-
-    /* Empty */
     .synthEmpty { text-align: center; padding: 28px 20px; color: var(--subtle); font-size: 13px; font-style: italic; }
   </style>
 </head>
 <body>
 <main>
-<div class="synthWrap">
+<div class="synthLayout">
 
-  <!-- ══ Section 1: Cross-Paper Analysis ══════════════════════════════════ -->
-  <div class="card" style="margin-bottom:20px;">
-    <div class="synthSectionHead">
-      <div>
-        <div class="synthSectionTitle">Cross-Paper Analysis</div>
-        <div class="synthSectionSub">Select 2&#8211;10 papers from your library to compare what they collectively say &#8212; consensus, contradictions, evidence gaps, and a weighted conclusion.</div>
+  <!-- ══ LEFT: Controls ══════════════════════════════════════════════════ -->
+  <div class="synthMain">
+
+    <!-- Section 1: Cross-Paper Analysis -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="synthSectionHead">
+        <div>
+          <div class="synthSectionTitle">Cross-Paper Analysis</div>
+          <div class="synthSectionSub">Select 2&#8211;10 papers from your library to compare what they collectively say &#8212; consensus, contradictions, evidence gaps, and a weighted conclusion.</div>
+        </div>
+        <a class="btn sm ghost" href="library.html">&#8592; Library</a>
       </div>
-      <a class="btn sm ghost" href="library.html">&#8592; Library</a>
-    </div>
 
-    <!-- Selected papers list — ALWAYS visible, even when results are showing -->
-    <div class="selectedPapersList" id="selectedPapersList">
-      <div class="synthEmpty" id="noPapersMsg">
-        No papers selected. Go to your <a href="library.html">Library</a>, click <strong>&#9638; Select</strong>, choose papers, then click <strong>Synthesise</strong>.
+      <!-- Selected papers — always visible -->
+      <div class="selectedPapersList" id="selectedPapersList">
+        <div class="synthEmpty" id="noPapersMsg">
+          No papers selected. Go to your <a href="library.html">Library</a>, click <strong>&#9638; Select</strong>, choose papers, then click <strong>Synthesise</strong>.
+        </div>
+      </div>
+
+      <!-- Ask your papers Q&A -->
+      <div class="crossQABox" id="crossQABox" style="display:none;">
+        <div class="crossQALabel">Ask your papers</div>
+        <div class="crossQASub">Ask a specific question answered only from your selected papers &#8212; e.g. &#8220;What outcome measures were used?&#8221; or &#8220;Which study had the largest sample?&#8221;</div>
+        <div class="crossQARow">
+          <input id="crossQAInput" placeholder="Ask a question about your selected papers&#8230;" autocomplete="off"/>
+          <button class="btn primary sm" id="runCrossQABtn">Ask</button>
+        </div>
+        <div id="crossQAResult"></div>
+      </div>
+
+      <!-- Run analysis -->
+      <div class="synthRunRow" id="synthRunRow" style="display:none;">
+        <button class="btn primary" id="runSynthBtn" disabled>&#9651; Run Analysis</button>
+        <span class="synthCountHint" id="synthCountHint">Select at least 2 papers</span>
       </div>
     </div>
 
-    <!-- Cross-paper Q&A — shown when 1+ papers selected -->
-    <div class="crossQABox" id="crossQABox" style="display:none;">
-      <div class="crossQALabel">Ask your papers</div>
-      <div class="crossQASub">Ask a specific question answered using only your selected papers &#8212; e.g. &#8220;What outcome measures were used?&#8221; or &#8220;Which study had the largest sample?&#8221;</div>
-      <div class="crossQARow">
-        <input id="crossQAInput" placeholder="Ask a question about your selected papers&#8230;" autocomplete="off"/>
-        <button class="btn primary sm" id="runCrossQABtn">Ask</button>
+    <!-- Divider -->
+    <div class="ornament">or search the literature fresh</div>
+
+    <!-- Section 2: Literature Search -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="synthSectionTitle">Literature Search &amp; Synthesis</div>
+      <div class="synthSectionSub">Search for papers on any topic and synthesise them instantly. This searches <strong>fresh from the literature</strong> &#8212; independent of your library and the papers selected above.</div>
+      <div class="litSearchRow">
+        <input id="subjectQueryInput" placeholder="e.g. beta-blockers heart failure, metformin PCOS, statins primary prevention" autocomplete="off"/>
+        <button class="btn primary" id="runSubjectQueryBtn">Search &amp; Analyse</button>
       </div>
-      <div id="crossQAResult"></div>
+      <div class="litSearchOptions">
+        <label>Source</label>
+        <select id="subjectSource">
+          <option value="europepmc" selected>Europe PMC</option>
+          <option value="openalex">OpenAlex</option>
+          <option value="crossref">Crossref</option>
+        </select>
+        <label>Papers</label>
+        <select id="maxPapers">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5" selected>5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="9">9</option>
+          <option value="10">10</option>
+        </select>
+      </div>
     </div>
 
-    <!-- Run analysis -->
-    <div class="synthRunRow" id="synthRunRow" style="display:none;">
-      <button class="btn primary" id="runSynthBtn" disabled>&#9651; Run Analysis</button>
-      <span class="synthCountHint" id="synthCountHint">Select at least 2 papers</span>
-    </div>
+    <!-- Results area -->
+    <div id="synthResults"></div>
+
   </div>
 
-  <!-- Divider -->
-  <div class="ornament">or search the literature fresh</div>
-
-  <!-- ══ Section 2: Literature Search & Synthesis ══════════════════════════ -->
-  <div class="card" style="margin-bottom:20px;">
-    <div class="synthSectionTitle">Literature Search &amp; Synthesis</div>
-    <div class="synthSectionSub">Search for papers on any topic and synthesise them instantly. This searches <strong>fresh from the literature</strong> &#8212; completely independent of your library and the selected papers above.</div>
-
-    <div class="litSearchRow">
-      <input id="subjectQueryInput" placeholder="e.g. beta-blockers in heart failure, metformin PCOS, statins primary prevention" autocomplete="off"/>
-      <button class="btn primary" id="runSubjectQueryBtn">Search &amp; Analyse</button>
-    </div>
-    <div class="litSearchOptions">
-      <label>Source</label>
-      <select id="subjectSource">
-        <option value="europepmc" selected>Europe PMC</option>
-        <option value="openalex">OpenAlex</option>
-        <option value="crossref">Crossref</option>
-      </select>
-      <label>Papers to retrieve</label>
-      <select id="maxPapers">
-        <option value="2">2 papers</option>
-        <option value="3">3 papers</option>
-        <option value="4">4 papers</option>
-        <option value="5" selected>5 papers</option>
-        <option value="6">6 papers</option>
-        <option value="7">7 papers</option>
-        <option value="8">8 papers</option>
-        <option value="9">9 papers</option>
-        <option value="10">10 papers</option>
-      </select>
+  <!-- ══ RIGHT: History panel ═══════════════════════════════════════════ -->
+  <div class="synthHistoryPanel">
+    <div class="historyPanelCard">
+      <div class="historyPanelHead">
+        <span class="historyPanelTitle">Synthesis History</span>
+        <button class="btn sm ghost" id="clearHistoryBtn" style="padding:3px 8px;font-size:11px;display:none;">Clear all</button>
+      </div>
+      <div id="historyList">
+        <div class="historyEmpty" id="historyEmpty">
+          Analyses you run this session will appear here.
+        </div>
+      </div>
     </div>
   </div>
-
-  <!-- ══ Results ══════════════════════════════════════════════════════════ -->
-  <div id="synthResults"></div>
 
 </div>
 </main>
@@ -261,10 +384,15 @@
 <script>
 requireAuthOrRedirect();
 
+// ── State ─────────────────────────────────────────────────────────────────────
 let selectedStudyIds = [];
 let studiesData      = {};
-let currentMode      = null; // "cross_paper" | "subject_query"
+let currentMode      = null;
 let _loadingInterval = null;
+let activeHistoryId  = null;
+
+// History stored in sessionStorage as array of {id, mode, title, paperCount, timestamp, data}
+const HISTORY_KEY = 'seren_synthesis_history';
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -274,7 +402,6 @@ const EVIDENCE_WEIGHTS = {
   meta_analysis:5, systematic_review:4.5, rct:4, cohort:3,
   case_control:2.5, cross_sectional:2, review:1.5, case_report:1, editorial:0.5, other:1
 };
-
 const STUDY_TYPE_PATTERNS = [
   ["meta_analysis",     /\bmeta.?analy/i],
   ["systematic_review", /\bsystematic\s+review\b/i],
@@ -286,7 +413,6 @@ const STUDY_TYPE_PATTERNS = [
   ["review",            /\breview\b/i],
   ["editorial",         /\beditorial\b/i],
 ];
-
 const STUDY_TYPE_LABELS = {
   rct:'RCT', meta_analysis:'Meta-analysis', systematic_review:'Systematic Review',
   cohort:'Cohort', case_control:'Case-Control', cross_sectional:'Cross-Sectional',
@@ -300,6 +426,106 @@ function detectStudyType(abstract) {
   }
   return null;
 }
+
+// ── History helpers ───────────────────────────────────────────────────────────
+
+function getHistory() {
+  try { return JSON.parse(sessionStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveHistory(history) {
+  try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
+  catch {}
+}
+
+function addToHistory(mode, title, paperCount, data) {
+  const history = getHistory();
+  const id = Date.now().toString();
+  history.unshift({ id, mode, title, paperCount, timestamp: Date.now(), data });
+  // Keep max 20 entries
+  if (history.length > 20) history.splice(20);
+  saveHistory(history);
+  activeHistoryId = id;
+  renderHistory();
+  return id;
+}
+
+function removeFromHistory(id) {
+  const history = getHistory().filter(h => h.id !== id);
+  saveHistory(history);
+  if (activeHistoryId === id) {
+    activeHistoryId = null;
+    document.getElementById('synthResults').innerHTML = '';
+  }
+  renderHistory();
+}
+
+function clearHistory() {
+  saveHistory([]);
+  activeHistoryId = null;
+  document.getElementById('synthResults').innerHTML = '';
+  renderHistory();
+}
+
+function renderHistory() {
+  const history     = getHistory();
+  const list        = document.getElementById('historyList');
+  const emptyEl     = document.getElementById('historyEmpty');
+  const clearBtn    = document.getElementById('clearHistoryBtn');
+
+  if (!history.length) {
+    list.innerHTML = '<div class="historyEmpty" id="historyEmpty">Analyses you run this session will appear here.</div>';
+    if (clearBtn) clearBtn.style.display = 'none';
+    return;
+  }
+
+  if (clearBtn) clearBtn.style.display = '';
+
+  list.innerHTML = history.map(h => {
+    const isActive  = h.id === activeHistoryId;
+    const icon      = h.mode === 'cross_paper' ? '&#9670;' : '&#9675;';
+    const typeCls   = h.mode === 'cross_paper' ? 'cross' : 'search';
+    const typeLabel = h.mode === 'cross_paper' ? 'Cross-paper' : 'Search';
+    const timeStr   = new Date(h.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    return `
+      <div class="historyItem${isActive ? ' active' : ''}" data-history-id="${esc(h.id)}">
+        <div class="historyItemIcon">${icon}</div>
+        <div class="historyItemInfo">
+          <div><span class="historyTypeBadge ${typeCls}">${typeLabel}</span></div>
+          <div class="historyItemTitle">${esc(h.title)}</div>
+          <div class="historyItemMeta">${h.paperCount} paper${h.paperCount !== 1 ? 's' : ''} &middot; ${timeStr}</div>
+        </div>
+        <button class="historyItemClose" data-close-id="${esc(h.id)}" title="Remove">&#10005;</button>
+      </div>`;
+  }).join('');
+
+  // Wire clicks
+  list.querySelectorAll('.historyItem').forEach(item => {
+    item.addEventListener('click', e => {
+      if (e.target.closest('.historyItemClose')) return;
+      const id      = item.dataset.historyId;
+      const entry   = getHistory().find(h => h.id === id);
+      if (!entry) return;
+      activeHistoryId = id;
+      renderHistory();
+      renderResults(entry.data, entry.mode, entry.mode === 'subject_query' ? entry.title : null);
+      document.getElementById('synthResults').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  list.querySelectorAll('[data-close-id]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      removeFromHistory(btn.dataset.closeId);
+    });
+  });
+}
+
+document.getElementById('clearHistoryBtn').onclick = async () => {
+  const ok = await confirmModal({ title: 'Clear history?', message: 'All synthesis results for this session will be removed.', okText: 'Clear all', cancelText: 'Cancel', danger: true });
+  if (ok) clearHistory();
+};
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -315,6 +541,7 @@ async function init() {
     await loadStudiesData();
   }
   renderSelectedPapers();
+  renderHistory();
 }
 
 async function loadStudiesData() {
@@ -322,7 +549,7 @@ async function loadStudiesData() {
   results.forEach(s => { if (s) studiesData[s.id] = s; });
 }
 
-// ── Selected papers — always stays visible ────────────────────────────────────
+// ── Selected papers — always visible ─────────────────────────────────────────
 
 function renderSelectedPapers() {
   const list      = document.getElementById('selectedPapersList');
@@ -377,10 +604,10 @@ function renderSelectedPapers() {
     };
   });
 
-  if (runBtn)    runBtn.disabled   = count < 2;
+  if (runBtn)    runBtn.disabled  = count < 2;
   if (countHint) {
     if (count < 2)       countHint.textContent = `Need at least 2 papers (${count} selected)`;
-    else if (count > 10) countHint.textContent = `Maximum 10 papers (${count} selected &#8212; remove some)`;
+    else if (count > 10) countHint.textContent = `Maximum 10 papers (${count} selected)`;
     else                 countHint.textContent  = `${count} paper${count !== 1 ? 's' : ''} ready`;
   }
 }
@@ -391,9 +618,8 @@ document.getElementById('runCrossQABtn').onclick = async () => {
   const input  = document.getElementById('crossQAInput');
   const result = document.getElementById('crossQAResult');
   const q      = (input.value || '').trim();
-  if (!q)                         return showToast('Ask a question', 'Type a question first.', 'info');
-  if (!selectedStudyIds.length)   return showToast('No papers', 'Select at least 1 paper first.', 'info');
-
+  if (!q)                       return showToast('Ask a question', 'Type a question first.', 'info');
+  if (!selectedStudyIds.length) return showToast('No papers', 'Select at least 1 paper first.', 'info');
   result.innerHTML = '<div style="font-size:12.5px;color:var(--subtle);margin-top:10px;">Thinking&#8230;</div>';
   try {
     const res = await fetchJson('/ai/synthesise/ask', {
@@ -406,7 +632,6 @@ document.getElementById('runCrossQABtn').onclick = async () => {
     showToast('Q&A failed', e.message, 'error');
   }
 };
-
 document.getElementById('crossQAInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('runCrossQABtn').click();
 });
@@ -424,6 +649,12 @@ async function runAnalysis(forceRerun) {
       method: 'POST',
       body:   { study_ids: selectedStudyIds, force_rerun: forceRerun },
     });
+    // Build history title from paper titles
+    const titles  = selectedStudyIds.map(id => studiesData[id]?.title || `Study ${id}`);
+    const histTitle = titles.length <= 2
+      ? titles.map(t => t.slice(0, 30)).join(' + ')
+      : `${titles[0].slice(0, 30)}&#8230; +${titles.length - 1} more`;
+    addToHistory('cross_paper', histTitle, selectedStudyIds.length, result);
     renderResults(result, 'cross_paper', null);
   } catch (e) {
     showError(e.message);
@@ -444,12 +675,12 @@ document.getElementById('runSubjectQueryBtn').onclick = async () => {
       method: 'POST',
       body:   { query, source, max_papers: maxPapers },
     });
+    addToHistory('subject_query', query, result.papers_found || maxPapers, result);
     renderResults(result, 'subject_query', query);
   } catch (e) {
     showError(e.message);
   }
 };
-
 document.getElementById('subjectQueryInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('runSubjectQueryBtn').click();
 });
@@ -459,14 +690,12 @@ document.getElementById('subjectQueryInput').addEventListener('keydown', e => {
 function showLoading(steps) {
   clearInterval(_loadingInterval);
   let activeStep = 0;
-
   function renderSteps() {
     return steps.map((s, i) => {
       const cls = i < activeStep ? 'done' : i === activeStep ? 'active' : '';
       return `<div class="synthLoadingStep ${cls}"><span class="stepDot"></span>${esc(s)}</div>`;
     }).join('');
   }
-
   document.getElementById('synthResults').innerHTML = `
     <div class="card">
       <div class="synthLoadingWrap">
@@ -475,7 +704,6 @@ function showLoading(steps) {
         <div style="font-size:11.5px;color:var(--subtle);">This may take 15&#8211;30 seconds&#8230;</div>
       </div>
     </div>`;
-
   _loadingInterval = setInterval(() => {
     if (activeStep < steps.length - 1) {
       activeStep++;
@@ -505,7 +733,6 @@ function renderResults(data, mode, query) {
 
   let html = '<div class="synthResultWrap">';
 
-  // ── Header ──
   html += `<div class="synthResultHeader">
     <div>
       <div class="synthResultTitle">${mode === 'subject_query' ? esc(query || 'Literature Synthesis') : 'Cross-Paper Analysis'}</div>
@@ -521,9 +748,9 @@ function renderResults(data, mode, query) {
     </div>
   </div>`;
 
-  // ── Tabs ──
   const showWeighting = weighting.length > 0;
   const showPapers    = papersUsed.length > 0;
+
   html += `<div class="synthTabs">
     <div class="synthTab active" data-tab="overview">Overview</div>
     <div class="synthTab" data-tab="consensus">Consensus<span class="synthTabCount">${consensus.length}</span></div>
@@ -535,140 +762,59 @@ function renderResults(data, mode, query) {
     ${showPapers ? '<div class="synthTab" data-tab="papers">Papers Used</div>' : ''}
   </div>`;
 
-  // ── Overview ──
+  // Overview
   html += '<div class="synthPane active" data-pane="overview">';
-  if (data.weighted_conclusion) {
-    html += `<div class="conclusionBox"><div class="conclusionLabel">Weighted Conclusion</div>${esc(data.weighted_conclusion)}</div>`;
-  }
+  if (data.weighted_conclusion) html += `<div class="conclusionBox"><div class="conclusionLabel">Weighted Conclusion</div>${esc(data.weighted_conclusion)}</div>`;
   if (data.synthesis_narrative) {
     const paras = data.synthesis_narrative.split(/\n\n+/).filter(Boolean);
     html += `<div class="card narrativeCard">${paras.map(p => `<p>${esc(p)}</p>`).join('')}</div>`;
   }
-  if (data.comparative_methodology) {
-    html += `<div class="card"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px;">Comparative Methodology</div><div style="font-size:13px;color:var(--text2);line-height:1.7;">${esc(data.comparative_methodology)}</div></div>`;
-  }
-  if (!data.weighted_conclusion && !data.synthesis_narrative) {
-    html += '<div class="synthEmpty">No overview generated.</div>';
-  }
+  if (data.comparative_methodology) html += `<div class="card"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px;">Comparative Methodology</div><div style="font-size:13px;color:var(--text2);line-height:1.7;">${esc(data.comparative_methodology)}</div></div>`;
+  if (!data.weighted_conclusion && !data.synthesis_narrative) html += '<div class="synthEmpty">No overview generated.</div>';
   html += '</div>';
 
-  // ── Consensus ──
+  // Consensus
   html += '<div class="synthPane" data-pane="consensus">';
-  if (!consensus.length) {
-    html += '<div class="synthEmpty">No clear consensus points identified across these papers.</div>';
-  } else {
-    consensus.forEach(c => {
-      const sc = c.strength === 'strong' ? 'strong' : c.strength === 'weak' ? 'weak' : 'moderate';
-      html += `<div class="consensusItem">
-        <div class="consensusFinding">${esc(c.finding)}</div>
-        <div class="consensusMeta">
-          ${c.strength ? `<span class="strengthBadge ${sc}">${esc(c.strength)}</span>` : ''}
-          ${(c.supporting_studies || []).map(s => `<span class="badge coffee" style="font-size:10px;">${esc(s)}</span>`).join('')}
-        </div>
-      </div>`;
-    });
-  }
+  if (!consensus.length) { html += '<div class="synthEmpty">No clear consensus points identified.</div>'; }
+  else consensus.forEach(c => {
+    const sc = c.strength === 'strong' ? 'strong' : c.strength === 'weak' ? 'weak' : 'moderate';
+    html += `<div class="consensusItem"><div class="consensusFinding">${esc(c.finding)}</div><div class="consensusMeta">${c.strength ? `<span class="strengthBadge ${sc}">${esc(c.strength)}</span>` : ''}${(c.supporting_studies||[]).map(s=>`<span class="badge coffee" style="font-size:10px;">${esc(s)}</span>`).join('')}</div></div>`;
+  });
   html += '</div>';
 
-  // ── Contradictions ──
+  // Contradictions
   html += '<div class="synthPane" data-pane="contradictions">';
-  if (!contradictions.length) {
-    html += '<div class="synthEmpty">No major contradictions identified &#8212; studies are broadly aligned.</div>';
-  } else {
-    contradictions.forEach(c => {
-      html += `<div class="contradictionItem">
-        <div class="contradictionIssue">&#8596; ${esc(c.issue)}</div>
-        <div class="contradictionSides">
-          <div class="sideBox">
-            <div class="sideLabel">Side A</div>
-            <div class="sideStudies">${(c.side_a_studies || []).map(s => esc(s)).join(', ')}</div>
-            <div class="sidePosition">${esc(c.side_a_position)}</div>
-          </div>
-          <div class="sideBox">
-            <div class="sideLabel">Side B</div>
-            <div class="sideStudies">${(c.side_b_studies || []).map(s => esc(s)).join(', ')}</div>
-            <div class="sidePosition">${esc(c.side_b_position)}</div>
-          </div>
-        </div>
-        ${c.likely_explanation ? `<div class="contradictionExplan">${esc(c.likely_explanation)}</div>` : ''}
-      </div>`;
-    });
-  }
+  if (!contradictions.length) { html += '<div class="synthEmpty">No major contradictions identified &#8212; studies are broadly aligned.</div>'; }
+  else contradictions.forEach(c => {
+    html += `<div class="contradictionItem"><div class="contradictionIssue">&#8596; ${esc(c.issue)}</div><div class="contradictionSides"><div class="sideBox"><div class="sideLabel">Side A</div><div class="sideStudies">${(c.side_a_studies||[]).map(s=>esc(s)).join(', ')}</div><div class="sidePosition">${esc(c.side_a_position)}</div></div><div class="sideBox"><div class="sideLabel">Side B</div><div class="sideStudies">${(c.side_b_studies||[]).map(s=>esc(s)).join(', ')}</div><div class="sidePosition">${esc(c.side_b_position)}</div></div></div>${c.likely_explanation?`<div class="contradictionExplan">${esc(c.likely_explanation)}</div>`:''}</div>`;
+  });
   html += '</div>';
 
-  // ── Gaps ──
+  // Gaps
   html += '<div class="synthPane" data-pane="gaps">';
-  if (!gaps.length) {
-    html += '<div class="synthEmpty">No specific evidence gaps identified.</div>';
-  } else {
-    html += '<ul class="gapList">' + gaps.map(g => `<li class="gapItem"><span class="gapIcon">&#9675;</span><span>${esc(g)}</span></li>`).join('') + '</ul>';
-  }
+  if (!gaps.length) { html += '<div class="synthEmpty">No specific evidence gaps identified.</div>'; }
+  else html += '<ul class="gapList">' + gaps.map(g=>`<li class="gapItem"><span class="gapIcon">&#9675;</span><span>${esc(g)}</span></li>`).join('') + '</ul>';
   html += '</div>';
 
-  // ── Steel-man ──
+  // Steel-man
   html += '<div class="synthPane" data-pane="steelman">';
-  if (data.steel_man) {
-    html += `<div class="steelManLabel">Strongest counter-argument to the weighted conclusion</div><div class="steelManBox">${esc(data.steel_man)}</div>`;
-  } else {
-    html += '<div class="synthEmpty">No counter-argument generated.</div>';
-  }
+  if (data.steel_man) html += `<div class="steelManLabel">Strongest counter-argument to the weighted conclusion</div><div class="steelManBox">${esc(data.steel_man)}</div>`;
+  else html += '<div class="synthEmpty">No counter-argument generated.</div>';
   html += '</div>';
 
-  // ── Weighting ──
+  // Weighting
   if (showWeighting) {
-    html += `<div class="synthPane" data-pane="weighting">
-      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Meta-analyses carry the most weight; expert opinions the least. Papers published within 5 years receive a 10% recency bonus.</div>
-      <table class="weightTable">
-        <thead><tr><th>Paper</th><th>Type</th><th>Year</th><th>Score</th><th>Weight %</th></tr></thead>
-        <tbody>${weighting.map(w => `<tr>
-          <td style="max-width:260px;">${esc(w.study_title)}</td>
-          <td>${esc(w.study_type || '&#8212;')}</td>
-          <td>${w.year || '&#8212;'}${w.recency_bonus ? ' <span class="badge green" style="font-size:9px;padding:1px 5px;">&#9733;</span>' : ''}</td>
-          <td><strong>${w.final_score}</strong></td>
-          <td><div style="display:flex;align-items:center;gap:6px;"><div class="weightBarTrack" style="width:60px;"><div class="weightBarFill" style="width:${w.weight_pct}%"></div></div><span style="font-size:11px;color:var(--subtle);">${w.weight_pct}%</span></div></td>
-        </tr>`).join('')}</tbody>
-      </table>
-    </div>`;
+    html += `<div class="synthPane" data-pane="weighting"><div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Meta-analyses carry the most weight. Papers within 5 years get a 10% recency bonus.</div><table class="weightTable"><thead><tr><th>Paper</th><th>Type</th><th>Year</th><th>Score</th><th>Weight %</th></tr></thead><tbody>${weighting.map(w=>`<tr><td style="max-width:220px;">${esc(w.study_title)}</td><td>${esc(w.study_type||'&#8212;')}</td><td>${w.year||'&#8212;'}${w.recency_bonus?' <span class="badge green" style="font-size:9px;padding:1px 5px;">&#9733;</span>':''}</td><td><strong>${w.final_score}</strong></td><td><div style="display:flex;align-items:center;gap:6px;"><div class="weightBarTrack" style="width:50px;"><div class="weightBarFill" style="width:${w.weight_pct}%"></div></div><span style="font-size:11px;color:var(--subtle);">${w.weight_pct}%</span></div></td></tr>`).join('')}</tbody></table></div>`;
   }
 
-  // ── Citations (cross-paper only) ──
+  // Citations (cross-paper only)
   if (mode === 'cross_paper') {
-    html += `<div class="synthPane" data-pane="citations">
-      <div class="citationFormatRow">
-        <label>Format</label>
-        <select id="citationFormat">
-          <option value="harvard" selected>Harvard</option>
-          <option value="apa">APA</option>
-          <option value="vancouver">Vancouver</option>
-          <option value="chicago">Chicago</option>
-          <option value="mla">MLA</option>
-          <option value="bibtex">BibTeX</option>
-        </select>
-        <button class="btn sm primary" id="generateCitationsBtn">&#128196; Generate</button>
-      </div>
-      <div class="copyAllRow" id="copyAllRow" style="display:none;">
-        <button class="btn sm ghost" id="copyAllCitationsBtn">Copy all</button>
-      </div>
-      <div class="citationList" id="citationList">
-        <div class="synthEmpty">Choose a format and click Generate.</div>
-      </div>
-    </div>`;
+    html += `<div class="synthPane" data-pane="citations"><div class="citationFormatRow"><label>Format</label><select id="citationFormat"><option value="harvard" selected>Harvard</option><option value="apa">APA</option><option value="vancouver">Vancouver</option><option value="chicago">Chicago</option><option value="mla">MLA</option><option value="bibtex">BibTeX</option></select><button class="btn sm primary" id="generateCitationsBtn">&#128196; Generate</button></div><div class="copyAllRow" id="copyAllRow" style="display:none;"><button class="btn sm ghost" id="copyAllCitationsBtn">Copy all</button></div><div class="citationList" id="citationList"><div class="synthEmpty">Choose a format and click Generate.</div></div></div>`;
   }
 
-  // ── Papers used (subject query) ──
+  // Papers used
   if (showPapers) {
-    html += `<div class="synthPane" data-pane="papers">
-      <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">Papers retrieved from the literature and used in this synthesis.</div>
-      <div class="papersUsedGrid">
-        ${papersUsed.map(p => `<div class="paperUsedCard">
-          <div class="paperUsedTitle">${esc(p.title)}</div>
-          <div class="paperUsedMeta">
-            ${p.year ? p.year + ' &middot; ' : ''}${esc(p.source || '')}${p.study_type && p.study_type !== 'unknown' ? ' &middot; ' + esc(p.study_type) : ''}
-            ${p.doi ? `<br><a href="https://doi.org/${esc(p.doi)}" target="_blank" style="color:var(--brass2);font-size:10.5px;">DOI &#8599;</a>` : ''}
-          </div>
-        </div>`).join('')}
-      </div>
-    </div>`;
+    html += `<div class="synthPane" data-pane="papers"><div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">Papers retrieved and used in this synthesis.</div><div class="papersUsedGrid">${papersUsed.map(p=>`<div class="paperUsedCard"><div class="paperUsedTitle">${esc(p.title)}</div><div class="paperUsedMeta">${p.year?p.year+' &middot; ':''}${esc(p.source||'')}${p.study_type&&p.study_type!=='unknown'?' &middot; '+esc(p.study_type):''}${p.doi?`<br><a href="https://doi.org/${esc(p.doi)}" target="_blank" style="color:var(--brass2);font-size:10.5px;">DOI &#8599;</a>`:''}</div></div>`).join('')}</div></div>`;
   }
 
   html += '</div>';
@@ -685,76 +831,47 @@ function renderResults(data, mode, query) {
     };
   });
 
-  // Wire fresh analysis button
+  // Fresh analysis
   const rerunBtn = document.getElementById('rerunBtn');
-  if (rerunBtn) {
-    rerunBtn.onclick = () => runAnalysis(true);
-  }
+  if (rerunBtn) rerunBtn.onclick = () => runAnalysis(true);
 
-  // Wire references quick-jump button in header
+  // Jump to citations
   const jumpCiteBtn = document.getElementById('jumpCitationsBtn');
   if (jumpCiteBtn) {
     jumpCiteBtn.onclick = () => {
       document.querySelectorAll('.synthTab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.synthPane').forEach(p => p.classList.remove('active'));
-      const tab  = document.querySelector('[data-tab="citations"]');
+      const tab = document.querySelector('[data-tab="citations"]');
       const pane = document.querySelector('[data-pane="citations"]');
-      if (tab)  tab.classList.add('active');
+      if (tab) tab.classList.add('active');
       if (pane) pane.classList.add('active');
     };
   }
 
-  // Wire citation generator
+  // Citation generator
   const genCiteBtn = document.getElementById('generateCitationsBtn');
   if (genCiteBtn) {
     genCiteBtn.onclick = async () => {
-      const fmt      = document.getElementById('citationFormat').value;
-      const list     = document.getElementById('citationList');
-      const copyRow  = document.getElementById('copyAllRow');
+      const fmt     = document.getElementById('citationFormat').value;
+      const list    = document.getElementById('citationList');
+      const copyRow = document.getElementById('copyAllRow');
       list.innerHTML = '<div class="synthEmpty">Generating references&#8230;</div>';
       try {
-        const res = await fetchJson('/ai/citations', {
-          method: 'POST',
-          body:   { study_ids: selectedStudyIds, format: fmt },
-        });
-        if (!res.citations || !res.citations.length) {
-          list.innerHTML = '<div class="synthEmpty">No citations generated &#8212; check papers have metadata.</div>';
-          return;
-        }
+        const res = await fetchJson('/ai/citations', { method: 'POST', body: { study_ids: selectedStudyIds, format: fmt } });
+        if (!res.citations || !res.citations.length) { list.innerHTML = '<div class="synthEmpty">No citations generated &#8212; check papers have metadata.</div>'; return; }
         let allText = '';
-        list.innerHTML = res.citations.map((c, idx) => {
-          allText += c.formatted + '\n\n';
-          return `<div class="citationItem">
-            <div class="citationItemTitle">${esc(c.title.slice(0, 60))}${c.title.length > 60 ? '&#8230;' : ''}</div>
-            <div class="citationText" id="citeText_${idx}">${esc(c.formatted)}</div>
-            <button class="btn sm ghost citationCopyBtn" data-cite-idx="${idx}">Copy</button>
-          </div>`;
-        }).join('');
+        list.innerHTML = res.citations.map((c, idx) => { allText += c.formatted + '\n\n'; return `<div class="citationItem"><div class="citationItemTitle">${esc(c.title.slice(0,60))}${c.title.length>60?'&#8230;':''}</div><div class="citationText" id="citeText_${idx}">${esc(c.formatted)}</div><button class="btn sm ghost citationCopyBtn" data-cite-idx="${idx}">Copy</button></div>`; }).join('');
         allText = allText.trim();
         if (copyRow) copyRow.style.display = '';
         list.querySelectorAll('[data-cite-idx]').forEach(btn => {
           btn.onclick = async () => {
             const text = document.getElementById(`citeText_${btn.dataset.citeIdx}`)?.textContent || '';
-            try {
-              await navigator.clipboard.writeText(text);
-              btn.textContent = '&#10003; Copied';
-              setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
-            } catch {
-              prompt('Copy this citation:', text);
-            }
+            try { await navigator.clipboard.writeText(text); btn.textContent = '&#10003; Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1800); }
+            catch { prompt('Copy this citation:', text); }
           };
         });
         const copyAllBtn = document.getElementById('copyAllCitationsBtn');
-        if (copyAllBtn) {
-          copyAllBtn.onclick = async () => {
-            try {
-              await navigator.clipboard.writeText(allText);
-              showToast('Copied', `All ${res.count} citations copied.`, 'success');
-            } catch {
-              prompt('Copy all citations:', allText);
-            }
-          };
-        }
+        if (copyAllBtn) copyAllBtn.onclick = async () => { try { await navigator.clipboard.writeText(allText); showToast('Copied', `All ${res.count} citations copied.`, 'success'); } catch { prompt('Copy all:', allText); } };
       } catch (e) {
         list.innerHTML = `<div class="synthEmpty" style="color:var(--bad);">${esc(e.message)}</div>`;
         showToast('Citations failed', e.message, 'error');

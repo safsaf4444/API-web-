@@ -971,14 +971,23 @@ async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = De
     papers_raw = []
     try:
         from backend.external_providers import get_provider
-        provider = get_provider(src)
+        provider   = get_provider(src)
         retrieved, _, _ = await provider.search(q=payload.query, limit=payload.max_papers)
-        papers_raw = retrieved
+        papers_raw = retrieved or []
+    except HTTPException:
+        raise  # re-raise FastAPI exceptions as-is
     except Exception as e:
-        logger.warning("Subject query auto-retrieval failed: %s", e)
+        logger.warning("Subject query auto-retrieval failed for source '%s': %s", src, e)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not retrieve papers from {src}. Try a different source (e.g. OpenAlex) or rephrase your query.",
+        )
 
     if not papers_raw:
-        raise HTTPException(status_code=404, detail="No papers found for this query. Try different keywords or a different source.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"No papers found for '{payload.query}' on {src}. Try different keywords or switch source.",
+        )
 
     # Prefer papers with useful abstracts
     papers_with_abstracts = [p for p in papers_raw if p.abstract and len(p.abstract) > 60] or papers_raw
