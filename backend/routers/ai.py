@@ -924,7 +924,20 @@ async def cross_paper_ask(payload: CrossPaperAskRequest, session: Session = Depe
         for i, s in enumerate(studies, 1)
     ])
 
-    system   = "You are a clinical evidence assistant. Answer the user's question using ONLY the provided paper abstracts. Cite which paper supports each point (e.g. 'Paper 1 found...'). If the papers do not contain enough information to answer, say so clearly. Be concise and precise."
+    system   = (
+        "You are a clinical evidence assistant with access to both the provided paper abstracts "
+        "AND your general medical knowledge.\n\n"
+        "INSTRUCTIONS:\n"
+        "1. First, check if the provided paper abstracts contain relevant information to answer the question.\n"
+        "2. If YES: answer using the papers, citing which paper supports each point (e.g. \'Paper 1 found...\').\n"
+        "3. If the papers only PARTIALLY answer the question: answer the paper-supported parts with citations, "
+        "then continue with general medical knowledge for the rest, clearly marking the transition with: "
+        "\'\u26a0\ufe0f The following is from general medical knowledge, not the selected papers:\'\n"
+        "4. If the papers do NOT contain the answer: STILL answer the question using your general medical "
+        "knowledge, but prefix your entire answer with: "
+        "\'\u26a0\ufe0f Not found in selected papers — answering from general medical knowledge:\'\n\n"
+        "NEVER refuse to answer. Always provide the most useful clinical response you can. Be concise and precise."
+    )
     user_msg = f"Question: {payload.question}\n\nPapers to use as context:\n{paper_ctx}"
 
     byok   = _get_byok_keys(current_user)
