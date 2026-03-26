@@ -260,6 +260,7 @@ class PaperContext(BaseModel):
 
 class AISynthesisRequest(BaseModel):
     study_ids: List[int] = Field(min_length=2, max_length=10)
+    force_rerun: bool = False  # Phase 4 cleanup: bust cache and run fresh analysis
 
 
 class ConsensusPoint(BaseModel):
@@ -303,7 +304,7 @@ class AISynthesisResponse(BaseModel):
     prompt_version: str = "4.0"
 
 
-# ---------- Phase 4: Subject Query (General Query Mode) ----------
+# ---------- Phase 4: Subject Query ----------
 
 class AISubjectQueryRequest(BaseModel):
     query: str = Field(min_length=5, max_length=500)
@@ -321,6 +322,42 @@ class AISubjectQueryResponse(BaseModel):
     gap_analysis: List[str] = []
     weighted_conclusion: Optional[str] = None
     steel_man: Optional[str] = None
-    papers_used: List[dict] = []   # [{title, year, source, study_type}]
+    papers_used: List[dict] = []
     cached: bool = False
     prompt_version: str = "4.0"
+
+
+# ---------- Phase 4 Cleanup: Cross-Paper Q&A ----------
+
+class CrossPaperAskRequest(BaseModel):
+    """Ask a question answered using only the specified saved papers as context."""
+    study_ids: List[int] = Field(min_length=1, max_length=10)
+    question: str = Field(min_length=3, max_length=500)
+
+
+class CrossPaperAskResponse(BaseModel):
+    answer: str
+    study_ids: List[int]
+    question: str
+
+
+# ---------- Phase 4 Cleanup: Citation Formatting ----------
+
+CITATION_FORMATS = ["harvard", "apa", "vancouver", "chicago", "mla", "bibtex"]
+
+
+class CitationRequest(BaseModel):
+    study_ids: List[int] = Field(min_length=1, max_length=50)
+    format: str = Field(default="harvard")
+
+
+class CitationItem(BaseModel):
+    study_id: int
+    title: str
+    formatted: str
+
+
+class CitationResponse(BaseModel):
+    citations: List[CitationItem]
+    format: str
+    count: int
