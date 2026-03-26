@@ -336,8 +336,8 @@ function renderHistory() {
       <div class="historyItemIcon">${icon}</div>
       <div class="historyItemInfo">
         <div><span class="historyTypeBadge ${typeCls}">${typeLbl}</span></div>
-        <div class="historyItemTitle">${esc(h.title)}</div>
-        <div class="historyItemMeta">${h.paperCount} paper${h.paperCount!==1?'s':''} &middot; ${time}</div>
+        <div class="historyItemTitle" id="histTitle_${esc(h.id)}">${esc(h.title)}</div>
+        <div class="historyItemMeta">${h.paperCount} paper${h.paperCount!==1?'s':''} &middot; ${time} &middot; <span style="cursor:pointer;color:var(--brass2);font-size:9.5px;" data-rename-id="${esc(h.id)}">rename</span></div>
       </div>
       <button class="historyItemClose" data-close-id="${esc(h.id)}">&#10005;</button>
     </div>`;
@@ -355,6 +355,32 @@ function renderHistory() {
   });
   list.querySelectorAll('[data-close-id]').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); removeFromHistory(btn.dataset.closeId); });
+  });
+
+  // Rename handler
+  list.querySelectorAll('[data-rename-id]').forEach(span => {
+    span.addEventListener('click', e => {
+      e.stopPropagation();
+      const id      = span.dataset.renameId;
+      const titleEl = document.getElementById(`histTitle_${id}`);
+      if (!titleEl) return;
+      const cur = titleEl.textContent;
+      titleEl.innerHTML = `<input id="renameInput_${id}" style="font-size:12px;font-weight:600;color:var(--navy);width:100%;padding:2px 4px;border:1px solid var(--brass);border-radius:3px;" value="${cur.replace(/"/g,'&quot;')}" maxlength="60"/>`;
+      const input = document.getElementById(`renameInput_${id}`);
+      input.focus(); input.select();
+      function commit() {
+        const newTitle = input.value.trim() || cur;
+        const history  = getHistory();
+        const entry    = history.find(h => h.id === id);
+        if (entry) { entry.title = newTitle; saveHistory(history); }
+        renderHistory();
+      }
+      input.addEventListener('keydown', e2 => {
+        if (e2.key === 'Enter')  { e2.preventDefault(); commit(); }
+        if (e2.key === 'Escape') { renderHistory(); }
+      });
+      input.addEventListener('blur', commit);
+    });
   });
 }
 
