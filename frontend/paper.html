@@ -925,20 +925,82 @@ function renderCommentList(comments) {
   }
 
   let html = "";
-  for (const c of comments) {
+
+  function buildComment(c, depth) {
     const canEdit = meUser && c.author === meUser.username;
-    html += `
-      <div style="background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;" data-cwrap="${c.id}">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+    const initials = (c.author||'?').slice(0,2).toUpperCase();
+    const indent   = depth > 0 ? `margin-left:${Math.min(depth*24,72)}px;border-left:2px solid var(--line2);padding-left:10px;` : '';
+    let inner = `
+      <div style="background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;${indent}" data-cwrap="${c.id}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--navy2);color:var(--cream);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${escapeHtml(initials)}</div>
           <b style="font-size:12.5px;color:var(--navy);">${escapeHtml(c.author)}</b>
           <span style="font-size:11px;color:var(--subtle);">${escapeHtml(new Date(c.created_at).toLocaleString())}</span>
         </div>
-        <div style="font-size:13px;margin-top:6px;color:var(--text2);line-height:1.6;" data-body="${c.id}">${escapeHtml(c.body)}</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.65;" data-body="${c.id}">${escapeHtml(c.body)}</div>
         ${commentActionsHtml(canEdit, c.id)}
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+          <button type="button" class="btn sm ghost" style="padding:3px 8px;font-size:11.5px;" data-upvote="${c.id}">▲ <span id="uv_${c.id}">${c.upvotes||0}</span></button>
+          <button type="button" class="btn sm ghost" style="padding:3px 8px;font-size:11.5px;" data-reply-to="${c.id}">Reply</button>
+        </div>
+        <div id="replyForm_${c.id}" style="display:none;margin-top:8px;">
+          <textarea id="replyBox_${c.id}" style="min-height:52px;font-size:13px;" placeholder="Reply to ${escapeHtml(c.author)}… use @username to mention"></textarea>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button type="button" class="btn primary sm" data-submit-reply="${c.id}">Post</button>
+            <button type="button" class="btn sm" data-cancel-reply="${c.id}">Cancel</button>
+          </div>
+        </div>
         <div style="font-size:12px;min-height:14px;margin-top:4px;" data-msg="${c.id}"></div>
       </div>`;
+    if (c.replies && c.replies.length) {
+      inner += c.replies.map(r => buildComment(r, depth+1)).join('');
+    }
+    return inner;
   }
-  list.innerHTML = html;
+
+  list.innerHTML = comments.map(c => buildComment(c, 0)).join('');
+
+  // Wire upvotes
+  list.querySelectorAll('[data-upvote]').forEach(btn => {
+    btn.onclick = async () => {
+      if (!getToken()) { showToast('Sign in', '', 'error'); return; }
+      const cid = btn.dataset.upvote;
+      try {
+        const res = await fetchJson(`/comments/${cid}/upvote`, { method: 'POST' });
+        const el = document.getElementById(`uv_${cid}`);
+        if (el) el.textContent = res.upvotes ?? '';
+        btn.style.color = res.upvoted ? 'var(--good)' : '';
+      } catch {}
+    };
+  });
+
+  // Wire reply-to
+  list.querySelectorAll('[data-reply-to]').forEach(btn => {
+    btn.onclick = () => {
+      const form = document.getElementById(`replyForm_${btn.dataset.replyTo}`);
+      if (form) form.style.display = form.style.display === 'none' ? '' : 'none';
+    };
+  });
+  list.querySelectorAll('[data-cancel-reply]').forEach(btn => {
+    btn.onclick = () => {
+      const form = document.getElementById(`replyForm_${btn.dataset.cancelReply}`);
+      if (form) form.style.display = 'none';
+    };
+  });
+  list.querySelectorAll('[data-submit-reply]').forEach(btn => {
+    btn.onclick = async () => {
+      const pid  = btn.dataset.submitReply;
+      const body = document.getElementById(`replyBox_${pid}`)?.value?.trim();
+      if (!body) return;
+      try {
+        if (!savedStudy) await ensureSavedStudy();
+        await fetchJson(`/studies/${savedStudy.id}/comments`, { method:'POST', body:{ body, parent_id: parseInt(pid) }});
+        document.getElementById(`replyBox_${pid}`).value = '';
+        document.getElementById(`replyForm_${pid}`).style.display = 'none';
+        await showThread(true);
+      } catch(err) { showToast('Reply failed', err.message, 'error'); }
+    };
+  });
 
   requestAnimationFrame(() => {
     panel.scrollTop = wasNearBottom

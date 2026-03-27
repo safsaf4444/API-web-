@@ -1338,3 +1338,91 @@ button.sm, .btn.sm { padding: 6px 12px; font-size: 12px; border-radius: var(--r-
 
 /* ══ Selection ══════════════════════════════════════════════ */
 ::selection { background: rgba(201,168,124,.25); color: var(--navy); }
+
+
+/* ══ Phase 4: Synthesis ═════════════════════════════════════ */
+
+/* Synthesis loading spinner */
+@keyframes synthSpin { to { transform: rotate(360deg); } }
+
+/* Synthesis tab active badge */
+.synthTabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26,34,51,.08);
+  border-radius: 99px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  margin-left: 4px;
+  color: var(--muted);
+}
+
+.synthTab.active .synthTabBadge {
+  background: rgba(245,240,232,.18);
+  color: rgba(245,240,232,.8);
+}
+
+/* Weight bar in synthesis weighting table */
+.synthWeightBar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--parchment);
+  overflow: hidden;
+  display: inline-block;
+  width: 80px;
+  vertical-align: middle;
+}
+
+.synthWeightFill {
+  height: 100%;
+  background: var(--brass);
+  border-radius: 3px;
+}
+
+/* Synthesis nav item active state */
+.sideBtn[href="synthesis.html"].active {
+  color: var(--brass);
+  background: rgba(201,168,124,.12);
+  border-color: rgba(201,168,124,.25);
+}
+
+/* ══ Phase 4b: Notebook ═════════════════════════════════════ */
+.notebookShell { display:grid; grid-template-columns:300px 1fr; height:calc(100vh - 76px); margin:-28px -28px -40px; }
+.nbPageCard { padding:12px 14px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--surface); margin-bottom:6px; cursor:pointer; transition:all .14s; }
+.nbPageCard:hover { border-color:rgba(201,168,124,.3); box-shadow:var(--shadow-xs); }
+.nbPageCard.active { border-color:var(--brass); background:linear-gradient(135deg,var(--surface),rgba(201,168,124,.06)); }
+.nbPageCard[data-color="yellow"] { border-left:3px solid #E8C84A; }
+.nbPageCard[data-color="green"]  { border-left:3px solid var(--good); }
+.nbPageCard[data-color="blue"]   { border-left:3px solid #4A7EC4; }
+.nbPageCard[data-color="pink"]   { border-left:3px solid #C44A7E; }
+
+/* ══ Phase 4b: Community ════════════════════════════════════ */
+.upvoteBtn { width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:var(--surface2); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--muted); font-size:13px; transition:all .14s; padding:0; box-shadow:none; }
+.upvoteBtn:hover { border-color:rgba(201,168,124,.5); color:var(--brass2); background:rgba(201,168,124,.1); transform:none; }
+.upvoteBtn.upvoted { background:var(--navy); border-color:var(--navy); color:var(--cream); }
+.postTypeBadge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:var(--r-pill); font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; margin-bottom:6px; border:1px solid; }
+.postTypeBadge.question   { background:rgba(36,48,68,.08);   color:var(--navy3);  border-color:rgba(36,48,68,.15); }
+.postTypeBadge.discussion { background:rgba(201,168,124,.12); color:var(--coffee); border-color:rgba(201,168,124,.25); }
+.postTypeBadge.case_study { background:rgba(61,122,74,.08);  color:var(--good);   border-color:rgba(61,122,74,.2); }
+.postTypeBadge.resource   { background:rgba(196,134,42,.08); color:var(--warn);   border-color:rgba(196,134,42,.2); }
+.sortTab { padding:6px 14px; border-radius:var(--r-pill); border:none; background:transparent; box-shadow:none; font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; transition:all .14s; }
+.sortTab.active { background:var(--navy); color:var(--cream); box-shadow:var(--shadow-xs); }
+.tagChip { padding:4px 12px; border-radius:var(--r-pill); border:1px solid var(--line); background:var(--surface); font-size:11.5px; font-weight:600; color:var(--muted); cursor:pointer; transition:all .14s; }
+.tagChip.active { background:var(--navy); border-color:var(--navy); color:var(--cream); }
+.comment::before { content:''; position:absolute; left:13px; top:36px; bottom:0; width:1px; background:var(--line); }
+.commentAvatar { width:26px; height:26px; border-radius:50%; background:var(--navy2); color:var(--cream); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:var(--font-display); }
+.commentActionBtn { font-size:11.5px; font-weight:600; color:var(--muted); background:none; border:none; padding:2px 4px; cursor:pointer; border-radius:var(--r-xs); box-shadow:none; display:flex; align-items:center; gap:4px; transition:color .12s; }
+.commentActionBtn:hover { color:var(--navy); background:var(--surface2); transform:none; }
+.commentActionBtn.upvoted { color:var(--good); }
+
+/* ══ Phase 4b: Landing page widgets ════════════════════════ */
+.potdCard { background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%); border-radius:var(--r); padding:20px; box-shadow:var(--shadow-sm); }
+.widgetCard { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow-xs); overflow:hidden; }
+.widgetHeader { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; }
+.widgetTitle { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--subtle); }
+.trendingItem { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line2); cursor:pointer; transition:background .12s; }
+.trendingItem:last-child { border-bottom:none; }
+.communityPostRow { padding:12px 0; border-bottom:1px solid var(--line2); cursor:pointer; transition:all .12s; }
+.communityPostRow:last-child { border-bottom:none; }

@@ -7,27 +7,23 @@ from sqlmodel import SQLModel, Session, create_engine
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
 
 if DATABASE_URL.startswith("postgresql"):
-    engine = create_engine(
-        DATABASE_URL,
-        poolclass=NullPool,
-    )
+    engine = create_engine(DATABASE_URL, poolclass=NullPool)
 else:
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},
-    )
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
 
 def _run_migrations():
-    """Add any new columns/tables that SQLModel.metadata.create_all won't handle on existing tables."""
     import logging
     logger = logging.getLogger("uvicorn")
 
     column_migrations = [
-        # (table, column, type)
-        ("airesult", "share_token", "VARCHAR"),
-        ("study", "citation_count", "INTEGER"),
-        ("study", "is_retracted", "BOOLEAN DEFAULT FALSE"),
+        # existing
+        ("airesult",  "share_token",  "VARCHAR"),
+        ("study",     "citation_count", "INTEGER"),
+        ("study",     "is_retracted",   "BOOLEAN DEFAULT FALSE"),
+        # phase 4b: comment upvotes + updated_at
+        ("comment",   "upvotes",        "INTEGER DEFAULT 0"),
+        ("comment",   "updated_at",     "TIMESTAMP"),
     ]
 
     with engine.connect() as conn:
@@ -45,7 +41,9 @@ def _run_migrations():
                     cols = [row[1] for row in result]
                     if column not in cols:
                         conn.execute(
-                            __import__("sqlalchemy").text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {col_type}')
+                            __import__("sqlalchemy").text(
+                                f'ALTER TABLE "{table}" ADD COLUMN "{column}" {col_type}'
+                            )
                         )
                         conn.commit()
             except Exception as e:

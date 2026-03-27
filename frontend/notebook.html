@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Notebook — Seren</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .notebookShell {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 0;
+      height: calc(100vh - 76px);
+      margin: -28px -28px -40px;
+    }
+
+    /* ── Left panel ── */
+    .notebookList {
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--cream3);
+    }
+
+    .notebookListHeader {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .notebookListHeader h2 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--navy);
+      margin: 0;
+    }
+
+    .notebookSearch {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-pill);
+      padding: 7px 12px;
+    }
+    .notebookSearch input {
+      border: 0; outline: none; background: transparent;
+      font-size: 12.5px; color: var(--text); width: 100%;
+    }
+
+    .notebookActions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .notebookPages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .nbPageCard {
+      padding: 12px 14px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--line);
+      background: var(--surface);
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: all .14s;
+      position: relative;
+    }
+    .nbPageCard:hover { border-color: rgba(201,168,124,.3); box-shadow: var(--shadow-xs); }
+    .nbPageCard.active {
+      border-color: var(--brass);
+      background: linear-gradient(135deg, var(--surface), rgba(201,168,124,.06));
+      box-shadow: var(--shadow-sm);
+    }
+
+    .nbPageCard[data-color="yellow"] { border-left: 3px solid #E8C84A; }
+    .nbPageCard[data-color="green"]  { border-left: 3px solid var(--good); }
+    .nbPageCard[data-color="blue"]   { border-left: 3px solid #4A7EC4; }
+    .nbPageCard[data-color="pink"]   { border-left: 3px solid #C44A7E; }
+
+    .nbPageTitle {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--navy);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .nbPageMeta {
+      font-size: 11px;
+      color: var(--subtle);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .nbPinBadge {
+      font-size: 10px;
+      color: var(--brass2);
+      font-weight: 700;
+    }
+
+    .nbGroupLabel {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      padding: 12px 6px 4px;
+    }
+
+    /* ── Right panel ── */
+    .notebookEditor {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .notebookEditorHeader {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .nbEditorTitle {
+      flex: 1;
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--navy);
+      border: none;
+      outline: none;
+      background: transparent;
+      padding: 0;
+      min-width: 0;
+    }
+    .nbEditorTitle::placeholder { color: var(--subtle); font-style: italic; }
+
+    .notebookEditorBody {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .nbEditorContent {
+      flex: 1;
+      font-size: 14px;
+      line-height: 1.75;
+      color: var(--text2);
+      resize: none;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: var(--font-body);
+      min-height: 300px;
+    }
+    .nbEditorContent::placeholder { color: var(--subtle); font-style: italic; }
+
+    .nbSaveStatus {
+      font-size: 11px;
+      color: var(--subtle);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nbEditorFooter {
+      padding: 12px 20px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      background: var(--cream3);
+    }
+
+    /* Colour picker */
+    .nbColorPicker {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .nbColorDot {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform .14s;
+    }
+    .nbColorDot:hover { transform: scale(1.2); }
+    .nbColorDot.active { border-color: var(--navy); }
+    .nbColorDot[data-color="default"] { background: var(--parchment); }
+    .nbColorDot[data-color="yellow"]  { background: #E8C84A; }
+    .nbColorDot[data-color="green"]   { background: var(--good); }
+    .nbColorDot[data-color="blue"]    { background: #4A7EC4; }
+    .nbColorDot[data-color="pink"]    { background: #C44A7E; }
+
+    /* ── Highlights section ── */
+    .highlightsSection {
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+    }
+
+    .highlightsSectionHeader {
+      padding: 10px 14px;
+      background: var(--cream3);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .highlightsSectionTitle {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--subtle);
+    }
+
+    .highlightChip {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line2);
+      transition: background .12s;
+    }
+    .highlightChip:last-child { border-bottom: none; }
+    .highlightChip:hover { background: var(--cream3); }
+
+    .highlightColorBar {
+      width: 3px;
+      flex-shrink: 0;
+      border-radius: 3px;
+      min-height: 36px;
+      margin-top: 2px;
+    }
+    .highlightColorBar[data-color="yellow"] { background: #E8C84A; }
+    .highlightColorBar[data-color="green"]  { background: var(--good); }
+    .highlightColorBar[data-color="blue"]   { background: #4A7EC4; }
+    .highlightColorBar[data-color="pink"]   { background: #C44A7E; }
+    .highlightColorBar[data-color="default"]{ background: var(--brass); }
+
+    .highlightText {
+      font-size: 12.5px;
+      color: var(--text2);
+      line-height: 1.55;
+      flex: 1;
+    }
+
+    .highlightAnnotation {
+      font-size: 11.5px;
+      color: var(--muted);
+      font-style: italic;
+      margin-top: 3px;
+    }
+
+    .nbEmptyState {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 12px;
+      color: var(--subtle);
+      text-align: center;
+      padding: 40px;
+    }
+    .nbEmptyState svg { opacity: .3; }
+    .nbEmptyState h3 {
+      font-size: 16px;
+      color: var(--navy);
+      font-family: var(--font-display);
+      margin: 0;
+    }
+    .nbEmptyState p { font-size: 13px; max-width: 280px; line-height: 1.6; margin: 0; }
+
+    /* Compile modal */
+    .compileModal {
+      position: fixed; inset: 0;
+      background: rgba(12,17,23,.5);
+      backdrop-filter: blur(8px);
+      display: none;
+      place-items: center;
+      z-index: 5000;
+    }
+    .compileModal.open { display: grid; }
+    .compileModalCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-lg);
+      padding: 24px;
+      width: min(500px, calc(100vw - 40px));
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .compileModalCard h3 { margin: 0 0 16px; font-family: var(--font-display); font-size: 18px; }
+    .compilePageRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line2);
+    }
+
+    @media (max-width: 700px) {
+      .notebookShell { grid-template-columns: 1fr; }
+      .notebookList { display: none; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="notebookShell">
+
+    <!-- ── Left: page list ── -->
+    <div class="notebookList">
+      <div class="notebookListHeader">
+        <h2>Notebook</h2>
+        <div class="notebookSearch">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--subtle)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input id="nbSearchInput" placeholder="Search notes…"/>
+        </div>
+        <div class="notebookActions">
+          <button class="btn primary sm" id="newPageBtn">+ New note</button>
+          <button class="btn sm" id="newExternalBtn">External</button>
+          <button class="btn sm" id="compileBtn">Compile ↓</button>
+        </div>
+      </div>
+
+      <div class="notebookPages" id="notebookPages">
+        <div class="nbGroupLabel">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ── Right: editor ── -->
+    <div class="notebookEditor" id="notebookEditor">
+      <div class="nbEmptyState" id="nbEmpty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H2"/><path d="M2 7h4"/><path d="M2 12h4"/><path d="M2 17h4"/><path d="M6 3v18"/></svg>
+        <h3>Your notebook</h3>
+        <p>Notes from your papers live here. Click a note to read and edit, or create a new one.</p>
+        <button class="btn primary" id="nbEmptyNewBtn">Create first note</button>
+      </div>
+
+      <div id="nbEditorContent" style="display:none; flex:1; display:none; flex-direction:column; overflow:hidden;">
+        <div class="notebookEditorHeader">
+          <input class="nbEditorTitle" id="nbEditorTitle" placeholder="Note title…" maxlength="200"/>
+          <span class="nbSaveStatus" id="nbSaveStatus"></span>
+          <button class="btn sm ghost" id="nbPinBtn" title="Pin note">📌</button>
+          <button class="btn sm ghost" id="nbOpenPaperBtn" title="Open source paper" style="display:none;">Open paper →</button>
+          <button class="btn sm danger" id="nbDeleteBtn">Delete</button>
+        </div>
+
+        <div class="notebookEditorBody" id="notebookEditorBody">
+          <textarea class="nbEditorContent" id="nbEditorTextarea" placeholder="Write your notes here…"></textarea>
+
+          <!-- Highlights from paper -->
+          <div id="highlightsSection" style="display:none;">
+            <div class="highlightsSection">
+              <div class="highlightsSectionHeader">
+                <span class="highlightsSectionTitle">Highlights from paper</span>
+                <button class="btn sm ghost" id="addHighlightBtn">+ Add highlight</button>
+              </div>
+              <div id="highlightsList"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nbEditorFooter">
+          <div class="nbColorPicker" id="nbColorPicker">
+            <span style="font-size:11px;color:var(--subtle);font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Colour</span>
+            <span class="nbColorDot active" data-color="default" title="Default"></span>
+            <span class="nbColorDot" data-color="yellow" title="Yellow"></span>
+            <span class="nbColorDot" data-color="green" title="Green"></span>
+            <span class="nbColorDot" data-color="blue" title="Blue"></span>
+            <span class="nbColorDot" data-color="pink" title="Pink"></span>
+          </div>
+          <div style="flex:1;"></div>
+          <span id="nbWordCount" style="font-size:11px;color:var(--subtle);"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compile modal -->
+  <div class="compileModal" id="compileModal">
+    <div class="compileModalCard">
+      <h3>Compile to document</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Select pages to combine into a single exportable document.</p>
+      <div id="compilePageList"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button class="btn sm" id="compileCancelBtn">Cancel</button>
+        <button class="btn primary sm" id="compileRunBtn">Export text</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add highlight modal -->
+  <div class="compileModal" id="highlightModal">
+    <div class="compileModalCard">
+      <h3>Add highlight</h3>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label>Selected text</label>
+          <textarea id="hlText" style="min-height:80px;" placeholder="Paste the text you want to highlight…"></textarea>
+        </div>
+        <div>
+          <label>Annotation (optional)</label>
+          <input id="hlAnnotation" placeholder="Your note about this highlight…"/>
+        </div>
+        <div>
+          <label>Colour</label>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            ${['yellow','green','blue','pink'].map(c =>
+              `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;">
+                <input type="radio" name="hlColor" value="${c}" ${c==='yellow'?'checked':''}/>
+                <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${c==='yellow'?'#E8C84A':c==='green'?'#3D7A4A':c==='blue'?'#4A7EC4':'#C44A7E'};"></span>
+                ${c.charAt(0).toUpperCase()+c.slice(1)}
+              </label>`
+            ).join('')}
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+          <button class="btn sm" id="hlCancelBtn">Cancel</button>
+          <button class="btn primary sm" id="hlSaveBtn">Save highlight</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script>
+if (!window.__NOTEBOOK_INIT__) {
+window.__NOTEBOOK_INIT__ = true;
+
+requireAuthOrRedirect();
+
+let pages = [];
+let currentPageId = null;
+let currentPage   = null;
+let saveTimer     = null;
+let highlights    = [];
+
+const qs = id => document.getElementById(id);
+
+function timeAgo(dt) {
+  const diff = (Date.now() - new Date(dt).getTime()) / 1000;
+  if (diff < 60)    return 'just now';
+  if (diff < 3600)  return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+function wordCount(text) {
+  return (text || '').trim().split(/\s+/).filter(Boolean).length;
+}
+
+// ── Load pages ──────────────────────────────────────────────
+async function loadPages(q = '') {
+  try {
+    const url = '/notebooks' + (q ? `?q=${encodeURIComponent(q)}` : '');
+    pages = await fetchJson(url);
+    renderPageList();
+  } catch(e) {
+    showToast('Error', e.message, 'error');
+  }
+}
+
+function renderPageList() {
+  const container = qs('notebookPages');
+  if (!pages.length) {
+    container.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:var(--subtle);">No notes yet. Create your first note above.</div>';
+    return;
+  }
+
+  const pinned   = pages.filter(p => p.is_pinned);
+  const unpinned = pages.filter(p => !p.is_pinned);
+  const papersLinked = unpinned.filter(p => p.study_id);
+  const external = unpinned.filter(p => !p.study_id);
+
+  let html = '';
+
+  if (pinned.length) {
+    html += `<div class="nbGroupLabel">📌 Pinned</div>`;
+    html += pinned.map(p => renderPageCard(p)).join('');
+  }
+  if (papersLinked.length) {
+    html += `<div class="nbGroupLabel">From papers</div>`;
+    html += papersLinked.map(p => renderPageCard(p)).join('');
+  }
+  if (external.length) {
+    html += `<div class="nbGroupLabel">External notes</div>`;
+    html += external.map(p => renderPageCard(p)).join('');
+  }
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.nbPageCard').forEach(card => {
+    card.addEventListener('click', () => openPage(parseInt(card.dataset.id)));
+  });
+}
+
+function renderPageCard(p) {
+  const active = currentPageId === p.id ? ' active' : '';
+  const snippet = (p.content || '').slice(0, 60).replace(/\n/g, ' ');
+  return `
+    <div class="nbPageCard${active}" data-id="${p.id}" data-color="${esc(p.color || 'default')}">
+      <div class="nbPageTitle">
+        ${p.is_pinned ? '<span class="nbPinBadge">📌 </span>' : ''}${esc(p.title || 'Untitled')}
+      </div>
+      <div class="nbPageMeta">
+        ${p.study_title ? `<span style="color:var(--brass2);font-size:10px;">📄 ${esc(p.study_title.slice(0,30))}${p.study_title.length>30?'…':''}</span>` : '<span>External note</span>'}
+        <span>${timeAgo(p.updated_at)}</span>
+      </div>
+      ${snippet ? `<div style="font-size:11.5px;color:var(--subtle);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(snippet)}</div>` : ''}
+    </div>`;
+}
+
+// ── Open a page ─────────────────────────────────────────────
+async function openPage(id) {
+  currentPageId = id;
+  currentPage   = pages.find(p => p.id === id) || null;
+
+  if (!currentPage) {
+    try { currentPage = await fetchJson(`/notebooks/${id}`); } catch {}
+  }
+  if (!currentPage) return;
+
+  qs('nbEmpty').style.display      = 'none';
+  const editorContent = qs('nbEditorContent');
+  editorContent.style.display      = 'flex';
+  editorContent.style.flexDirection = 'column';
+  editorContent.style.overflow      = 'hidden';
+  editorContent.style.flex          = '1';
+
+  qs('nbEditorTitle').value    = currentPage.title || '';
+  qs('nbEditorTextarea').value = currentPage.content || '';
+  qs('nbPinBtn').textContent   = currentPage.is_pinned ? '📌 Pinned' : '📌';
+  qs('nbWordCount').textContent = `${wordCount(currentPage.content)} words`;
+
+  // Show "open paper" button if linked to a study
+  const openBtn = qs('nbOpenPaperBtn');
+  if (currentPage.study_id) {
+    openBtn.style.display = '';
+    openBtn.onclick = () => {
+      sessionStorage.setItem('open_study_id', String(currentPage.study_id));
+      location.href = 'paper.html';
+    };
+  } else {
+    openBtn.style.display = 'none';
+  }
+
+  // Set colour picker
+  document.querySelectorAll('.nbColorDot').forEach(dot => {
+    dot.classList.toggle('active', dot.dataset.color === (currentPage.color || 'default'));
+  });
+
+  // Load highlights if paper-linked
+  if (currentPage.study_id) {
+    await loadHighlights(currentPage.study_id);
+  } else {
+    qs('highlightsSection').style.display = 'none';
+  }
+
+  renderPageList();
+}
+
+// ── Auto-save ────────────────────────────────────────────────
+function scheduleSave() {
+  if (!currentPageId) return;
+  qs('nbSaveStatus').innerHTML = `<span style="color:var(--warn);">Saving…</span>`;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 900);
+}
+
+async function doSave() {
+  if (!currentPageId) return;
+  const title   = qs('nbEditorTitle').value.trim() || 'Untitled';
+  const content = qs('nbEditorTextarea').value;
+  try {
+    const updated = await fetchJson(`/notebooks/${currentPageId}`, {
+      method: 'PATCH',
+      body: { title, content },
+    });
+    // Update in pages array
+    const idx = pages.findIndex(p => p.id === currentPageId);
+    if (idx !== -1) pages[idx] = { ...pages[idx], ...updated };
+    currentPage = { ...currentPage, title, content };
+    qs('nbSaveStatus').innerHTML = `<span style="color:var(--good);">✓ Saved</span>`;
+    qs('nbWordCount').textContent = `${wordCount(content)} words`;
+    setTimeout(() => { if (qs('nbSaveStatus')) qs('nbSaveStatus').textContent = ''; }, 2000);
+    renderPageList();
+  } catch(e) {
+    qs('nbSaveStatus').innerHTML = `<span style="color:var(--bad);">Save failed</span>`;
+  }
+}
+
+// ── Highlights ───────────────────────────────────────────────
+async function loadHighlights(studyId) {
+  try {
+    highlights = await fetchJson(`/notebooks/highlights/${studyId}`);
+    renderHighlights();
+    qs('highlightsSection').style.display = highlights.length ? '' : 'none';
+  } catch {
+    qs('highlightsSection').style.display = 'none';
+  }
+}
+
+function renderHighlights() {
+  if (!highlights.length) { qs('highlightsList').innerHTML = ''; return; }
+  qs('highlightsSection').style.display = '';
+  qs('highlightsList').innerHTML = highlights.map(h => `
+    <div class="highlightChip">
+      <div class="highlightColorBar" data-color="${esc(h.color || 'default')}"></div>
+      <div style="flex:1;min-width:0;">
+        <div class="highlightText">"${esc(h.selected_text)}"</div>
+        ${h.annotation ? `<div class="highlightAnnotation">→ ${esc(h.annotation)}</div>` : ''}
+        <div style="font-size:10.5px;color:var(--subtle);margin-top:4px;">${timeAgo(h.created_at)}</div>
+      </div>
+      <button class="btn sm ghost" style="padding:4px 8px;font-size:11px;" data-del-hl="${h.id}">✕</button>
+    </div>`).join('');
+
+  qs('highlightsList').querySelectorAll('[data-del-hl]').forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        await fetchJson(`/notebooks/highlights/${btn.dataset.delHl}`, { method: 'DELETE' });
+        highlights = highlights.filter(h => String(h.id) !== btn.dataset.delHl);
+        renderHighlights();
+      } catch(e) { showToast('Error', e.message, 'error'); }
+    };
+  });
+}
+
+// ── Create page ──────────────────────────────────────────────
+async function createPage(studyId = null) {
+  try {
+    const page = await fetchJson('/notebooks', {
+      method: 'POST',
+      body: { title: 'Untitled', content: '', study_id: studyId },
+    });
+    pages.unshift(page);
+    renderPageList();
+    openPage(page.id);
+    setTimeout(() => qs('nbEditorTitle').focus(), 50);
+  } catch(e) { showToast('Error', e.message, 'error'); }
+}
+
+// ── Wire events ──────────────────────────────────────────────
+qs('newPageBtn').onclick      = () => createPage();
+qs('nbEmptyNewBtn').onclick   = () => createPage();
+qs('newExternalBtn').onclick  = () => createPage(null);
+
+qs('nbEditorTitle').addEventListener('input', scheduleSave);
+qs('nbEditorTextarea').addEventListener('input', scheduleSave);
+
+qs('nbPinBtn').onclick = async () => {
+  if (!currentPageId) return;
+  const newPinned = !currentPage.is_pinned;
+  try {
+    await fetchJson(`/notebooks/${currentPageId}`, { method: 'PATCH', body: { is_pinned: newPinned } });
+    currentPage.is_pinned = newPinned;
+    const idx = pages.findIndex(p => p.id === currentPageId);
+    if (idx !== -1) pages[idx].is_pinned = newPinned;
+    qs('nbPinBtn').textContent = newPinned ? '📌 Pinned' : '📌';
+    renderPageList();
+    showToast(newPinned ? 'Pinned' : 'Unpinned', '', 'success');
+  } catch(e) { showToast('Error', e.message, 'error'); }
+};
+
+qs('nbDeleteBtn').onclick = async () => {
+  if (!currentPageId) return;
+  const ok = await confirmModal({ title: 'Delete note?', message: 'This cannot be undone.', okText: 'Delete', danger: true });
+  if (!ok) return;
+  try {
+    await fetchJson(`/notebooks/${currentPageId}`, { method: 'DELETE' });
+    pages = pages.filter(p => p.id !== currentPageId);
+    currentPageId = null;
+    currentPage   = null;
+    qs('nbEditorContent').style.display = 'none';
+    qs('nbEmpty').style.display = '';
+    renderPageList();
+    showToast('Deleted', 'Note deleted.', 'success');
+  } catch(e) { showToast('Error', e.message, 'error'); }
+};
+
+// Colour picker
+document.querySelectorAll('.nbColorDot').forEach(dot => {
+  dot.addEventListener('click', async () => {
+    if (!currentPageId) return;
+    const color = dot.dataset.color;
+    try {
+      await fetchJson(`/notebooks/${currentPageId}`, { method: 'PATCH', body: { color } });
+      document.querySelectorAll('.nbColorDot').forEach(d => d.classList.remove('active'));
+      dot.classList.add('active');
+      const idx = pages.findIndex(p => p.id === currentPageId);
+      if (idx !== -1) pages[idx].color = color;
+      if (currentPage) currentPage.color = color;
+      renderPageList();
+    } catch {}
+  });
+});
+
+// Search
+let searchTimer = null;
+qs('nbSearchInput').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => loadPages(e.target.value), 300);
+});
+
+// ── Compile modal ────────────────────────────────────────────
+qs('compileBtn').onclick = () => {
+  const list = qs('compilePageList');
+  list.innerHTML = pages.map(p => `
+    <div class="compilePageRow">
+      <input type="checkbox" id="cp_${p.id}" value="${p.id}" checked/>
+      <label for="cp_${p.id}" style="font-size:13px;cursor:pointer;">${esc(p.title || 'Untitled')}</label>
+      <span style="font-size:11px;color:var(--subtle);margin-left:auto;">${p.study_title ? `📄 ${p.study_title.slice(0,20)}` : 'External'}</span>
+    </div>`).join('');
+  qs('compileModal').classList.add('open');
+};
+qs('compileCancelBtn').onclick = () => qs('compileModal').classList.remove('open');
+qs('compileRunBtn').onclick = async () => {
+  const checked = Array.from(qs('compilePageList').querySelectorAll('input:checked')).map(i => parseInt(i.value));
+  if (!checked.length) { showToast('Select pages', 'Check at least one page.', 'error'); return; }
+  try {
+    const res = await fetchJson('/notebooks/compile', { method: 'POST', body: { page_ids: checked } });
+    const blob = new Blob([res.text], { type: 'text/plain' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'seren_notes.txt'; a.click();
+    URL.revokeObjectURL(url);
+    qs('compileModal').classList.remove('open');
+    showToast('Exported', `${res.page_count} pages compiled.`, 'success');
+  } catch(e) { showToast('Error', e.message, 'error'); }
+};
+
+// ── Add highlight modal ──────────────────────────────────────
+qs('addHighlightBtn').onclick = () => qs('highlightModal').classList.add('open');
+qs('hlCancelBtn').onclick     = () => qs('highlightModal').classList.remove('open');
+qs('hlSaveBtn').onclick       = async () => {
+  if (!currentPage?.study_id) return;
+  const text  = qs('hlText').value.trim();
+  const ann   = qs('hlAnnotation').value.trim();
+  const color = document.querySelector('input[name="hlColor"]:checked')?.value || 'yellow';
+  if (!text) { showToast('Required', 'Add some text to highlight.', 'error'); return; }
+  try {
+    const h = await fetchJson('/notebooks/highlights', {
+      method: 'POST',
+      body: { study_id: currentPage.study_id, selected_text: text, annotation: ann || null, color },
+    });
+    highlights.push(h);
+    renderHighlights();
+    qs('hlText').value = '';
+    qs('hlAnnotation').value = '';
+    qs('highlightModal').classList.remove('open');
+    qs('highlightsSection').style.display = '';
+    showToast('Saved', 'Highlight added.', 'success');
+  } catch(e) { showToast('Error', e.message, 'error'); }
+};
+
+// Boot
+loadPages();
+}
+</script>
+</body>
+</html>

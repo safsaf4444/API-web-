@@ -17,18 +17,18 @@ from backend.db import init_db
 from backend.routers.ai import router as ai_router
 from backend.routers.auth import router as auth_router
 from backend.routers.comments import router as comments_router
+from backend.routers.community import router as community_router
 from backend.routers.external import router as external_router
 from backend.routers.folders import router as folders_router
 from backend.routers.health import router as health_router
 from backend.routers.metrics import router as metrics_router
+from backend.routers.notebooks import router as notebooks_router
 from backend.routers.studies import router as studies_router
 
 logger = logging.getLogger("uvicorn")
 
 FRONTEND_DIR = "frontend"
 
-
-# ── DB init with retry ────────────────────────────────────────────────────────
 
 def _safe_db_init():
     for i in range(5):
@@ -43,8 +43,6 @@ def _safe_db_init():
     logger.error("❌ Database failed to connect after retries")
 
 
-# ── Production secret check ───────────────────────────────────────────────────
-
 def _check_production_secrets():
     env    = os.getenv("ENV", "dev").lower()
     secret = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -54,10 +52,8 @@ def _check_production_secrets():
         if secret == "dev-secret-change-me":
             logger.error("❌ Default SECRET_KEY detected in production!")
         if "sqlite" in db_url or not db_url:
-            logger.error("❌ Production requires a remote PostgreSQL database. SQLite not supported.")
+            logger.error("❌ Production requires a remote PostgreSQL database.")
 
-
-# ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -69,8 +65,6 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("🛑 Application shutting down")
 
-
-# ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="Seren Medical Evidence API",
@@ -118,8 +112,10 @@ app.include_router(external_router)
 app.include_router(metrics_router)
 app.include_router(health_router)
 app.include_router(ai_router)
+app.include_router(notebooks_router)   # Phase 4b
+app.include_router(community_router)   # Phase 4b
 
-# ── Static files ──────────────────────────────────────────────────────────────
+# ── Static ────────────────────────────────────────────────────────────────────
 
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
@@ -127,14 +123,10 @@ if os.path.exists(FRONTEND_DIR):
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    # Attempt to load the new SVG favicon first
-    svg_fav = os.path.join(FRONTEND_DIR, "favicon.svg")
-    if os.path.exists(svg_fav):
-        return FileResponse(svg_fav)
-        
-    ico = os.path.join(FRONTEND_DIR, "favicon.ico")
-    if os.path.exists(ico):
-        return FileResponse(ico)
+    for name in ("favicon.svg", "favicon.ico"):
+        p = os.path.join(FRONTEND_DIR, name)
+        if os.path.exists(p):
+            return FileResponse(p)
     return JSONResponse({"ok": True}, status_code=200)
 
 
@@ -146,39 +138,29 @@ async def serve_index():
     return JSONResponse({"status": "ok", "docs": "/docs"})
 
 
-# ── Catch-all: serve frontend files, return index.html for SPA routes ─────────
-
 _API_PREFIXES = (
     "/auth/", "/studies/", "/folders/", "/comments/",
-    "/external/", "/metrics/", "/ai/", "/health", "/docs", "/redoc", "/openapi",
+    "/external/", "/metrics/", "/ai/", "/health",
+    "/notebooks/", "/community/",
+    "/docs", "/redoc", "/openapi",
 )
 
 
 @app.get("/{filename:path}", include_in_schema=False)
 async def serve_frontend_file(filename: str):
-    # Never intercept API routes
     if any(f"/{filename}".startswith(p) for p in _API_PREFIXES):
         return JSONResponse({"detail": "Not Found"}, status_code=404)
-
-    # Serve exact file match (js, css, html, images etc.)
     file_path = os.path.join(FRONTEND_DIR, filename)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return FileResponse(file_path)
-
-    # For extensionless routes (SPA navigation), serve index.html
-    # so the page doesn't 404 when the user refreshes or navigates directly
     if "." not in filename.split("/")[-1]:
         index = os.path.join(FRONTEND_DIR, "index.html")
         if os.path.exists(index):
             return FileResponse(index)
-
     return JSONResponse({"detail": "Not Found"}, status_code=404)
 
-
-# ── Dev server entrypoint ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    logger.info(f"🌍 Starting server on port {port}")
     uvicorn.run("backend.app:app", host="0.0.0.0", port=port, reload=False)

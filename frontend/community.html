@@ -1,0 +1,1083 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Community — Seren</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .communityShell {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 20px;
+      max-width: 1200px;
+    }
+
+    /* ── Post list ── */
+    .communityHeader {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .communitySearch {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-pill);
+      padding: 9px 16px;
+      flex: 1;
+      min-width: 200px;
+      box-shadow: var(--shadow-xs);
+    }
+    .communitySearch input {
+      border: 0; outline: none; background: transparent;
+      font-size: 13.5px; color: var(--text); width: 100%;
+    }
+
+    .sortTabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-pill);
+      padding: 3px;
+    }
+
+    .sortTab {
+      padding: 6px 14px;
+      border-radius: var(--r-pill);
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .14s;
+    }
+    .sortTab.active {
+      background: var(--navy);
+      color: var(--cream);
+      box-shadow: var(--shadow-xs);
+    }
+    .sortTab:hover:not(.active) { color: var(--text2); transform: none; }
+
+    .tagFilterRow {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .tagChip {
+      padding: 4px 12px;
+      border-radius: var(--r-pill);
+      border: 1px solid var(--line);
+      background: var(--surface);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .14s;
+    }
+    .tagChip:hover { border-color: rgba(201,168,124,.4); color: var(--text2); }
+    .tagChip.active {
+      background: var(--navy);
+      border-color: var(--navy);
+      color: var(--cream);
+    }
+
+    /* ── Post card ── */
+    .postCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 16px 18px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all .14s;
+      display: flex;
+      gap: 14px;
+    }
+    .postCard:hover {
+      border-color: rgba(201,168,124,.35);
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
+    }
+
+    .postVote {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+      min-width: 32px;
+    }
+
+    .upvoteBtn {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      transition: all .14s;
+      flex-shrink: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+    .upvoteBtn:hover { border-color: rgba(201,168,124,.5); color: var(--brass2); background: rgba(201,168,124,.1); transform: none; }
+    .upvoteBtn.upvoted { background: var(--navy); border-color: var(--navy); color: var(--cream); }
+
+    .voteCount {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    .postMain { flex: 1; min-width: 0; }
+
+    .postTypeBadge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: var(--r-pill);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .postTypeBadge.question    { background: rgba(36,48,68,.08);   color: var(--navy3); border: 1px solid rgba(36,48,68,.15); }
+    .postTypeBadge.discussion  { background: rgba(201,168,124,.12); color: var(--coffee); border: 1px solid rgba(201,168,124,.25); }
+    .postTypeBadge.case_study  { background: rgba(61,122,74,.08);  color: var(--good); border: 1px solid rgba(61,122,74,.2); }
+    .postTypeBadge.resource    { background: rgba(196,134,42,.08); color: var(--warn); border: 1px solid rgba(196,134,42,.2); }
+
+    .postTitle {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--navy);
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+
+    .postMeta {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--subtle);
+    }
+
+    .postAuthor { color: var(--muted); font-weight: 600; }
+    .postAuthor.anon { color: var(--subtle); font-style: italic; }
+
+    /* ── Post detail view ── */
+    .postDetailOverlay {
+      position: fixed; inset: 0;
+      background: rgba(12,17,23,.55);
+      backdrop-filter: blur(8px);
+      z-index: 4000;
+      display: none;
+      overflow-y: auto;
+      padding: 40px 20px;
+    }
+    .postDetailOverlay.open { display: block; }
+
+    .postDetailCard {
+      max-width: 760px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+    }
+
+    .postDetailHeader {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .postDetailBody {
+      padding: 20px 24px;
+      font-size: 14px;
+      line-height: 1.75;
+      color: var(--text2);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .linkedPaperCard {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--cream3);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      margin-top: 12px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color .14s;
+    }
+    .linkedPaperCard:hover { border-color: rgba(201,168,124,.4); }
+
+    /* ── Reply thread ── */
+    .replyThread {
+      padding: 0 24px 20px;
+    }
+
+    .replyThreadHeader {
+      padding: 14px 0 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      border-bottom: 1px solid var(--line2);
+      margin-bottom: 12px;
+    }
+
+    .replyBox {
+      padding: 14px 24px;
+      border-top: 1px solid var(--line);
+      background: var(--cream3);
+    }
+
+    .replyBoxInner {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .replyBoxInner textarea {
+      min-height: 72px;
+      font-size: 13px;
+      resize: vertical;
+    }
+
+    .replyBoxMeta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .anonToggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    /* Reddit-style comment */
+    .comment {
+      position: relative;
+      margin-bottom: 8px;
+    }
+
+    .comment::before {
+      content: '';
+      position: absolute;
+      left: 13px;
+      top: 36px;
+      bottom: 0;
+      width: 1px;
+      background: var(--line);
+    }
+
+    .commentInner {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .commentAvatar {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--navy2);
+      color: var(--cream);
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-family: var(--font-display);
+    }
+
+    .commentContent { flex: 1; min-width: 0; }
+
+    .commentMeta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      flex-wrap: wrap;
+    }
+
+    .commentAuthor {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--navy);
+    }
+    .commentAuthor.anon { color: var(--subtle); font-style: italic; font-weight: 500; }
+
+    .commentTime { font-size: 11px; color: var(--subtle); }
+
+    .commentBody {
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: var(--text2);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .commentActions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .commentActionBtn {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--muted);
+      background: none;
+      border: none;
+      padding: 2px 4px;
+      cursor: pointer;
+      border-radius: var(--r-xs);
+      box-shadow: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: color .12s;
+    }
+    .commentActionBtn:hover { color: var(--navy); background: var(--surface2); transform: none; }
+    .commentActionBtn.upvoted { color: var(--good); }
+
+    .commentChildren {
+      margin-left: 28px;
+      padding-left: 14px;
+      border-left: 1px solid var(--line);
+      margin-top: 8px;
+    }
+
+    .replyForm {
+      margin-top: 8px;
+      background: var(--cream3);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 10px 12px;
+      display: none;
+    }
+    .replyForm.open { display: block; }
+    .replyForm textarea { min-height: 56px; font-size: 13px; margin-bottom: 8px; }
+
+    .editForm { display: none; margin-top: 6px; }
+    .editForm.open { display: block; }
+    .editForm textarea { min-height: 56px; font-size: 13px; margin-bottom: 6px; }
+
+    /* ── Right sidebar ── */
+    .communitySidebar { display: flex; flex-direction: column; gap: 14px; }
+
+    .sideCard {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 16px;
+      box-shadow: var(--shadow-xs);
+    }
+
+    .sideCardTitle {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      margin-bottom: 12px;
+    }
+
+    .trendingRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--line2);
+      cursor: pointer;
+      transition: background .1s;
+    }
+    .trendingRow:last-child { border-bottom: none; }
+    .trendingRow:hover { color: var(--navy); }
+    .trendingNum {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--subtle);
+      width: 16px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .trendingLabel { font-size: 12.5px; color: var(--text2); font-weight: 500; flex: 1; }
+    .trendingCount { font-size: 11px; color: var(--subtle); }
+
+    @media (max-width: 900px) {
+      .communityShell { grid-template-columns: 1fr; }
+      .communitySidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="communityShell">
+
+    <!-- ── Main feed ── -->
+    <div>
+      <div class="communityHeader">
+        <div class="communitySearch">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--subtle)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input id="communitySearchInput" placeholder="Search discussions…"/>
+        </div>
+        <div class="sortTabs">
+          <button class="sortTab active" data-sort="latest">Latest</button>
+          <button class="sortTab" data-sort="replies">Top replies</button>
+          <button class="sortTab" data-sort="trending">Trending</button>
+        </div>
+        <button class="btn primary" id="newPostBtn">+ New post</button>
+      </div>
+
+      <div class="tagFilterRow" id="tagFilterRow">
+        <span class="tagChip active" data-tag="">All</span>
+        <span class="tagChip" data-tag="Cardiology">Cardiology</span>
+        <span class="tagChip" data-tag="Oncology">Oncology</span>
+        <span class="tagChip" data-tag="Neurology">Neurology</span>
+        <span class="tagChip" data-tag="Respiratory">Respiratory</span>
+        <span class="tagChip" data-tag="Methods">Methods</span>
+        <span class="tagChip" data-tag="General">General</span>
+        <span class="tagChip" data-tag="Mental Health">Mental Health</span>
+      </div>
+
+      <div id="postFeed">
+        <div class="empty">Loading discussions…</div>
+      </div>
+    </div>
+
+    <!-- ── Sidebar ── -->
+    <div class="communitySidebar">
+      <div class="sideCard">
+        <div class="sideCardTitle">Trending topics</div>
+        <div id="trendingList"><div style="font-size:12px;color:var(--subtle);">Loading…</div></div>
+      </div>
+      <div class="sideCard">
+        <div class="sideCardTitle">About Community</div>
+        <p style="font-size:12.5px;color:var(--muted);line-height:1.6;margin:0;">
+          Ask questions, share case studies, discuss methodology, and connect with researchers. Posts are publicly visible. You can post anonymously.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── New post modal ── -->
+  <div class="postDetailOverlay" id="newPostOverlay">
+    <div class="postDetailCard">
+      <div class="postDetailHeader" style="flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+          <h3 style="margin:0;font-family:var(--font-display);font-size:18px;">New post</h3>
+          <button class="btn sm ghost" id="closeNewPostBtn">✕</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="postTypeSelect" style="width:auto;min-width:140px;font-size:13px;">
+            <option value="discussion">Discussion</option>
+            <option value="question">Question</option>
+            <option value="case_study">Case Study</option>
+            <option value="resource">Resource</option>
+          </select>
+          <input id="postTagsInput" placeholder="Tags (comma-separated)…" style="flex:1;min-width:180px;"/>
+        </div>
+      </div>
+      <div style="padding:16px 24px;display:flex;flex-direction:column;gap:12px;">
+        <input id="postTitleInput" placeholder="Title…" style="font-size:15px;font-weight:600;"/>
+        <textarea id="postBodyInput" placeholder="Share your question, case, or discussion…" style="min-height:140px;font-size:14px;"></textarea>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <label class="anonToggle">
+            <input type="checkbox" id="postAnonCheck"/>
+            Post anonymously
+          </label>
+          <span style="font-size:12px;color:var(--subtle);">Your username will not be shown</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <button class="btn sm" id="cancelPostBtn">Cancel</button>
+          <button class="btn primary" id="submitPostBtn">Post</button>
+        </div>
+        <div id="newPostMsg" style="font-size:12.5px;min-height:16px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Post detail overlay ── -->
+  <div class="postDetailOverlay" id="postDetailOverlay">
+    <div class="postDetailCard" id="postDetailCard">
+      <!-- dynamically rendered -->
+    </div>
+  </div>
+</main>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script>
+if (!window.__COMMUNITY_INIT__) {
+window.__COMMUNITY_INIT__ = true;
+
+let posts = [];
+let currentSort = 'latest';
+let currentTag  = '';
+let searchQ     = '';
+let username    = getUsername();
+
+function timeAgo(dt) {
+  const diff = (Date.now() - new Date(dt).getTime()) / 1000;
+  if (diff < 60)    return 'just now';
+  if (diff < 3600)  return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return new Date(dt).toLocaleDateString();
+}
+
+function typeLabel(t) {
+  return { question:'Question', discussion:'Discussion', case_study:'Case Study', resource:'Resource' }[t] || t;
+}
+
+// ── Load posts ────────────────────────────────────────────────
+async function loadPosts() {
+  try {
+    let url = `/community?sort=${currentSort}&limit=30`;
+    if (currentTag) url += `&tag=${encodeURIComponent(currentTag)}`;
+    if (searchQ)    url += `&q=${encodeURIComponent(searchQ)}`;
+    posts = await fetchJson(url, { auth: !!getToken() });
+    renderFeed();
+  } catch(e) {
+    document.getElementById('postFeed').innerHTML = `<div class="empty">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderFeed() {
+  const feed = document.getElementById('postFeed');
+  if (!posts.length) {
+    feed.innerHTML = `<div class="empty">No posts yet. Start a discussion!</div>`;
+    return;
+  }
+  feed.innerHTML = posts.map(p => renderPostCard(p)).join('');
+  feed.querySelectorAll('.postCard').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.upvoteBtn')) return;
+      openPostDetail(parseInt(card.dataset.id));
+    });
+  });
+  feed.querySelectorAll('.upvoteBtn').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!getToken()) { showToast('Sign in', 'Sign in to upvote.', 'error'); return; }
+      try {
+        const res = await fetchJson(`/community/${btn.dataset.postId}/upvote`, { method: 'POST' });
+        const p = posts.find(x => x.id === parseInt(btn.dataset.postId));
+        if (p) { p.upvotes = res.upvotes; p.user_upvoted = res.upvoted; }
+        renderFeed();
+      } catch(err) { showToast('Error', err.message, 'error'); }
+    });
+  });
+}
+
+function renderPostCard(p) {
+  const author = p.is_anonymous ? 'Anonymous' : (p.author || 'Unknown');
+  const anonClass = p.is_anonymous ? ' anon' : '';
+  return `
+    <div class="postCard" data-id="${p.id}">
+      <div class="postVote">
+        <button class="upvoteBtn${p.user_upvoted ? ' upvoted' : ''}" data-post-id="${p.id}" title="Upvote">▲</button>
+        <span class="voteCount">${p.upvotes}</span>
+      </div>
+      <div class="postMain">
+        <div><span class="postTypeBadge ${p.post_type}">${typeLabel(p.post_type)}</span>
+          ${p.tags ? p.tags.split(',').map(t => `<span class="badge" style="font-size:10px;">${esc(t.trim())}</span>`).join('') : ''}
+        </div>
+        <div class="postTitle">${esc(p.title)}</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:8px;">${esc((p.body||'').slice(0,120))}${(p.body||'').length>120?'…':''}</div>
+        <div class="postMeta">
+          <span class="postAuthor${anonClass}">${esc(author)}</span>
+          <span>${timeAgo(p.created_at)}</span>
+          <span>💬 ${p.reply_count} replies</span>
+          ${p.study_title ? `<span>📄 ${esc(p.study_title.slice(0,30))}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Post detail ───────────────────────────────────────────────
+async function openPostDetail(postId) {
+  const overlay = document.getElementById('postDetailOverlay');
+  const card    = document.getElementById('postDetailCard');
+  card.innerHTML = '<div style="padding:40px;text-align:center;color:var(--subtle);">Loading…</div>';
+  overlay.classList.add('open');
+
+  try {
+    const [post, replies] = await Promise.all([
+      fetchJson(`/community/${postId}`, { auth: !!getToken() }),
+      fetchJson(`/community/${postId}/replies`, { auth: !!getToken() }),
+    ]);
+    renderPostDetail(post, replies);
+  } catch(e) {
+    card.innerHTML = `<div style="padding:40px;color:var(--bad);">${esc(e.message)}</div>`;
+  }
+}
+
+function renderPostDetail(post, replies) {
+  const card   = document.getElementById('postDetailCard');
+  const author = post.is_anonymous ? 'Anonymous' : (post.author || 'Unknown');
+  const isOwner = getToken() && post.author === username;
+
+  card.innerHTML = `
+    <div class="postDetailHeader">
+      <div class="postVote">
+        <button class="upvoteBtn${post.user_upvoted ? ' upvoted' : ''}" id="pdUpvote" title="Upvote">▲</button>
+        <span class="voteCount" id="pdVoteCount">${post.upvotes}</span>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="margin-bottom:8px;">
+          <span class="postTypeBadge ${post.post_type}">${typeLabel(post.post_type)}</span>
+          ${post.tags ? post.tags.split(',').map(t => `<span class="badge" style="font-size:10px;">${esc(t.trim())}</span>`).join('') : ''}
+        </div>
+        <div class="postTitle" style="font-size:18px;">${esc(post.title)}</div>
+        <div class="postMeta" style="margin-top:6px;">
+          <span class="postAuthor${post.is_anonymous?' anon':''}">${esc(author)}</span>
+          <span>${timeAgo(post.created_at)}</span>
+          ${post.updated_at && post.updated_at !== post.created_at ? '<span>(edited)</span>' : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn sm ghost" id="pdBookmark" title="${post.user_bookmarked?'Remove bookmark':'Bookmark'}">${post.user_bookmarked?'🔖':'🔖'}</button>
+        ${isOwner ? `<button class="btn sm ghost" id="pdEdit">Edit</button><button class="btn sm danger" id="pdDelete">Delete</button>` : ''}
+        <button class="btn sm ghost" id="closePdBtn">✕</button>
+      </div>
+    </div>
+
+    <div class="postDetailBody">
+      <div style="white-space:pre-wrap;word-break:break-word;">${esc(post.body)}</div>
+      ${post.study_title ? `
+        <div class="linkedPaperCard" id="linkedPaper" data-study-id="${post.study_id}">
+          <span style="font-size:18px;">📄</span>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--subtle);letter-spacing:.06em;text-transform:uppercase;">Linked paper</div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy);">${esc(post.study_title)}</div>
+          </div>
+        </div>` : ''}
+    </div>
+
+    <div class="replyThread" id="replyThread">
+      <div class="replyThreadHeader">${replies.length} ${replies.length===1?'reply':'replies'}</div>
+      <div id="replyList">${renderReplies(replies, post.id)}</div>
+    </div>
+
+    ${getToken() ? `
+    <div class="replyBox">
+      <div class="replyBoxInner">
+        <textarea id="pdReplyBox" placeholder="Write a reply… Use @username to mention someone"></textarea>
+        <div class="replyBoxMeta">
+          <label class="anonToggle">
+            <input type="checkbox" id="pdReplyAnon"/>
+            <span>Anonymous</span>
+          </label>
+          <button class="btn primary sm" id="pdReplyBtn">Reply</button>
+        </div>
+      </div>
+    </div>` : `<div style="padding:14px 24px;text-align:center;font-size:13px;color:var(--subtle);">
+      <a href="login.html" style="color:var(--brass2);font-weight:600;">Sign in</a> to reply
+    </div>`}
+  `;
+
+  // Wire close
+  document.getElementById('closePdBtn').onclick = () => {
+    document.getElementById('postDetailOverlay').classList.remove('open');
+    loadPosts();
+  };
+
+  // Wire upvote
+  document.getElementById('pdUpvote').onclick = async () => {
+    if (!getToken()) { showToast('Sign in', 'Sign in to upvote.', 'error'); return; }
+    try {
+      const res = await fetchJson(`/community/${post.id}/upvote`, { method: 'POST' });
+      document.getElementById('pdVoteCount').textContent = res.upvotes;
+      document.getElementById('pdUpvote').classList.toggle('upvoted', res.upvoted);
+    } catch(e) { showToast('Error', e.message, 'error'); }
+  };
+
+  // Wire bookmark
+  document.getElementById('pdBookmark').onclick = async () => {
+    if (!getToken()) { showToast('Sign in', 'Sign in to bookmark.', 'error'); return; }
+    try {
+      const res = await fetchJson('/community/bookmarks', { method: 'POST', body: { target_id: post.id, target_type: 'post' } });
+      document.getElementById('pdBookmark').textContent = res.bookmarked ? '🔖' : '🔖';
+      showToast(res.bookmarked ? 'Bookmarked' : 'Removed', '', 'success');
+    } catch(e) { showToast('Error', e.message, 'error'); }
+  };
+
+  // Wire edit/delete
+  if (isOwner) {
+    document.getElementById('pdEdit').onclick = () => {
+      const titleEl = card.querySelector('.postTitle');
+      const bodyEl  = card.querySelector('.postDetailBody > div');
+      titleEl.contentEditable = 'true';
+      bodyEl.contentEditable  = 'true';
+      titleEl.style.outline   = '1px dashed var(--brass)';
+      bodyEl.style.outline    = '1px dashed var(--brass)';
+      document.getElementById('pdEdit').textContent = 'Save';
+      document.getElementById('pdEdit').onclick = async () => {
+        try {
+          await fetchJson(`/community/${post.id}`, {
+            method: 'PATCH',
+            body: { title: titleEl.textContent, body: bodyEl.textContent },
+          });
+          titleEl.contentEditable = 'false';
+          bodyEl.contentEditable  = 'false';
+          titleEl.style.outline   = '';
+          bodyEl.style.outline    = '';
+          document.getElementById('pdEdit').textContent = 'Edit';
+          showToast('Saved', 'Post updated.', 'success');
+        } catch(e) { showToast('Error', e.message, 'error'); }
+      };
+    };
+    document.getElementById('pdDelete').onclick = async () => {
+      const ok = await confirmModal({ title: 'Delete post?', message: 'This cannot be undone.', okText: 'Delete', danger: true });
+      if (!ok) return;
+      try {
+        await fetchJson(`/community/${post.id}`, { method: 'DELETE' });
+        document.getElementById('postDetailOverlay').classList.remove('open');
+        loadPosts();
+        showToast('Deleted', '', 'success');
+      } catch(e) { showToast('Error', e.message, 'error'); }
+    };
+  }
+
+  // Wire linked paper
+  if (post.study_id) {
+    const lp = document.getElementById('linkedPaper');
+    if (lp) lp.onclick = () => {
+      sessionStorage.setItem('open_study_id', String(post.study_id));
+      location.href = 'paper.html';
+    };
+  }
+
+  // Wire reply
+  if (getToken()) {
+    document.getElementById('pdReplyBtn').onclick = async () => {
+      const body = document.getElementById('pdReplyBox').value.trim();
+      const anon = document.getElementById('pdReplyAnon').checked;
+      if (!body) return;
+      try {
+        await fetchJson(`/community/${post.id}/replies`, { method: 'POST', body: { body, is_anonymous: anon } });
+        document.getElementById('pdReplyBox').value = '';
+        // Reload replies
+        const newReplies = await fetchJson(`/community/${post.id}/replies`, { auth: true });
+        document.getElementById('replyList').innerHTML = renderReplies(newReplies, post.id);
+        document.getElementById('replyThread').querySelector('.replyThreadHeader').textContent =
+          `${newReplies.length} ${newReplies.length===1?'reply':'replies'}`;
+        wireReplyActions(post.id);
+      } catch(e) { showToast('Error', e.message, 'error'); }
+    };
+  }
+
+  wireReplyActions(post.id);
+}
+
+function renderReplies(replies, postId, depth = 0) {
+  if (!replies || !replies.length) return depth === 0 ? '<div style="font-size:13px;color:var(--subtle);padding:12px 0;font-style:italic;">No replies yet. Be the first to respond.</div>' : '';
+  return replies.map(r => renderReply(r, postId, depth)).join('');
+}
+
+function renderReply(r, postId, depth) {
+  if (r.is_deleted) {
+    return `<div class="comment" data-rid="${r.id}">
+      <div class="commentInner">
+        <div class="commentAvatar" style="opacity:.4;">?</div>
+        <div class="commentContent">
+          <div style="font-size:12px;color:var(--subtle);font-style:italic;">[deleted]</div>
+          ${r.replies?.length ? `<div class="commentChildren">${renderReplies(r.replies, postId, depth+1)}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const author   = r.is_anonymous ? 'Anonymous' : (r.author || 'Unknown');
+  const initials = author === 'Anonymous' ? '?' : author.slice(0,2).toUpperCase();
+  const isOwner  = getToken() && r.author === username;
+
+  return `
+    <div class="comment" data-rid="${r.id}">
+      <div class="commentInner">
+        <div class="commentAvatar">${initials}</div>
+        <div class="commentContent">
+          <div class="commentMeta">
+            <span class="commentAuthor${r.is_anonymous?' anon':''}">${esc(author)}</span>
+            <span class="commentTime">${timeAgo(r.created_at)}</span>
+            ${r.updated_at && r.updated_at !== r.created_at ? '<span class="commentTime">(edited)</span>' : ''}
+          </div>
+          <div class="commentBody" id="rBody_${r.id}">${esc(r.body)}</div>
+
+          <div class="editForm" id="editForm_${r.id}">
+            <textarea id="editBox_${r.id}">${esc(r.body)}</textarea>
+            <div style="display:flex;gap:6px;">
+              <button class="btn primary sm" data-save-edit="${r.id}">Save</button>
+              <button class="btn sm" data-cancel-edit="${r.id}">Cancel</button>
+            </div>
+          </div>
+
+          <div class="commentActions">
+            <button class="commentActionBtn upvoteBtn${r.user_upvoted?' upvoted':''}" data-upvote-reply="${r.id}" data-post-id="${postId}">
+              ▲ <span id="rVotes_${r.id}">${r.upvotes}</span>
+            </button>
+            ${getToken() ? `<button class="commentActionBtn" data-reply-to="${r.id}" data-post-id="${postId}">Reply</button>` : ''}
+            ${getToken() ? `<button class="commentActionBtn" data-bookmark-reply="${r.id}">🔖</button>` : ''}
+            ${isOwner ? `<button class="commentActionBtn" data-edit-reply="${r.id}">Edit</button>` : ''}
+            ${isOwner ? `<button class="commentActionBtn" style="color:var(--bad);" data-del-reply="${r.id}" data-post-id="${postId}">Delete</button>` : ''}
+          </div>
+
+          <div class="replyForm" id="replyForm_${r.id}">
+            <textarea placeholder="Reply to ${esc(author)}… Use @username to mention"></textarea>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <label class="anonToggle" style="font-size:11.5px;">
+                <input type="checkbox" class="nestedAnonCheck"/>
+                Anonymous
+              </label>
+              <button class="btn primary sm" data-submit-nested="${r.id}" data-post-id="${postId}">Reply</button>
+              <button class="btn sm" data-cancel-reply="${r.id}">Cancel</button>
+            </div>
+          </div>
+
+          ${r.replies?.length ? `<div class="commentChildren">${renderReplies(r.replies, postId, depth+1)}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function wireReplyActions(postId) {
+  const container = document.getElementById('replyList');
+  if (!container) return;
+
+  // Upvote replies
+  container.querySelectorAll('[data-upvote-reply]').forEach(btn => {
+    btn.onclick = async () => {
+      if (!getToken()) { showToast('Sign in', '', 'error'); return; }
+      const rid = parseInt(btn.dataset.upvoteReply);
+      try {
+        const res = await fetchJson(`/community/replies/${rid}/upvote`, { method: 'POST' });
+        document.getElementById(`rVotes_${rid}`).textContent = res.upvotes;
+        btn.classList.toggle('upvoted', res.upvoted);
+      } catch(e) { showToast('Error', e.message, 'error'); }
+    };
+  });
+
+  // Reply to reply
+  container.querySelectorAll('[data-reply-to]').forEach(btn => {
+    btn.onclick = () => {
+      const form = document.getElementById(`replyForm_${btn.dataset.replyTo}`);
+      if (form) form.classList.toggle('open');
+    };
+  });
+
+  container.querySelectorAll('[data-cancel-reply]').forEach(btn => {
+    btn.onclick = () => {
+      const form = document.getElementById(`replyForm_${btn.dataset.cancelReply}`);
+      if (form) form.classList.remove('open');
+    };
+  });
+
+  container.querySelectorAll('[data-submit-nested]').forEach(btn => {
+    btn.onclick = async () => {
+      const rid    = parseInt(btn.dataset.submitNested);
+      const pid    = parseInt(btn.dataset.postId);
+      const form   = document.getElementById(`replyForm_${rid}`);
+      const body   = form.querySelector('textarea').value.trim();
+      const anon   = form.querySelector('.nestedAnonCheck').checked;
+      if (!body) return;
+      try {
+        await fetchJson(`/community/${pid}/replies`, {
+          method: 'POST',
+          body: { body, is_anonymous: anon, parent_reply_id: rid },
+        });
+        form.classList.remove('open');
+        const newReplies = await fetchJson(`/community/${pid}/replies`, { auth: true });
+        container.innerHTML = renderReplies(newReplies, pid);
+        wireReplyActions(pid);
+      } catch(e) { showToast('Error', e.message, 'error'); }
+    };
+  });
+
+  // Bookmark reply
+  container.querySelectorAll('[data-bookmark-reply]').forEach(btn => {
+    btn.onclick = async () => {
+      const rid = parseInt(btn.dataset.bookmarkReply);
+      try {
+        const res = await fetchJson('/community/bookmarks', { method: 'POST', body: { target_id: rid, target_type: 'reply' } });
+        showToast(res.bookmarked ? 'Bookmarked' : 'Removed', '', 'success');
+      } catch(e) { showToast('Error', e.message, 'error'); }
+    };
+  });
+
+  // Edit reply
+  container.querySelectorAll('[data-edit-reply]').forEach(btn => {
+    btn.onclick = () => {
+      const rid  = btn.dataset.editReply;
+      const form = document.getElementById(`editForm_${rid}`);
+      form.classList.toggle('open');
+      document.getElementById(`rBody_${rid}`).style.display = form.classList.contains('open') ? 'none' : '';
+    };
+  });
+
+  container.querySelectorAll('[data-save-edit]').forEach(btn => {
+    btn.onclick = async () => {
+      const rid  = btn.dataset.saveEdit;
+      const body = document.getElementById(`editBox_${rid}`).value.trim();
+      if (!body) return;
+      try {
+        await fetchJson(`/community/replies/${rid}`, { method: 'PATCH', body: { body } });
+        document.getElementById(`rBody_${rid}`).textContent = body;
+        document.getElementById(`editForm_${rid}`).classList.remove('open');
+        document.getElementById(`rBody_${rid}`).style.display = '';
+      } catch(e) { showToast('Error', e.message, 'error'); }
+    };
+  });
+
+  container.querySelectorAll('[data-cancel-edit]').forEach(btn => {
+    btn.onclick = () => {
+      const rid = btn.dataset.cancelEdit;
+      document.getElementById(`editForm_${rid}`).classList.remove('open');
+      document.getElementById(`rBody_${rid}`).style.display = '';
+    };
+  });
+
+  // Delete reply
+  container.querySelectorAll('[data-del-reply]').forEach(btn => {
+    btn.onclick = async () => {
+      const rid = btn.dataset.delReply;
+      const pid = btn.dataset.postId;
+      const ok  = await confirmModal({ title: 'Delete reply?', okText: 'Delete', danger: true });
+      if (!ok) return;
+      try {
+        await fetchJson(`/community/replies/${rid}`, { method: 'DELETE' });
+        const newReplies = await fetchJson(`/community/${pid}/replies`, { auth: true });
+        container.innerHTML = renderReplies(newReplies, parseInt(pid));
+        wireReplyActions(parseInt(pid));
+      } catch(e) { showToast('Error', e.message, 'error'); }
+    };
+  });
+}
+
+// ── New post ──────────────────────────────────────────────────
+document.getElementById('newPostBtn').onclick = () => {
+  if (!getToken()) { showToast('Sign in', 'Sign in to post.', 'error'); location.href = 'login.html'; return; }
+  document.getElementById('newPostOverlay').classList.add('open');
+};
+document.getElementById('closeNewPostBtn').onclick = () => document.getElementById('newPostOverlay').classList.remove('open');
+document.getElementById('cancelPostBtn').onclick   = () => document.getElementById('newPostOverlay').classList.remove('open');
+
+document.getElementById('submitPostBtn').onclick = async () => {
+  const title = document.getElementById('postTitleInput').value.trim();
+  const body  = document.getElementById('postBodyInput').value.trim();
+  const type  = document.getElementById('postTypeSelect').value;
+  const tags  = document.getElementById('postTagsInput').value.trim();
+  const anon  = document.getElementById('postAnonCheck').checked;
+  const msg   = document.getElementById('newPostMsg');
+
+  if (!title || !body) { msg.innerHTML = '<span style="color:var(--bad);">Title and body are required.</span>'; return; }
+
+  try {
+    await fetchJson('/community', { method: 'POST', body: { title, body, post_type: type, tags: tags || null, is_anonymous: anon } });
+    document.getElementById('newPostOverlay').classList.remove('open');
+    document.getElementById('postTitleInput').value = '';
+    document.getElementById('postBodyInput').value  = '';
+    loadPosts();
+    showToast('Posted!', 'Your post is live.', 'success');
+  } catch(e) { msg.innerHTML = `<span style="color:var(--bad);">${esc(e.message)}</span>`; }
+};
+
+// ── Sort tabs ─────────────────────────────────────────────────
+document.querySelectorAll('.sortTab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.sortTab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentSort = tab.dataset.sort;
+    loadPosts();
+  };
+});
+
+// ── Tag filters ───────────────────────────────────────────────
+document.querySelectorAll('.tagChip').forEach(chip => {
+  chip.onclick = () => {
+    document.querySelectorAll('.tagChip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentTag = chip.dataset.tag;
+    loadPosts();
+  };
+});
+
+// ── Search ────────────────────────────────────────────────────
+let searchTimer = null;
+document.getElementById('communitySearchInput').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { searchQ = e.target.value; loadPosts(); }, 400);
+});
+
+// Close detail on backdrop click
+document.getElementById('postDetailOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('postDetailOverlay')) {
+    document.getElementById('postDetailOverlay').classList.remove('open');
+    loadPosts();
+  }
+});
+
+// ── Trending sidebar ──────────────────────────────────────────
+async function loadTrending() {
+  try {
+    const topics = await fetchJson('/community/trending', { auth: false });
+    const list   = document.getElementById('trendingList');
+    if (!topics.length) { list.innerHTML = '<div style="font-size:12px;color:var(--subtle);">No data yet.</div>'; return; }
+    list.innerHTML = topics.map((t, i) => `
+      <div class="trendingRow" data-tag="${esc(t.topic)}">
+        <span class="trendingNum">${i+1}</span>
+        <span class="trendingLabel">${esc(t.topic)}</span>
+        <span class="trendingCount">${t.count}</span>
+      </div>`).join('');
+    list.querySelectorAll('.trendingRow').forEach(row => {
+      row.onclick = () => {
+        const tag = row.dataset.tag;
+        document.querySelectorAll('.tagChip').forEach(c => c.classList.remove('active'));
+        const match = document.querySelector(`.tagChip[data-tag="${tag}"]`);
+        if (match) match.classList.add('active');
+        currentTag = tag;
+        loadPosts();
+      };
+    });
+  } catch {}
+}
+
+loadPosts();
+loadTrending();
+}
+</script>
+</body>
+</html>
