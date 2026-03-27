@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from backend.db import get_session
-from backend.models import Highlight, NotebookPage, Study
+from backend.models import Highlight, NotebookPage, Study, User
 from backend.routers.auth import get_current_user
 from backend.schemas import (
     HighlightCreate, HighlightPatch, HighlightRead,
@@ -25,6 +25,8 @@ def _enrich_page(page: NotebookPage, session: Session) -> NotebookPageRead:
         study = session.get(Study, page.study_id)
         if study:
             study_title = study.title
+    
+    # We use model_validate to turn the DB object into the structured API response
     data = NotebookPageRead.model_validate(page)
     data.study_title = study_title
     return data
@@ -37,21 +39,33 @@ def list_pages(
     study_id: Optional[int] = None,
     q: Optional[str] = None,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """List all notebook pages for the current user, optionally filtered by study or search query."""
+    """List all notebook pages for the current user."""
+    # FIX: Use current_user.username instead of the whole object
+    username = current_user.username
+    
     stmt = select(NotebookPage).where(NotebookPage.owner_username == username)
+    
     if study_id is not None:
         stmt = stmt.where(NotebookPage.study_id == study_id)
+    
+    # Get all matching pages
+    all_pages = session.exec(stmt).all()
+    
+    # Apply search filter if 'q' is provided
     if q:
         q_lower = q.lower()
-        pages = [p for p in session.exec(stmt).all()
-                 if q_lower in (p.title or "").lower() or q_lower in (p.content or "").lower()]
+        pages = [
+            p for p in all_pages 
+            if q_lower in (p.title or "").lower() or q_lower in (p.content or "").lower()
+        ]
     else:
-        pages = list(session.exec(stmt).all())
+        pages = list(all_pages)
 
-    # Pinned first, then by updated_at desc
+    # Sort: Pinned first, then by most recently updated
     pages.sort(key=lambda p: (not p.is_pinned, -(p.updated_at.timestamp() if p.updated_at else 0)))
+    
     return [_enrich_page(p, session) for p in pages]
 
 
@@ -59,9 +73,11 @@ def list_pages(
 def create_page(
     body: NotebookPageCreate,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """Create a new notebook page (optionally linked to a study)."""
+    """Create a new notebook page."""
+    username = current_user.username
+    
     if body.study_id is not None:
         study = session.get(Study, body.study_id)
         if not study or study.owner_username != username:
@@ -71,9 +87,13 @@ def create_page(
         owner_username=username,
         study_id=body.study_id,
         title=body.title or "Untitled",
-        content=body.content,
+        content=body.content or "",
         color=body.color or "default",
+        is_pinned=False,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
     )
+    
     session.add(page)
     session.commit()
     session.refresh(page)
@@ -84,10 +104,10 @@ def create_page(
 def get_page(
     page_id: int,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     page = session.get(NotebookPage, page_id)
-    if not page or page.owner_username != username:
+    if not page or page.owner_username != current_user.username:
         raise HTTPException(404, "Page not found")
     return _enrich_page(page, session)
 
@@ -97,10 +117,10 @@ def update_page(
     page_id: int,
     body: NotebookPagePatch,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     page = session.get(NotebookPage, page_id)
-    if not page or page.owner_username != username:
+    if not page or page.owner_username != current_user.username:
         raise HTTPException(404, "Page not found")
 
     if body.title is not None:
@@ -123,10 +143,10 @@ def update_page(
 def delete_page(
     page_id: int,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     page = session.get(NotebookPage, page_id)
-    if not page or page.owner_username != username:
+    if not page or page.owner_username != current_user.username:
         raise HTTPException(404, "Page not found")
     session.delete(page)
     session.commit()
@@ -136,9 +156,10 @@ def delete_page(
 def compile_pages(
     body: dict,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Compile selected pages into a single text export."""
+    username = current_user.username
     page_ids: list = body.get("page_ids", [])
     if not page_ids:
         raise HTTPException(400, "No page IDs provided")
@@ -156,6 +177,7 @@ def compile_pages(
             s = session.get(Study, p.study_id)
             if s:
                 study_title = s.title
+        
         header = f"# {p.title}"
         if study_title:
             header += f"\nSource: {study_title}"
@@ -170,10 +192,10 @@ def compile_pages(
 def list_highlights(
     study_id: int,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     stmt = select(Highlight).where(
-        Highlight.owner_username == username,
+        Highlight.owner_username == current_user.username,
         Highlight.study_id == study_id,
     )
     return list(session.exec(stmt).all())
@@ -183,8 +205,9 @@ def list_highlights(
 def create_highlight(
     body: HighlightCreate,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    username = current_user.username
     study = session.get(Study, body.study_id)
     if not study or study.owner_username != username:
         raise HTTPException(404, "Study not found")
@@ -198,6 +221,7 @@ def create_highlight(
         section=body.section,
         char_start=body.char_start,
         char_end=body.char_end,
+        created_at=datetime.now(timezone.utc)
     )
     session.add(h)
     session.commit()
@@ -210,15 +234,17 @@ def update_highlight(
     highlight_id: int,
     body: HighlightPatch,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     h = session.get(Highlight, highlight_id)
-    if not h or h.owner_username != username:
+    if not h or h.owner_username != current_user.username:
         raise HTTPException(404, "Highlight not found")
+        
     if body.annotation is not None:
         h.annotation = body.annotation
     if body.color is not None:
         h.color = body.color
+        
     session.add(h)
     session.commit()
     session.refresh(h)
@@ -229,10 +255,10 @@ def update_highlight(
 def delete_highlight(
     highlight_id: int,
     session: Session = Depends(get_session),
-    username: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     h = session.get(Highlight, highlight_id)
-    if not h or h.owner_username != username:
+    if not h or h.owner_username != current_user.username:
         raise HTTPException(404, "Highlight not found")
     session.delete(h)
     session.commit()
