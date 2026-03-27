@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from backend.models import ReadingStatus
 
@@ -398,6 +398,13 @@ class CommunityPostCreate(BaseModel):
     study_id: Optional[int] = None
     is_anonymous: bool = False
 
+    @field_validator('study_id', mode='before')
+    @classmethod
+    def parse_study_id(cls, v):
+        if v == "" or v == "null":
+            return None
+        return v
+
 class CommunityPostPatch(BaseModel):
     title: Optional[str] = Field(default=None, max_length=300)
     body: Optional[str] = Field(default=None, max_length=10000)
@@ -461,11 +468,13 @@ class BookmarkRead(BaseModel):
 # ── Landing / Metrics ─────────────────────────────────────────────────────────
 
 class TrendingTopic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     topic: str
     count: int
     change: str = "stable"  # "up" | "down" | "stable"
 
 class PaperOfDay(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     title: str
     year: Optional[int] = None
     study_type: Optional[str] = None
@@ -474,6 +483,7 @@ class PaperOfDay(BaseModel):
     source: str
 
 class LandingStats(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     papers_analysed: int
     syntheses_run: int
     community_posts: int
