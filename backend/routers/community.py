@@ -557,8 +557,6 @@ def paper_of_day(session: Session = Depends(get_session)):
     ).first()
     summary = (ai.summary or "")[:200] + "…" if ai and ai.summary else f"A {study.study_type or 'research'} study published in {study.year or 'recent years'}."
 
-    from backend.models import STUDY_TYPE_LABELS if hasattr(__import__('backend.models', fromlist=['STUDY_TYPE_LABELS']), 'STUDY_TYPE_LABELS') else {}
-
     return PaperOfDay(
         title=study.title,
         year=study.year,
