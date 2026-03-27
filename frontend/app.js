@@ -328,17 +328,18 @@ if (window.__SEREN_APPJS_WIRED__) {
   }
 
   function wireContinueAsGuest() {
-    ['continueGuest', 'continueGuest2', 'guestBtn', 'guestBtn2']
-      .map(id => document.getElementById(id))
-      .filter(Boolean)
-      .forEach(b => b.addEventListener('click', e => {
-        e.preventDefault();
-        clearToken();
-        setUsername('');
-        sessionStorage.removeItem('last_external');
-        sessionStorage.removeItem('open_study_id');
-        window.location.href = 'search.html';
-      }));
+    // Future-proofed: Targets any element with the class 'btn-guest', 
+    // while keeping the old IDs active so nothing breaks today.
+    const guestButtons = document.querySelectorAll('.btn-guest, #continueGuest, #continueGuest2, #guestBtn, #guestBtn2');
+    
+    guestButtons.forEach(b => b.addEventListener('click', e => {
+      e.preventDefault();
+      clearToken();
+      setUsername('');
+      sessionStorage.removeItem('last_external');
+      sessionStorage.removeItem('open_study_id');
+      window.location.href = 'search.html';
+    }));
   }
 
   async function boot() {
