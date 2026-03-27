@@ -12,7 +12,24 @@ from backend.models import (
     Bookmark, Comment, CommunityPost, CommunityReply,
     CommunityUpvote, Study, StudyMetrics,
 )
-from backend.routers.auth import get_current_user, optional_user
+from typing import Optional as _Opt
+from fastapi import Header as _Header
+from backend.routers.auth import get_current_user
+import os as _os
+
+async def optional_user(authorization: _Opt[str] = _Header(default=None)) -> _Opt[str]:
+    """Return username from Bearer token if valid, else None. Never raises."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ", 1)[1]
+    try:
+        from jose import jwt as _jwt, JWTError
+        secret    = _os.getenv("SECRET_KEY", "dev-secret-change-me")
+        algorithm = _os.getenv("ALGORITHM", "HS256")
+        payload   = _jwt.decode(token, secret, algorithms=[algorithm])
+        return payload.get("sub")
+    except Exception:
+        return None
 from backend.schemas import (
     BookmarkRead, CommunityPostCreate, CommunityPostPatch, CommunityPostRead,
     CommunityReplyCreate, CommunityReplyPatch, CommunityReplyRead,
