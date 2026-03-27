@@ -272,7 +272,7 @@
         <span id="notesSaveStatus" style="font-size:10.5px;color:var(--subtle);"></span>
       </div>
       <div class="hr"></div>
-      <textarea id="notesBox" placeholder="Add private notes about this paper…"
+      <textarea id="notesBox" placeholder="Add private notes about this paper… (Auto-syncs to your Notebook)"
         style="min-height:80px;font-size:13px;line-height:1.65;resize:vertical;"></textarea>
     </div>
 
@@ -751,7 +751,7 @@ function markSavedUI(saved) {
   setSaveMsg(`<span class="badge green">✓ Saved to library</span>`);
   qs("saveBtn").textContent = "Saved";
   qs("saveBtn").disabled = true;
-  renderReadingStatus(saved);
+  renderReadingStatus(savedStudy);
 }
 
 function isProbablyNetworkError(e) {
@@ -1982,22 +1982,57 @@ qs("closeBtn").onclick = () => {
     const notesSaveStatus = qs("notesSaveStatus");
     if (notesCard && notesBox) {
       notesCard.style.display = "";
+
+      // --- NEW NOTEBOOK SYNC LOGIC ---
+      try {
+        const nbPages = await fetchJson(`/notebooks?study_id=${savedStudy.id}`);
+        if (nbPages && nbPages.length > 0 && nbPages[0].content) {
+           savedStudy.notes = nbPages[0].content;
+        }
+      } catch(e) {}
+      // -------------------------------
+
       notesBox.value = savedStudy.notes || "";
 
       let _notesTimer = null;
       notesBox.addEventListener("input", () => {
-        if (notesSaveStatus) notesSaveStatus.textContent = "Saving…";
+        if (notesSaveStatus) notesSaveStatus.textContent = "Saving to Notebook…";
         clearTimeout(_notesTimer);
         _notesTimer = setTimeout(async () => {
           try {
+            const notesVal = notesBox.value;
+            // 1. Save to Study
             await fetchJson(`/studies/${savedStudy.id}`, {
               method: "PATCH",
-              body: { notes: notesBox.value },
+              body: { notes: notesVal },
             });
-            savedStudy.notes = notesBox.value;
+            savedStudy.notes = notesVal;
+
+            // 2. Sync to Notebook
+            try {
+              const nbPages = await fetchJson(`/notebooks?study_id=${savedStudy.id}`);
+              if (nbPages && nbPages.length > 0) {
+                await fetchJson(`/notebooks/${nbPages[0].id}`, {
+                  method: "PATCH",
+                  body: { content: notesVal }
+                });
+              } else {
+                await fetchJson("/notebooks", {
+                  method: "POST",
+                  body: {
+                    title: `Notes: ${savedStudy.title ? savedStudy.title.substring(0, 50) + '...' : 'Untitled Paper'}`,
+                    content: notesVal,
+                    study_id: savedStudy.id
+                  }
+                });
+              }
+            } catch(err) {
+              console.warn("Failed to sync to notebook", err);
+            }
+
             if (notesSaveStatus) {
-              notesSaveStatus.textContent = "✓ Saved";
-              setTimeout(() => { notesSaveStatus.textContent = ""; }, 2000);
+              notesSaveStatus.innerHTML = `<span style="color:var(--good);">✓ Saved to Notebook</span>`;
+              setTimeout(() => { if(notesSaveStatus.textContent.includes('✓')) notesSaveStatus.textContent = ""; }, 2500);
             }
           } catch (err) {
             if (notesSaveStatus) notesSaveStatus.innerHTML = `<span style="color:var(--bad);">Save failed</span>`;

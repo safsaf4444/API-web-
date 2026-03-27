@@ -430,13 +430,10 @@
         <div>
           <label>Colour</label>
           <div style="display:flex;gap:8px;margin-top:4px;">
-            ${['yellow','green','blue','pink'].map(c =>
-              `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;">
-                <input type="radio" name="hlColor" value="${c}" ${c==='yellow'?'checked':''}/>
-                <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${c==='yellow'?'#E8C84A':c==='green'?'#3D7A4A':c==='blue'?'#4A7EC4':'#C44A7E'};"></span>
-                ${c.charAt(0).toUpperCase()+c.slice(1)}
-              </label>`
-            ).join('')}
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="radio" name="hlColor" value="yellow" checked/><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#E8C84A;"></span>Yellow</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="radio" name="hlColor" value="green"/><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#3D7A4A;"></span>Green</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="radio" name="hlColor" value="blue"/><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#4A7EC4;"></span>Blue</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;"><input type="radio" name="hlColor" value="pink"/><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#C44A7E;"></span>Pink</label>
           </div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
