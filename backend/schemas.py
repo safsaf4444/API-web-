@@ -325,6 +325,153 @@ class CitationResponse(BaseModel):
     count: int
 
 
+# ── Phase 4: Synthesis History ───────────────────────────────────────────────
+
+class SynthesisListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    mode: str
+    query: Optional[str] = None
+    paper_count: int
+    prompt_version: str
+    model_used: str
+    created_at: datetime
+    updated_at: datetime
+
+
+# ── Phase 4: Systematic Review Tooling ───────────────────────────────────────
+
+REVIEW_PHASES = ["search", "screen", "extract", "synthesise", "complete"]
+SCREENING_DECISIONS = ["pending", "included", "excluded", "maybe"]
+
+class SystematicReviewCreate(BaseModel):
+    title: str = Field(min_length=3, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    search_query: Optional[str] = None
+    search_source: str = Field(default="europepmc")
+    inclusion_criteria: Optional[Dict[str, Any]] = None
+    exclusion_criteria: Optional[Dict[str, Any]] = None
+    filters: Optional[Dict[str, Any]] = None
+
+class SystematicReviewPatch(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=200)
+    description: Optional[str] = None
+    phase: Optional[str] = None
+    search_query: Optional[str] = None
+    search_source: Optional[str] = None
+    inclusion_criteria: Optional[Dict[str, Any]] = None
+    exclusion_criteria: Optional[Dict[str, Any]] = None
+    filters: Optional[Dict[str, Any]] = None
+
+class SystematicReviewRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    owner_username: str
+    title: str
+    description: Optional[str] = None
+    phase: str
+    search_query: Optional[str] = None
+    search_source: str
+    search_results_count: int
+    inclusion_criteria: Optional[Dict[str, Any]] = None
+    exclusion_criteria: Optional[Dict[str, Any]] = None
+    filters: Optional[Dict[str, Any]] = None
+    audit_log: Optional[Any] = None
+    synthesis_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    # summary counts (populated by router)
+    screening_total: int = 0
+    screening_included: int = 0
+    screening_excluded: int = 0
+    screening_pending: int = 0
+    screening_maybe: int = 0
+
+class ReviewScreeningCreate(BaseModel):
+    study_id: Optional[int] = None
+    external_title: Optional[str] = None
+    external_doi: Optional[str] = None
+    external_abstract: Optional[str] = None
+    external_source: Optional[str] = None
+    external_source_id: Optional[str] = None
+    external_year: Optional[int] = None
+    decision: str = Field(default="pending")
+    screener_notes: Optional[str] = None
+
+class ReviewScreeningPatch(BaseModel):
+    decision: Optional[str] = None
+    exclusion_reason: Optional[str] = None
+    screener_notes: Optional[str] = None
+
+class ReviewScreeningRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    review_id: int
+    study_id: Optional[int] = None
+    external_title: Optional[str] = None
+    external_doi: Optional[str] = None
+    external_abstract: Optional[str] = None
+    external_source: Optional[str] = None
+    external_source_id: Optional[str] = None
+    external_year: Optional[int] = None
+    decision: str
+    exclusion_reason: Optional[str] = None
+    screener_notes: Optional[str] = None
+    created_at: datetime
+    # denormalised for UI
+    study_title: Optional[str] = None
+
+class BulkScreeningUpdate(BaseModel):
+    screening_ids: List[int] = Field(min_length=1, max_length=200)
+    decision: str
+    exclusion_reason: Optional[str] = None
+
+class PRISMAData(BaseModel):
+    identified: int = 0
+    duplicates_removed: int = 0
+    screened: int = 0
+    excluded_screening: int = 0
+    eligible: int = 0
+    excluded_eligibility: int = 0
+    included: int = 0
+    review_title: str = ""
+
+class EvidenceDriftPoint(BaseModel):
+    period: str
+    paper_count: int
+    avg_effect_direction: Optional[str] = None
+    consensus_summary: Optional[str] = None
+    study_titles: List[str] = []
+
+class EvidenceDriftResponse(BaseModel):
+    review_id: int
+    periods: List[EvidenceDriftPoint] = []
+    drift_detected: bool = False
+    drift_summary: Optional[str] = None
+
+class PaperReminderCreate(BaseModel):
+    study_id: int
+    remind_at: datetime
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+class PaperReminderPatch(BaseModel):
+    remind_at: Optional[datetime] = None
+    reason: Optional[str] = None
+    is_dismissed: Optional[bool] = None
+
+class PaperReminderRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    owner_username: str
+    study_id: int
+    remind_at: datetime
+    reason: Optional[str] = None
+    is_dismissed: bool
+    created_at: datetime
+    # denormalised
+    study_title: Optional[str] = None
+
+
 # ── Notebook ──────────────────────────────────────────────────────────────────
 
 class NotebookPageCreate(BaseModel):

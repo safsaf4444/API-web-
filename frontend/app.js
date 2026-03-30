@@ -1,4 +1,4 @@
-﻿// frontend/app.js
+// frontend/app.js
 // Seren — Dashboard shell, sidebar, topbar, token pill, guest gating.
 // Requires api.js (getToken/setToken/fetchJson etc.)
 
@@ -42,6 +42,8 @@ if (window.__SEREN_APPJS_WIRED__) {
       paper:     `<svg ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
       login:     `<svg ${base}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`,
       logout:    `<svg ${base}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+      review:    `<svg ${base}><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12l2 2 4-4"/></svg>`,
+      bell:      `<svg ${base}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
     };
     return icons[name] || `<svg ${base}><circle cx="12" cy="12" r="3"/></svg>`;
   }
@@ -57,6 +59,7 @@ if (window.__SEREN_APPJS_WIRED__) {
     if (p.includes('ai'))        return 'ai';
     if (p.includes('info'))      return 'info';
     if (p.includes('paper'))     return 'paper';
+    if (p.includes('review'))    return 'review';
     if (p.includes('login'))     return 'login';
     return 'search';
   }
@@ -71,6 +74,7 @@ if (window.__SEREN_APPJS_WIRED__) {
       ai:        'AI Assistant',
       info:      'About',
       paper:     'Paper',
+      review:    'Reviews',
     };
     return titles[currentPage()] || 'Seren';
   }
@@ -184,6 +188,7 @@ if (window.__SEREN_APPJS_WIRED__) {
       { key: 'synthesis', href: 'synthesis.html', label: 'Synthesise', requiresLogin: true  },
       { key: 'notebook',  href: 'notebook.html',  label: 'Notebook',   requiresLogin: true  },
       { key: 'community', href: 'community.html', label: 'Community',  requiresLogin: false },
+      { key: 'review',    href: 'review.html',    label: 'Reviews',    requiresLogin: true  },
       { key: 'ai',        href: 'ai.html',        label: 'AI',         requiresLogin: true  },
       { key: 'info',      href: 'info.html',      label: 'About',      requiresLogin: false },
     ];
@@ -233,6 +238,10 @@ if (window.__SEREN_APPJS_WIRED__) {
         <div class="pill">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <b id="userPill">${esc(username || (token ? '…' : 'Guest'))}</b>
+        </div>
+        <div class="pill reminderPill" id="reminderPill" style="display:none;cursor:pointer;" title="Paper reminders">
+          ${icon('bell')}
+          <b id="reminderCount">0</b>
         </div>
         ${token
           ? `<button class="btn danger sm" id="logoutBtn">Sign out</button>`
@@ -347,6 +356,29 @@ if (window.__SEREN_APPJS_WIRED__) {
     wireContinueAsGuest();
     await refreshUserPill();
     await refreshTokenPill();
+    await refreshReminderBadge();
+  }
+
+  async function refreshReminderBadge() {
+    if (!getToken()) return;
+    try {
+      const due = await fetchJson('/reminders/due');
+      const pill = document.getElementById('reminderPill');
+      const countEl = document.getElementById('reminderCount');
+      if (pill && countEl) {
+        if (due.length > 0) {
+          pill.style.display = '';
+          countEl.textContent = due.length;
+          pill.onclick = () => {
+            const titles = due.slice(0, 5).map(r => `• ${r.study_title || 'Paper #' + r.study_id}`).join('\n');
+            const msg = `You have ${due.length} paper reminder${due.length !== 1 ? 's' : ''} due:\n\n${titles}${due.length > 5 ? '\n(and more…)' : ''}`;
+            alert(msg);
+          };
+        } else {
+          pill.style.display = 'none';
+        }
+      }
+    } catch {}
   }
 
   if (!window.__SEREN_AUTH_EVENT_WIRED__) {

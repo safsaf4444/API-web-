@@ -162,6 +162,68 @@ class SynthesisResult(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+# ── Phase 4: Systematic Review Tooling ───────────────────────────────────────
+
+class SystematicReview(SQLModel, table=True):
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    owner_username: str           = Field(index=True)
+    title:          str           = Field(default="Untitled Review")
+    description:    Optional[str] = None
+
+    phase: str = Field(default="search", index=True)
+    # phase: "search" | "screen" | "extract" | "synthesise" | "complete"
+
+    search_query:         Optional[str] = None
+    search_source:        str           = Field(default="europepmc")
+    search_results_count: int           = Field(default=0)
+
+    inclusion_criteria: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    exclusion_criteria: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    filters:            Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    # filters: {year_from, year_to, languages, study_designs, outcome_keywords}
+
+    audit_log:    Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    # audit_log: [{timestamp, action, details}]
+
+    synthesis_id: Optional[int] = Field(default=None, foreign_key="synthesisresult.id")
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ReviewScreening(SQLModel, table=True):
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    review_id:      int           = Field(foreign_key="systematicreview.id", index=True)
+    owner_username: str           = Field(index=True)
+
+    study_id:          Optional[int] = Field(default=None, foreign_key="study.id", index=True)
+    external_title:    Optional[str] = None
+    external_doi:      Optional[str] = None
+    external_abstract: Optional[str] = None
+    external_source:   Optional[str] = None
+    external_source_id: Optional[str] = None
+    external_year:     Optional[int] = None
+
+    decision:         str           = Field(default="pending", index=True)
+    # decision: "pending" | "included" | "excluded" | "maybe"
+    exclusion_reason: Optional[str] = None
+    screener_notes:   Optional[str] = None
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class PaperReminder(SQLModel, table=True):
+    id:             Optional[int]  = Field(default=None, primary_key=True)
+    owner_username: str            = Field(index=True)
+    study_id:       int            = Field(foreign_key="study.id", index=True)
+
+    remind_at:    datetime         = Field(index=True)
+    reason:       Optional[str]    = None
+    is_dismissed: bool             = Field(default=False)
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 # ── Social: Comments (paper threads) ─────────────────────────────────────────
 
 class Comment(SQLModel, table=True):

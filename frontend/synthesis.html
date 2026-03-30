@@ -289,28 +289,38 @@ function detectStudyType(a) {
   return null;
 }
 
-// ── History ───────────────────────────────────────────────────────────────────
-function getHistory() { try { return JSON.parse(sessionStorage.getItem(HISTORY_KEY)||'[]'); } catch { return []; } }
-function saveHistory(h) { try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch {} }
+// ── History (persistent via backend) ─────────────────────────────────────────
+let _sessionHistory = []; // in-flight session results (before page reload)
+
+function getHistory() { return _sessionHistory; }
 
 function addToHistory(mode, title, paperCount, data) {
-  const history = getHistory();
-  const id = Date.now().toString();
-  history.unshift({ id, mode, title, paperCount, timestamp: Date.now(), data });
-  if (history.length > 20) history.splice(20);
-  saveHistory(history);
+  const id = (data.synthesis_id || Date.now()).toString();
+  // Avoid duplicates
+  _sessionHistory = _sessionHistory.filter(h => h.id !== id);
+  _sessionHistory.unshift({ id, mode, title, paperCount, timestamp: Date.now(), data, persisted: !!data.synthesis_id });
+  if (_sessionHistory.length > 30) _sessionHistory.splice(30);
   activeHistoryId = id;
   renderHistory();
 }
 
-function removeFromHistory(id) {
-  saveHistory(getHistory().filter(h => h.id !== id));
+async function removeFromHistory(id) {
+  const entry = _sessionHistory.find(h => h.id === id);
+  // Try to delete from backend
+  if (entry && entry.persisted) {
+    try { await fetchJson(`/ai/syntheses/${id}`, { method: 'DELETE' }); } catch {}
+  }
+  _sessionHistory = _sessionHistory.filter(h => h.id !== id);
   if (activeHistoryId === id) { activeHistoryId = null; document.getElementById('synthResults').innerHTML = ''; }
   renderHistory();
 }
 
 function clearHistory() {
-  saveHistory([]);
+  // Delete all from backend
+  _sessionHistory.forEach(async h => {
+    if (h.persisted) { try { await fetchJson(`/ai/syntheses/${h.id}`, { method: 'DELETE' }); } catch {} }
+  });
+  _sessionHistory = [];
   activeHistoryId = null;
   document.getElementById('synthResults').innerHTML = '';
   renderHistory();
@@ -321,23 +331,24 @@ function renderHistory() {
   const list     = document.getElementById('historyList');
   const clearBtn = document.getElementById('clearHistoryBtn');
   if (!history.length) {
-    list.innerHTML = '<div class="historyEmpty">Analyses you run this session will appear here.</div>';
+    list.innerHTML = '<div class="historyEmpty">Analyses you run will appear here. Past results are saved automatically.</div>';
     if (clearBtn) clearBtn.style.display = 'none';
     return;
   }
   if (clearBtn) clearBtn.style.display = '';
   list.innerHTML = history.map(h => {
     const isActive = h.id === activeHistoryId;
-    const icon     = h.mode === 'cross_paper' ? '&#9670;' : '&#9675;';
-    const typeCls  = h.mode === 'cross_paper' ? 'cross' : 'search';
-    const typeLbl  = h.mode === 'cross_paper' ? 'Cross-paper' : 'Search';
+    const icon     = h.mode === 'cross_paper' || h.mode === 'multi_paper' ? '&#9670;' : '&#9675;';
+    const typeCls  = h.mode === 'cross_paper' || h.mode === 'multi_paper' ? 'cross' : 'search';
+    const typeLbl  = h.mode === 'cross_paper' || h.mode === 'multi_paper' ? 'Cross-paper' : 'Search';
     const time     = new Date(h.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    const persistIcon = h.persisted ? '&#128190;' : '';
     return `<div class="historyItem${isActive?' active':''}" data-history-id="${esc(h.id)}">
       <div class="historyItemIcon">${icon}</div>
       <div class="historyItemInfo">
         <div><span class="historyTypeBadge ${typeCls}">${typeLbl}</span></div>
         <div class="historyItemTitle" id="histTitle_${esc(h.id)}">${esc(h.title)}</div>
-        <div class="historyItemMeta">${h.paperCount} paper${h.paperCount!==1?'s':''} &middot; ${time} &middot; <span style="cursor:pointer;color:var(--brass2);font-size:9.5px;" data-rename-id="${esc(h.id)}">rename</span></div>
+        <div class="historyItemMeta">${h.paperCount} paper${h.paperCount!==1?'s':''} &middot; ${time} ${persistIcon}</div>
       </div>
       <button class="historyItemClose" data-close-id="${esc(h.id)}">&#10005;</button>
     </div>`;
@@ -349,43 +360,26 @@ function renderHistory() {
       if (!entry) return;
       activeHistoryId = entry.id;
       renderHistory();
-      renderResults(entry.data, entry.mode, entry.mode === 'subject_query' ? entry.title : null);
-      document.getElementById('synthResults').scrollIntoView({behavior:'smooth',block:'start'});
+      if (entry.data) {
+        renderResults(entry.data, entry.mode, entry.mode === 'subject_query' ? entry.title : null);
+        document.getElementById('synthResults').scrollIntoView({behavior:'smooth',block:'start'});
+      } else if (entry.persisted) {
+        // Load from backend
+        fetchJson(`/ai/synthesise/${entry.id}`).then(data => {
+          entry.data = data;
+          renderResults(data, entry.mode, entry.mode === 'subject_query' ? entry.title : null);
+          document.getElementById('synthResults').scrollIntoView({behavior:'smooth',block:'start'});
+        }).catch(e => showToast('Error', e.message, 'error'));
+      }
     });
   });
   list.querySelectorAll('[data-close-id]').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); removeFromHistory(btn.dataset.closeId); });
   });
-
-  // Rename handler
-  list.querySelectorAll('[data-rename-id]').forEach(span => {
-    span.addEventListener('click', e => {
-      e.stopPropagation();
-      const id      = span.dataset.renameId;
-      const titleEl = document.getElementById(`histTitle_${id}`);
-      if (!titleEl) return;
-      const cur = titleEl.textContent;
-      titleEl.innerHTML = `<input id="renameInput_${id}" style="font-size:12px;font-weight:600;color:var(--navy);width:100%;padding:2px 4px;border:1px solid var(--brass);border-radius:3px;" value="${cur.replace(/"/g,'&quot;')}" maxlength="60"/>`;
-      const input = document.getElementById(`renameInput_${id}`);
-      input.focus(); input.select();
-      function commit() {
-        const newTitle = input.value.trim() || cur;
-        const history  = getHistory();
-        const entry    = history.find(h => h.id === id);
-        if (entry) { entry.title = newTitle; saveHistory(history); }
-        renderHistory();
-      }
-      input.addEventListener('keydown', e2 => {
-        if (e2.key === 'Enter')  { e2.preventDefault(); commit(); }
-        if (e2.key === 'Escape') { renderHistory(); }
-      });
-      input.addEventListener('blur', commit);
-    });
-  });
 }
 
 document.getElementById('clearHistoryBtn').onclick = () => {
-  if (confirm('Clear all synthesis history for this session?')) clearHistory();
+  if (confirm('Clear all synthesis history? This deletes saved results from the server.')) clearHistory();
 };
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -394,6 +388,21 @@ async function init() {
   if (raw) { try { selectedStudyIds = JSON.parse(raw); sessionStorage.removeItem('synthesis_study_ids'); } catch {} }
   if (selectedStudyIds.length > 0) await loadStudiesData();
   renderSelectedPapers();
+  // Load persistent history from backend
+  try {
+    const saved = await fetchJson('/ai/syntheses');
+    saved.forEach(s => {
+      _sessionHistory.push({
+        id: s.id.toString(),
+        mode: s.mode === 'multi_paper' ? 'cross_paper' : s.mode === 'subject_query' ? 'subject_query' : s.mode,
+        title: s.query || `Synthesis #${s.id}`,
+        paperCount: s.paper_count,
+        timestamp: new Date(s.updated_at).getTime(),
+        data: null, // lazy-load on click
+        persisted: true,
+      });
+    });
+  } catch {}
   renderHistory();
 }
 

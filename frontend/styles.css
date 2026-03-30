@@ -313,6 +313,20 @@ body::before {
 
 .pill b { color: var(--navy2); font-weight: 600; }
 
+.reminderPill {
+  border-color: rgba(196,134,42,.25);
+  background: rgba(196,134,42,.08);
+  color: var(--warn);
+  transition: background .15s;
+}
+.reminderPill:hover {
+  background: rgba(196,134,42,.15);
+}
+.reminderPill b {
+  color: var(--warn);
+  font-size: 11px;
+}
+
 .mono {
   font-family: 'SF Mono', ui-monospace, Menlo, monospace;
   font-size: 11px;

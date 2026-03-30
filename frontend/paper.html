@@ -255,9 +255,20 @@
       <div class="saveRow">
         <button type="button" class="btn primary" id="saveBtn">Save to library</button>
         <button type="button" class="btn" id="openBtn" disabled>Open DOI ↗</button>
+        <button type="button" class="btn sm ghost" id="setReminderBtn" title="Set a reminder to revisit this paper" style="display:none;">🔔 Remind</button>
         <select id="saveFolderPick"><option value="">No folder</option></select>
       </div>
       <div id="saveMsg"></div>
+      <!-- Reminder modal -->
+      <div id="reminderModal" style="display:none;margin-top:10px;padding:12px 14px;background:var(--cream3);border:1px solid var(--line);border-radius:var(--r-sm);">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:6px;">Set Revisit Reminder</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+          <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Date</label><input type="date" id="reminderDate" style="font-size:12.5px;padding:6px 10px;"/></div>
+          <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:2px;">Reason (optional)</label><input id="reminderReason" placeholder="e.g. Check for follow-up data" style="font-size:12.5px;padding:6px 10px;width:200px;"/></div>
+          <button class="btn sm primary" id="confirmReminderBtn">Set</button>
+          <button class="btn sm ghost" id="cancelReminderBtn">Cancel</button>
+        </div>
+      </div>
     </div>
 
     <div class="card" id="authorsCard" style="display:none;">
@@ -2054,6 +2065,43 @@ qs("closeBtn").onclick = () => {
   renderPaper(enriched);
   qs("loadFullBtn").disabled = !canLoadOAFullText(enriched);
   await fillSaveFolderPick();
+
+  // Wire reminder button (only for saved papers)
+  const reminderBtn = qs("setReminderBtn");
+  const reminderModal = qs("reminderModal");
+  if (reminderBtn && savedStudy) {
+    reminderBtn.style.display = "";
+    reminderBtn.onclick = () => {
+      const dateInput = qs("reminderDate");
+      // Default to 2 weeks from now
+      const twoWeeks = new Date();
+      twoWeeks.setDate(twoWeeks.getDate() + 14);
+      dateInput.value = twoWeeks.toISOString().split("T")[0];
+      reminderModal.style.display = "";
+    };
+  }
+  const cancelRem = qs("cancelReminderBtn");
+  if (cancelRem) cancelRem.onclick = () => { reminderModal.style.display = "none"; };
+  const confirmRem = qs("confirmReminderBtn");
+  if (confirmRem) {
+    confirmRem.onclick = async () => {
+      if (!savedStudy) return;
+      const dateVal = qs("reminderDate").value;
+      if (!dateVal) { showToast("Date required", "Pick a date.", "info"); return; }
+      const reason = qs("reminderReason").value.trim() || null;
+      try {
+        await fetchJson("/reminders", {
+          method: "POST",
+          body: { study_id: savedStudy.id, remind_at: new Date(dateVal).toISOString(), reason },
+        });
+        showToast("Reminder set", `You'll be reminded on ${dateVal}.`, "success");
+        reminderModal.style.display = "none";
+      } catch(e) {
+        showToast("Error", e.message, "error");
+      }
+    };
+  }
+
   showThread(true);
 })();
 

@@ -27,6 +27,7 @@ from backend.schemas import (
     CitationRequest, CitationResponse, CitationItem,
     CITATION_FORMATS,
     JargonItem, PICOData, RewritesData, StatisticalData, WeightingItem,
+    SynthesisListItem,
 )
 from backend.services.ai_engine import run as engine_run
 from backend.services.ai_service import strip_html
@@ -279,6 +280,34 @@ def _format_citation(study: Study, fmt: str) -> str:
         if study.pmid:  lines.append(f"  pmid    = {{{study.pmid}}},")
         lines.append("}")
         return "\n".join(lines)
+
+    elif fmt == "nature":
+        if authors:
+            parts    = [_author_initials(a) for a in authors[:6]]
+            auth_str = ", ".join(parts)
+            if len(authors) > 6:
+                auth_str += " et al."
+        else:
+            auth_str = "Anon."
+        cite = f"{auth_str} {title}."
+        if venue: cite += f" *{venue}*"
+        cite += f" ({year})"
+        if doi_url: cite += f". {doi_url}"
+        return cite
+
+    elif fmt == "ama":
+        if authors:
+            parts    = [_author_initials(a) for a in authors[:6]]
+            auth_str = ", ".join(parts)
+            if len(authors) > 6:
+                auth_str += ", et al"
+        else:
+            auth_str = "Anonymous"
+        cite = f"{auth_str}. {title}."
+        if venue: cite += f" {venue}."
+        cite += f" {year}"
+        if doi: cite += f". doi:{doi}"
+        return cite
 
     # Fallback plain text
     auth_str = ", ".join(authors) if authors else "Unknown"
@@ -1084,6 +1113,31 @@ def generate_citations(payload: CitationRequest, session: Session = Depends(get_
         citations.append(CitationItem(study_id=study.id, title=study.title, formatted=formatted))
 
     return CitationResponse(citations=citations, format=fmt, count=len(citations))
+
+
+# ── Synthesis history (persistent) ────────────────────────────────────────────
+
+@router.get("/ai/syntheses", response_model=list[SynthesisListItem])
+def list_syntheses(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    """List all synthesis results for the current user (persistent history)."""
+    recs = session.exec(
+        select(SynthesisResult)
+        .where(SynthesisResult.owner_username == current_user.username)
+        .order_by(SynthesisResult.updated_at.desc())
+    ).all()
+    return [SynthesisListItem.model_validate(r) for r in recs]
+
+
+@router.delete("/ai/syntheses/{synthesis_id}")
+def delete_synthesis(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    rec = session.get(SynthesisResult, synthesis_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Synthesis not found.")
+    if rec.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed.")
+    session.delete(rec)
+    session.commit()
+    return {"status": "deleted", "synthesis_id": synthesis_id}
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
