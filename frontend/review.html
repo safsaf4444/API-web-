@@ -1758,11 +1758,13 @@ document.getElementById('oaLoadBtn').onclick = async () => {
       _oaYearRange = net.year_range;
       renderOANetwork(net.nodes, net.edges);
       document.getElementById('oaNodeLegend').style.display = '';
-      if (_oaYearRange.length === 2) {
+      // Derive slider range from actual node years (covers case where year_range is empty)
+      const allNodeYears = net.nodes.map(n => n.year).filter(y => y != null && y > 0);
+      if (allNodeYears.length >= 2) {
         const slider = document.getElementById('oaTimelineSlider');
-        slider.min = _oaYearRange[0];
-        slider.max = _oaYearRange[1];
-        slider.value = _oaYearRange[0];
+        slider.min = Math.min(...allNodeYears);
+        slider.max = Math.max(...allNodeYears);
+        slider.value = slider.min;
         document.getElementById('timelineLabel').textContent = 'All years';
         document.getElementById('oaTimelineRow').style.display = '';
       }
@@ -1798,6 +1800,18 @@ function renderOANetwork(nodes, edges) {
 
   if (_oaCy) { _oaCy.destroy(); _oaCy = null; }
 
+  // Dynamic year range — derived from the actual data, not hardcoded 1950-2030
+  const nodeYears = nodes.map(n => n.year).filter(y => y != null && y > 0);
+  const dynMinYear = nodeYears.length ? Math.min(...nodeYears) : 2000;
+  const dynMaxYear = nodeYears.length ? Math.max(...nodeYears) : 2024;
+  const dynYearSpan = Math.max(dynMaxYear - dynMinYear, 1);
+  const CANVAS_W = 860;  // px width the positions will span
+
+  // Track per-year slot counts for vertical spreading
+  const oaYearBuckets = {};
+  nodes.forEach(n => { const y = n.year || dynMinYear; oaYearBuckets[y] = (oaYearBuckets[y] || 0) + 1; });
+  const oaYearIdx = {};
+
   _oaCy = cytoscape({
     container: el,
     elements: [...cyNodes, ...cyEdges],
@@ -1805,11 +1819,16 @@ function renderOANetwork(nodes, edges) {
       name: 'preset',
       positions: (node) => {
         const d = node.data();
-        const year = d.year || 2000;
-        const tIdx = ['ancestor','seed','descendant','cocite'].indexOf(d.node_type);
-        const xBase = ((year - 1950) / 80) * 900;
-        const yJitter = (tIdx * 120) + (Math.random() * 80 - 40);
-        return { x: xBase, y: yJitter };
+        const year = d.year || dynMinYear;
+        const slot = oaYearIdx[year] = (oaYearIdx[year] || 0);
+        oaYearIdx[year]++;
+        const count = oaYearBuckets[year] || 1;
+        // X: map year linearly across canvas width with 30px padding each side
+        const x = 30 + ((year - dynMinYear) / dynYearSpan) * (CANVAS_W - 60);
+        // Y: spread same-year nodes in a column, centred at 220px
+        const ySpread = Math.min(320, count * 70);
+        const y = 220 + (slot - (count - 1) / 2) * (ySpread / Math.max(count, 1));
+        return { x, y };
       },
       fit: true, padding: 30,
     },
@@ -1887,12 +1906,13 @@ document.getElementById('oaTimelineSlider').addEventListener('input', function()
 });
 
 document.getElementById('oaTimelineReset').onclick = () => {
-  if (!_oaCy || !_oaYearRange.length) return;
+  if (!_oaCy) return;
   const slider = document.getElementById('oaTimelineSlider');
-  slider.value = _oaYearRange[0];
+  // Reset to slider minimum (set when network was built)
+  slider.value = slider.min;
   document.getElementById('timelineLabel').textContent = 'All years';
-  _oaCy.nodes().style('opacity', 1);
-  _oaCy.edges().style('opacity', 0.65);
+  // Restore all to full opacity
+  _oaCy.elements().removeStyle('opacity');
 };
 
 

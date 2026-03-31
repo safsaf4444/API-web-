@@ -1123,12 +1123,11 @@ async def openalex_citation_network(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Build a full citation spider-web for a seed DOI using OpenAlex.
+    Build a full citation spider-web for a seed DOI using OpenAlex (async, non-blocking).
     Returns ancestors (references), descendants (citing papers), and co-citations.
     """
-    import urllib.request
-    import urllib.error
     import urllib.parse
+    import httpx
 
     review = session.get(SystematicReview, review_id)
     if not review:
@@ -1136,134 +1135,179 @@ async def openalex_citation_network(
     if review.owner_username != current_user.username:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    def _openalex_get(url: str) -> dict:
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "SerenMedical/1.0 (mailto:admin@seren.app)"},
-        )
+    _OA_HEADERS = {"User-Agent": "SerenMedical/1.0 (mailto:safa.dubai@gmail.com)"}
+
+    async def _oa_get(client: httpx.AsyncClient, url: str) -> dict:
+        """Non-blocking OpenAlex fetch. Returns {} on 404, raises on other errors."""
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                return json.loads(resp.read().decode())
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
+            resp = await client.get(url, headers=_OA_HEADERS, timeout=15.0)
+            if resp.status_code == 404:
                 return {}
-            raise HTTPException(status_code=502, detail=f"OpenAlex error: {e.code}")
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=502, detail=f"OpenAlex error: {e.response.status_code}")
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="OpenAlex request timed out.")
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"OpenAlex request failed: {e}")
 
     def _node_from_work(work: dict, node_type: str) -> CitationNode:
-        wid      = work.get("id", "")
-        title    = (work.get("title") or "Untitled")[:120]
-        year     = work.get("publication_year")
-        ccount   = work.get("cited_by_count", 0)
-        doi_raw  = (work.get("doi") or "").replace("https://doi.org/", "")
+        wid     = (work.get("id") or "").strip()
+        title   = (work.get("title") or "Untitled")[:120]
+        year    = work.get("publication_year")  # may be None — handled downstream
+        ccount  = work.get("cited_by_count") or 0
+        doi_raw = (work.get("doi") or "").replace("https://doi.org/", "").strip()
+
+        # Field — first concept if present, guard against malformed entries
         concepts = work.get("concepts") or []
-        field    = concepts[0].get("display_name") if concepts else None
-        authors_list = work.get("authorships") or []
-        authors_str  = ", ".join(
-            a.get("author", {}).get("display_name", "") for a in authors_list[:3]
-        )
+        field: Optional[str] = None
+        if concepts and isinstance(concepts[0], dict):
+            field = concepts[0].get("display_name")
+
+        # Authors — guard against missing author dicts
+        authors_str: Optional[str] = None
+        authorships = work.get("authorships") or []
+        names = []
+        for a in authorships[:3]:
+            if isinstance(a, dict):
+                author = a.get("author") or {}
+                name = author.get("display_name") if isinstance(author, dict) else None
+                if name:
+                    names.append(name)
+        if names:
+            authors_str = ", ".join(names)
+
+        # Abstract from inverted index
+        abstract_text: Optional[str] = None
         abstract_inv = work.get("abstract_inverted_index") or {}
-        abstract_text = ""
-        if abstract_inv:
-            max_pos = max((pos for positions in abstract_inv.values() for pos in positions), default=0)
-            word_arr = [""] * (max_pos + 1)
-            for word, positions in abstract_inv.items():
-                for pos in positions:
-                    if pos <= max_pos:
-                        word_arr[pos] = word
-            abstract_text = " ".join(w for w in word_arr if w)[:300]
-        source_loc = work.get("primary_location") or {}
-        source_name = (source_loc.get("source") or {}).get("display_name") or ""
+        if abstract_inv and isinstance(abstract_inv, dict):
+            try:
+                all_positions = [pos for positions in abstract_inv.values() for pos in positions]
+                if all_positions:
+                    max_pos = max(all_positions)
+                    word_arr = [""] * (max_pos + 1)
+                    for word, positions in abstract_inv.items():
+                        for pos in positions:
+                            if 0 <= pos <= max_pos:
+                                word_arr[pos] = word
+                    abstract_text = " ".join(w for w in word_arr if w)[:300] or None
+            except Exception:
+                pass
+
+        # Source/venue
+        source_name: Optional[str] = None
+        primary_loc = work.get("primary_location") or {}
+        if isinstance(primary_loc, dict):
+            src = primary_loc.get("source") or {}
+            if isinstance(src, dict):
+                source_name = src.get("display_name") or None
+
         return CitationNode(
-            id=wid or doi_raw,
+            id=wid or doi_raw or f"unknown_{hash(title)}",
             label=title,
             year=year,
             citation_count=ccount,
             node_type=node_type,
             field=field,
             doi=doi_raw or None,
-            abstract=abstract_text or None,
-            authors=authors_str or None,
-            source=source_name or None,
+            abstract=abstract_text,
+            authors=authors_str,
+            source=source_name,
             is_key_paper=(ccount >= 100),
         )
 
-    # ── 1. Fetch seed paper ───────────────────────────────────────────────────
-    encoded_doi = urllib.parse.quote(doi, safe="")
-    seed_data = _openalex_get(
-        f"https://api.openalex.org/works/https://doi.org/{encoded_doi}"
-        f"?select=id,title,publication_year,cited_by_count,doi,concepts,authorships,abstract_inverted_index,referenced_works,primary_location"
-    )
-    if not seed_data or "id" not in seed_data:
-        raise HTTPException(status_code=404, detail="Paper not found on OpenAlex. Check the DOI.")
+    encoded_doi = urllib.parse.quote(doi.strip(), safe="")
+    _SELECT_FULL   = "id,title,publication_year,cited_by_count,doi,concepts,authorships,abstract_inverted_index,referenced_works,primary_location"
+    _SELECT_LIGHT  = "id,title,publication_year,cited_by_count,doi,concepts,authorships,primary_location"
+    _SELECT_REFS   = "referenced_works"
 
-    seed_id = seed_data["id"]
-    nodes: list[CitationNode] = [_node_from_work(seed_data, "seed")]
-    edges: list[CitationEdge] = []
-    seen_ids: set[str] = {seed_id}
-
-    # ── 2. Ancestors: papers this study references ────────────────────────────
-    ref_ids = seed_data.get("referenced_works") or []
-    # Batch fetch up to 40 references
-    batch = ref_ids[:40]
-    if batch:
-        ids_param = "|".join(batch)
-        ref_data = _openalex_get(
-            f"https://api.openalex.org/works?filter=openalex_id:{ids_param}"
-            f"&per-page=40&select=id,title,publication_year,cited_by_count,doi,concepts,authorships,primary_location"
+    async with httpx.AsyncClient() as client:
+        # ── 1. Fetch seed paper ───────────────────────────────────────────────
+        seed_data = await _oa_get(
+            client,
+            f"https://api.openalex.org/works/https://doi.org/{encoded_doi}?select={_SELECT_FULL}",
         )
-        for work in (ref_data.get("results") or []):
-            wid = work.get("id", "")
-            if wid and wid not in seen_ids:
-                seen_ids.add(wid)
-                nodes.append(_node_from_work(work, "ancestor"))
-                edges.append(CitationEdge(source=seed_id, target=wid, edge_type="references"))
+        if not seed_data or "id" not in seed_data:
+            raise HTTPException(status_code=404, detail="Paper not found on OpenAlex. Check the DOI.")
 
-    # ── 3. Descendants: papers that cite this study ───────────────────────────
-    cite_data = _openalex_get(
-        f"https://api.openalex.org/works?filter=cites:{seed_id}"
-        f"&per-page=40&sort=cited_by_count:desc"
-        f"&select=id,title,publication_year,cited_by_count,doi,concepts,authorships,primary_location"
-    )
-    for work in (cite_data.get("results") or []):
-        wid = work.get("id", "")
-        if wid and wid not in seen_ids:
-            seen_ids.add(wid)
-            nodes.append(_node_from_work(work, "descendant"))
-            edges.append(CitationEdge(source=wid, target=seed_id, edge_type="cites"))
+        seed_id = seed_data["id"]
+        nodes: list[CitationNode] = [_node_from_work(seed_data, "seed")]
+        edges: list[CitationEdge] = []
+        seen_ids: set[str] = {seed_id}
 
-    # ── 4. Co-citations: top-2 references shared by ≥2 descendants ───────────
-    if depth >= 2:
-        ref_count: dict[str, int] = {}
-        for e in edges:
-            if e.edge_type == "cites":
-                # fetch that descendant's references (first 3 only, lightweight)
-                desc_data = _openalex_get(
-                    f"https://api.openalex.org/works/{urllib.parse.quote(e.source, safe='')}"
-                    f"?select=referenced_works"
-                )
-                for rid in (desc_data.get("referenced_works") or [])[:20]:
-                    if rid != seed_id and rid not in seen_ids:
-                        ref_count[rid] = ref_count.get(rid, 0) + 1
-        # Take top 10 co-cited papers
-        top_cocite = sorted(ref_count.items(), key=lambda x: x[1], reverse=True)[:10]
-        if top_cocite:
-            co_ids = "|".join(r[0] for r in top_cocite)
-            co_data = _openalex_get(
-                f"https://api.openalex.org/works?filter=openalex_id:{co_ids}"
-                f"&per-page=10&select=id,title,publication_year,cited_by_count,doi,concepts,authorships,primary_location"
-            )
-            for work in (co_data.get("results") or []):
-                wid = work.get("id", "")
+        # ── 2. Ancestors + 3. Descendants — fetch concurrently ───────────────
+        ref_ids = seed_data.get("referenced_works") or []
+        batch = [r for r in ref_ids[:40] if r]
+
+        anc_task = _oa_get(
+            client,
+            f"https://api.openalex.org/works?filter=openalex_id:{'|'.join(batch)}&per-page=40&select={_SELECT_LIGHT}"
+        ) if batch else None
+
+        desc_task = _oa_get(
+            client,
+            f"https://api.openalex.org/works?filter=cites:{seed_id}&per-page=40&sort=cited_by_count:desc&select={_SELECT_LIGHT}",
+        )
+
+        import asyncio
+        tasks = [t for t in [anc_task, desc_task] if t is not None]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        idx = 0
+        if anc_task is not None:
+            anc_result = results[idx]; idx += 1
+            if isinstance(anc_result, dict):
+                for work in (anc_result.get("results") or []):
+                    wid = (work.get("id") or "").strip()
+                    if wid and wid not in seen_ids:
+                        seen_ids.add(wid)
+                        nodes.append(_node_from_work(work, "ancestor"))
+                        edges.append(CitationEdge(source=seed_id, target=wid, edge_type="references"))
+
+        desc_result = results[idx]
+        if isinstance(desc_result, dict):
+            for work in (desc_result.get("results") or []):
+                wid = (work.get("id") or "").strip()
                 if wid and wid not in seen_ids:
                     seen_ids.add(wid)
-                    nodes.append(_node_from_work(work, "cocite"))
-                    edges.append(CitationEdge(source=seed_id, target=wid, edge_type="co_citation"))
+                    nodes.append(_node_from_work(work, "descendant"))
+                    edges.append(CitationEdge(source=wid, target=seed_id, edge_type="cites"))
+
+        # ── 4. Co-citations (depth=2): fetch all descendants' refs in parallel ─
+        if depth >= 2:
+            desc_ids = [e.source for e in edges if e.edge_type == "cites"]
+            if desc_ids:
+                ref_fetch_tasks = [
+                    _oa_get(client, f"https://api.openalex.org/works/{urllib.parse.quote(did, safe='')}?select={_SELECT_REFS}")
+                    for did in desc_ids[:20]   # cap to keep latency reasonable
+                ]
+                ref_results = await asyncio.gather(*ref_fetch_tasks, return_exceptions=True)
+
+                ref_count: dict[str, int] = {}
+                for res in ref_results:
+                    if isinstance(res, dict):
+                        for rid in (res.get("referenced_works") or [])[:20]:
+                            if rid and rid != seed_id and rid not in seen_ids:
+                                ref_count[rid] = ref_count.get(rid, 0) + 1
+
+                top_cocite = sorted(ref_count.items(), key=lambda x: x[1], reverse=True)[:10]
+                if top_cocite:
+                    co_ids = "|".join(r[0] for r in top_cocite)
+                    co_data = await _oa_get(
+                        client,
+                        f"https://api.openalex.org/works?filter=openalex_id:{co_ids}&per-page=10&select={_SELECT_LIGHT}",
+                    )
+                    for work in (co_data.get("results") or []):
+                        wid = (work.get("id") or "").strip()
+                        if wid and wid not in seen_ids:
+                            seen_ids.add(wid)
+                            nodes.append(_node_from_work(work, "cocite"))
+                            edges.append(CitationEdge(source=seed_id, target=wid, edge_type="co_citation"))
 
     # ── 5. Year range for timeline slider ────────────────────────────────────
-    years = [n.year for n in nodes if n.year]
-    year_range = [min(years), max(years)] if years else []
+    years = [n.year for n in nodes if n.year is not None]
+    year_range = [min(years), max(years)] if len(years) >= 2 else []
 
     return CitationNetworkResponse(
         seed_doi=doi,
@@ -1464,8 +1508,7 @@ async def synthesise_verdict(
         raise HTTPException(status_code=403, detail="Not allowed")
 
     byok = _get_byok_keys(current_user)
-    if not byok:
-        raise HTTPException(status_code=400, detail="No AI API key configured.")
+    # byok may be {} — that's fine; ai_engine falls back to free-tier (Gemini/Groq)
 
     included = session.exec(
         select(ReviewScreening).where(
