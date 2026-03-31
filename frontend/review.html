@@ -435,7 +435,7 @@
             <div class="sbSnippet" id="sbSnippet"></div>
           </div>
         </div>
-        <div class="networkLegend">Node size = citation count &nbsp;·&nbsp; <span style="display:inline-block;width:18px;height:3px;background:var(--brass);vertical-align:middle;margin:0 3px;border-radius:2px;"></span> Discovery path &nbsp;·&nbsp; Edges = shared first author &nbsp;·&nbsp; Click path node for details</div>
+        <div class="networkLegend">X-axis = publication year (left=older, right=newer) &nbsp;·&nbsp; Node size = citation count &nbsp;·&nbsp; <span style="display:inline-block;width:18px;height:3px;background:var(--brass);vertical-align:middle;margin:0 3px;border-radius:2px;"></span> Chronological path &nbsp;·&nbsp; Click any node for details</div>
       </div>
     </div>
 
@@ -983,8 +983,6 @@ async function loadDrift() {
 
 // ── FOREST PLOT (Plotly) ──────────────────────────────────────────────────────
 
-let _forestLoaded = false;
-
 async function loadForestPlot() {
   if (!currentReview) return;
   const el = document.getElementById('forestPlotEl');
@@ -994,84 +992,145 @@ async function loadForestPlot() {
   }
   el.innerHTML = '<div class="emptyState">Loading forest plot…</div>';
 
+  const modelEl = document.querySelector('input[name="forestModel"]:checked');
+  const isRandom = modelEl && modelEl.value === 'random';
+
   try {
     const data = await fetchJson(`/reviews/${currentReview.id}/cumulative-stats`);
     const statsEl = document.getElementById('forestStats');
-    if (statsEl) {
-      statsEl.textContent = `${data.total_included} papers · ${data.total_with_data} with numeric data`;
-    }
 
     if (!data.points.length) {
       el.innerHTML = '<div class="emptyState">No included papers yet. Include papers in the Screening tab first.</div>';
       return;
     }
 
-    const withData    = data.points.filter(p => p.has_data);
-    const withoutData = data.points.filter(p => !p.has_data);
+    // ALL papers get a row — sorted by year
+    const allPts = [...data.points].sort((a, b) => (a.year || 9999) - (b.year || 9999));
+    const withData = allPts.filter(p => p.has_data);
+    const withoutData = allPts.filter(p => !p.has_data);
 
-    // Study points with error bars
+    if (statsEl) {
+      statsEl.textContent = `${data.total_included} papers · ${data.total_with_data} with numeric data · ${isRandom ? 'Random' : 'Fixed'} effects`;
+    }
+
+    // Build Y labels for ALL papers
+    const makeLabel = p => `${p.title.slice(0, 40)}${p.year ? ` (${p.year})` : ''}`;
+
+    // ── Study markers with CI whiskers (horizontal) ───────────────────────────
+    const studyX    = withData.map(p => p.outcome_value ?? 0);
+    const studyY    = withData.map(makeLabel);
+    const errPlus   = withData.map(p => (p.ci_upper != null && p.outcome_value != null) ? Math.abs(p.ci_upper - p.outcome_value) : 0.15);
+    const errMinus  = withData.map(p => (p.ci_lower != null && p.outcome_value != null) ? Math.abs(p.outcome_value - p.ci_lower) : 0.15);
+    const dotSize   = withData.map(p => Math.max(10, Math.min(28, (p.sample_size || 60) / 25)));
+    const hoverData = withData.map(p =>
+      `<b>${p.title.slice(0,55)}</b><br>Year: ${p.year ?? '—'} · N: ${p.sample_size ?? '—'}<br>Effect: ${p.outcome_value?.toFixed(3) ?? '—'}<br>95% CI: [${p.ci_lower?.toFixed(3) ?? '—'}, ${p.ci_upper?.toFixed(3) ?? '—'}]<br>Bias score: ${p.bias_score ?? '—'}/10`
+    );
+
     const studyTrace = {
-      type: 'scatter', mode: 'markers',
-      name: 'Study',
-      x: withData.map(p => p.year ?? 'n/a'),
-      y: withData.map(p => p.outcome_value),
-      error_y: {
-        type: 'data',
-        symmetric: false,
-        array:     withData.map(p => p.ci_upper != null && p.outcome_value != null ? p.ci_upper - p.outcome_value : null),
-        arrayminus:withData.map(p => p.ci_lower != null && p.outcome_value != null ? p.outcome_value - p.ci_lower : null),
-        visible: true, color: 'rgba(12,17,23,0.3)', thickness: 1.5, width: 6,
+      type: 'scatter', mode: 'markers', name: 'Study',
+      x: studyX, y: studyY,
+      error_x: {
+        type: 'data', symmetric: false,
+        array: errPlus, arrayminus: errMinus,
+        visible: true, color: 'rgba(36,48,68,0.45)', thickness: 2.5, width: 10,
       },
-      marker: { size: withData.map(p => Math.max(8, Math.min(20, (p.sample_size || 100) / 50))), color: '#0C1117', opacity: 0.8 },
-      text: withData.map(p => `${p.title.slice(0,50)}\nYear: ${p.year ?? 'n/a'}\nOutcome: ${p.outcome_value}\nN: ${p.sample_size ?? '—'}\nBias: ${p.bias_score ?? '—'}/10`),
-      hovertemplate: '%{text}<extra></extra>',
+      marker: { size: dotSize, color: '#243044', opacity: 0.88, line: { color: '#C9A87C', width: 1.5 } },
+      text: hoverData, hovertemplate: '%{text}<extra></extra>',
+      orientation: 'h',
     };
 
-    // Data-gap points
+    // ── Papers without numeric data — faded markers at x=0 ───────────────────
     const gapTrace = {
-      type: 'scatter', mode: 'markers',
-      name: 'Data Gap',
-      x: withoutData.map(p => p.year ?? 'n/a'),
-      y: withoutData.map(() => null),
-      marker: { size: 10, color: 'rgba(160,149,133,0.4)', symbol: 'diamond-open', line: { width: 2 } },
-      text: withoutData.map(p => `${p.title.slice(0,50)}\nYear: ${p.year ?? 'n/a'}\nNo numeric outcome extracted`),
-      hovertemplate: '%{text}<extra>Data Gap</extra>',
-      // Show them on a separate y-axis band
+      type: 'scatter', mode: 'markers', name: 'No numeric data',
+      x: withoutData.map(() => 0),
+      y: withoutData.map(makeLabel),
+      marker: { size: 12, color: 'rgba(160,149,133,0.3)', symbol: 'diamond-open', line: { color: 'rgba(160,149,133,0.6)', width: 2 } },
+      text: withoutData.map(p => `<b>${p.title.slice(0,55)}</b><br>Year: ${p.year ?? '—'}<br><i>No outcome extracted yet</i><br>Use AI Clinical Appraisal to populate.`),
+      hovertemplate: '%{text}<extra>No data</extra>',
+      orientation: 'h',
     };
 
-    // Cumulative effect line
-    const cumulPoints = data.points.filter(p => p.cumulative_effect != null);
-    const cumTrace = {
-      type: 'scatter', mode: 'lines',
-      name: 'Cumulative effect',
-      x: cumulPoints.map(p => p.year ?? 'n/a'),
-      y: cumulPoints.map(p => p.cumulative_effect),
-      line: { color: '#C9A87C', width: 2.5, dash: 'dot' },
-      hovertemplate: 'Cumulative: %{y:.3f}<extra></extra>',
-    };
+    // ── Pooled diamond (fixed or random effects) ──────────────────────────────
+    let pooledEffect = null, pooledCIhalf = 0.05;
+    if (withData.length >= 2) {
+      const outcomes = withData.map(p => p.outcome_value);
+      if (isRandom) {
+        // DerSimonian-Laird: add between-study variance τ²
+        const mean = outcomes.reduce((a,b) => a+b,0) / outcomes.length;
+        const tau2 = outcomes.reduce((s,v) => s + Math.pow(v - mean, 2), 0) / (outcomes.length - 1);
+        const ws = withData.map(p => {
+          const se2 = (p.ci_upper != null && p.ci_lower != null) ? Math.pow((p.ci_upper - p.ci_lower) / 3.92, 2) : 0.1;
+          return 1 / (se2 + tau2);
+        });
+        const tw = ws.reduce((a,b) => a+b, 0);
+        pooledEffect = ws.reduce((s,w,i) => s + w * outcomes[i], 0) / tw;
+        pooledCIhalf = 1.96 / Math.sqrt(tw);
+      } else {
+        // Inverse-variance fixed effects
+        const ws = withData.map(p => {
+          const se2 = (p.ci_upper != null && p.ci_lower != null) ? Math.pow((p.ci_upper - p.ci_lower) / 3.92, 2) : 0.1;
+          return 1 / se2;
+        });
+        const tw = ws.reduce((a,b) => a+b, 0);
+        pooledEffect = ws.reduce((s,w,i) => s + w * outcomes[i], 0) / tw;
+        pooledCIhalf = 1.96 / Math.sqrt(tw);
+      }
+    }
 
-    // Reference line at 0
-    const refLine = {
-      type: 'scatter', mode: 'lines',
-      name: 'No effect (0)',
-      x: data.points.map(p => p.year).filter(Boolean),
-      y: data.points.map(() => 0),
-      line: { color: 'rgba(184,64,64,0.4)', width: 1, dash: 'dash' },
-      hoverinfo: 'skip', showlegend: true,
-    };
+    const traces = [studyTrace, gapTrace];
+
+    // No-effect vertical line at x=0
+    const allYLabels = allPts.map(makeLabel);
+    traces.push({
+      type: 'scatter', mode: 'lines', name: 'No effect (0)',
+      x: [0, 0], y: [allYLabels[0], allYLabels[allYLabels.length - 1]],
+      line: { color: 'rgba(184,64,64,0.55)', width: 1.5, dash: 'dash' },
+      hoverinfo: 'skip',
+    });
+
+    // Pooled diamond
+    if (pooledEffect !== null) {
+      const dLabel = `◆ Pooled (${isRandom ? 'Random' : 'Fixed'})`;
+      traces.push({
+        type: 'scatter', mode: 'lines+markers', name: dLabel,
+        x: [pooledEffect - pooledCIhalf, pooledEffect, pooledEffect + pooledCIhalf],
+        y: [dLabel, dLabel, dLabel],
+        line: { color: '#C9A87C', width: 4 },
+        marker: { size: [6, 22, 6], color: '#C9A87C', symbol: ['line-ew-open','diamond','line-ew-open'], line: { color: '#0C1117', width: 1.5 } },
+        text: [``, `Pooled: ${pooledEffect.toFixed(3)}<br>95% CI: [${(pooledEffect-pooledCIhalf).toFixed(3)}, ${(pooledEffect+pooledCIhalf).toFixed(3)}]`, ``],
+        hovertemplate: '%{text}<extra></extra>',
+      });
+      allYLabels.push(dLabel);
+    }
+
+    const allX = [
+      ...studyX.flatMap(x => [x - 0.3, x + 0.3]),
+      ...(pooledEffect !== null ? [pooledEffect - pooledCIhalf - 0.05, pooledEffect + pooledCIhalf + 0.05] : []),
+      -0.1, 0.1,
+    ];
+    const xPad = 0.3;
+    const xMin = Math.min(...allX) - xPad;
+    const xMax = Math.max(...allX) + xPad;
 
     const layout = {
       paper_bgcolor: '#FFFFFF', plot_bgcolor: '#FAF7F2',
-      font: { family: "'DM Sans', sans-serif", color: '#0C1117', size: 12 },
-      xaxis: { title: 'Publication Year', gridcolor: 'rgba(106,76,53,0.10)', zeroline: false },
-      yaxis: { title: 'Outcome Value', gridcolor: 'rgba(106,76,53,0.10)', zeroline: false },
-      legend: { orientation: 'h', y: -0.18, font: { size: 11 } },
-      margin: { l: 50, r: 20, t: 20, b: 80 },
+      font: { family: "'DM Sans', sans-serif", color: '#0C1117', size: 11 },
+      xaxis: {
+        title: 'Effect Size', gridcolor: 'rgba(106,76,53,0.10)', zeroline: false,
+        range: [xMin, xMax],
+      },
+      yaxis: {
+        automargin: true, tickfont: { size: 10 },
+        categoryorder: 'array', categoryarray: allYLabels,
+        gridcolor: 'rgba(106,76,53,0.08)',
+      },
+      legend: { orientation: 'h', y: -0.14, font: { size: 10.5 } },
+      margin: { l: 16, r: 20, t: 16, b: 60 },
       hovermode: 'closest',
+      height: Math.max(340, allPts.length * 34 + (pooledEffect !== null ? 50 : 0)),
     };
 
-    Plotly.newPlot(el, [refLine, studyTrace, gapTrace, cumTrace], layout, { responsive: true, displayModeBar: false });
-    _forestLoaded = true;
+    Plotly.newPlot(el, traces, layout, { responsive: true, displayModeBar: false });
   } catch(e) {
     el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
   }
@@ -1150,31 +1209,56 @@ async function loadNetwork() {
 
     if (_cy) { _cy.destroy(); _cy = null; }
 
+    // ── Year-based X positioning so timeline flows left → right ───────────────
+    const years = net.nodes.map(n => n.year).filter(Boolean);
+    const minYear = years.length ? Math.min(...years) : 2000;
+    const maxYear = years.length ? Math.max(...years) : 2024;
+    const yearSpan = Math.max(maxYear - minYear, 1);
+    // Bucket same-year nodes vertically
+    const yearBuckets = {};
+    net.nodes.forEach(n => {
+      const y = n.year || minYear;
+      yearBuckets[y] = (yearBuckets[y] || 0) + 1;
+    });
+    const yearIdx = {};
+
+    const positions = {};
+    cyNodes.forEach(node => {
+      const d = node.data;
+      const yr = d.year || minYear;
+      yearIdx[yr] = (yearIdx[yr] || 0);
+      const slot = yearIdx[yr]++;
+      const count = yearBuckets[yr] || 1;
+      const x = ((yr - minYear) / yearSpan) * 820 + 40;
+      // Spread nodes with same year vertically in a column
+      const ySpread = 360;
+      const y = (slot - (count - 1) / 2) * (ySpread / Math.max(count, 1)) + 210;
+      positions[d.id] = { x, y };
+    });
+    clusterNodes.forEach(cn => { positions[cn.data.id] = { x: 400, y: 200 }; });
+
     _cy = cytoscape({
       container: el,
       elements: [...clusterNodes, ...cyNodes, ...cyEdges],
       layout: {
-        name: 'cose', animate: true, animationDuration: 700,
-        nodeRepulsion: 8000, idealEdgeLength: 130,
-        fit: true, padding: 28,
+        name: 'preset',
+        positions: node => positions[node.id()] || { x: 400, y: 200 },
+        fit: true, padding: 32,
       },
       style: [
-        // Cluster (compound parent) nodes
         {
           selector: 'node[isCluster]',
           style: {
-            'background-color': 'rgba(36,48,68,0.06)',
-            'border-width': 1.5, 'border-color': 'rgba(36,48,68,0.25)',
+            'background-color': 'rgba(36,48,68,0.04)',
+            'border-width': 1, 'border-color': 'rgba(36,48,68,0.18)',
             'border-style': 'dashed',
             'label': 'data(label)',
-            'font-size': '10px', 'font-weight': '700',
-            'color': 'rgba(36,48,68,0.55)',
+            'font-size': '9px', 'font-weight': '700',
+            'color': 'rgba(36,48,68,0.45)',
             'text-valign': 'top', 'text-halign': 'center',
-            'text-margin-y': '-6px',
-            'padding': '18px',
+            'padding': '14px',
           }
         },
-        // Regular paper nodes
         {
           selector: 'node:childless',
           style: {
@@ -1183,48 +1267,37 @@ async function loadNetwork() {
             'label': 'data(label)',
             'font-size': '9px', 'color': '#0C1117',
             'text-valign': 'bottom', 'text-halign': 'center',
-            'text-margin-y': '4px',
-            'text-max-width': '90px', 'text-wrap': 'ellipsis',
+            'text-margin-y': '5px',
+            'text-max-width': '85px', 'text-wrap': 'ellipsis',
             'border-width': 2, 'border-color': '#C9A87C',
-            'opacity': 0.9,
+            'opacity': 0.92,
           }
         },
-        {
-          selector: 'node:childless:selected',
-          style: { 'background-color': '#C9A87C', 'border-color': '#0C1117', opacity: 1 }
-        },
-        // Author-link edges
+        { selector: 'node:childless:selected', style: { 'background-color': '#C9A87C', 'border-color': '#0C1117', 'opacity': 1 } },
         {
           selector: 'edge[!isPath]',
           style: {
-            'width': 1.5, 'line-color': 'rgba(201,168,124,0.4)',
-            'curve-style': 'bezier', 'opacity': 0.65,
+            'width': 1.5, 'line-color': 'rgba(201,168,124,0.45)',
+            'curve-style': 'unbundled-bezier', 'control-point-distances': [30],
+            'opacity': 0.6,
           }
         },
-        // Chronological discovery path edges — brass/gold, thick
         {
           selector: 'edge[isPath]',
           style: {
-            'width': 4, 'line-color': '#C9A87C',
-            'curve-style': 'bezier', 'opacity': 0.9,
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#C9A87C',
-            'arrow-scale': 1.2,
+            'width': 3, 'line-color': '#C9A87C',
+            'curve-style': 'bezier', 'opacity': 0.85,
+            'target-arrow-shape': 'vee',
+            'target-arrow-color': '#C9A87C', 'arrow-scale': 1,
           }
         },
       ],
     });
 
-    // Tap path node → open sidebar
+    // Tap any node → always open sidebar
     _cy.on('tap', 'node:childless', function(evt) {
       const d = evt.target.data();
-      // Check if node is on any path edge
-      const onPath = _cy.edges('[isPath]').some(e => e.data('source') === d.id || e.data('target') === d.id);
-      if (onPath || d.abstract_snippet) {
-        showNetworkSidebar(d);
-      } else {
-        showToast(d.label, `${d.year || 'n/a'} · ${d.source || ''} · ${d.citation_count ?? '—'} citations`, 'info', 3000);
-      }
+      showNetworkSidebar(d);
     });
 
     const relayoutBtn = document.getElementById('networkRelayoutBtn');
@@ -1651,7 +1724,7 @@ document.getElementById('resolveContradictionsBtn').onclick = async () => {
 // ── FOREST PLOT: fixed/random toggle ─────────────────────────────────────────
 
 document.querySelectorAll('input[name="forestModel"]').forEach(radio => {
-  radio.onchange = () => { _forestLoaded = false; loadForestPlot(); };
+  radio.onchange = () => loadForestPlot();
 });
 
 document.getElementById('forestExplainBtn').onclick = () => {
@@ -1659,108 +1732,6 @@ document.getElementById('forestExplainBtn').onclick = () => {
   el.classList.toggle('visible');
   document.getElementById('forestExplainBtn').textContent =
     el.classList.contains('visible') ? '↑ Close explanation' : '? What does this mean?';
-};
-
-// Patch loadForestPlot to respect model choice
-const _origLoadForestPlot = loadForestPlot;
-loadForestPlot = async function() {
-  if (!currentReview) return;
-  const el = document.getElementById('forestPlotEl');
-  if (!el || typeof Plotly === 'undefined') return;
-  el.innerHTML = '<div class="emptyState">Loading forest plot…</div>';
-
-  const modelEl = document.querySelector('input[name="forestModel"]:checked');
-  const isRandom = modelEl && modelEl.value === 'random';
-
-  try {
-    const data = await fetchJson(`/reviews/${currentReview.id}/cumulative-stats`);
-    const statsEl = document.getElementById('forestStats');
-    if (statsEl) statsEl.textContent = `${data.total_included} papers · ${data.total_with_data} with numeric data · ${isRandom ? 'Random' : 'Fixed'} effects`;
-
-    if (!data.points.length) {
-      el.innerHTML = '<div class="emptyState">No included papers yet.</div>';
-      return;
-    }
-
-    const withData    = data.points.filter(p => p.has_data);
-    const withoutData = data.points.filter(p => !p.has_data);
-
-    // Weighted pooled estimate using DerSimonian-Laird (random) or inverse-variance (fixed)
-    let pooledEffect = null;
-    if (withData.length) {
-      const weights = withData.map(p => {
-        if (isRandom) {
-          // Add heterogeneity variance τ² (simplified: τ² = variance of outcomes)
-          const mean = withData.reduce((a, b) => a + b.outcome_value, 0) / withData.length;
-          const tau2 = withData.reduce((s, p) => s + Math.pow(p.outcome_value - mean, 2), 0) / (withData.length - 1 || 1);
-          const se2 = (p.ci_upper != null && p.ci_lower != null) ? Math.pow((p.ci_upper - p.ci_lower) / 3.92, 2) : 1;
-          return 1 / (se2 + tau2);
-        } else {
-          const se2 = (p.ci_upper != null && p.ci_lower != null) ? Math.pow((p.ci_upper - p.ci_lower) / 3.92, 2) : 1 / Math.max(p.sample_size || 100, 1);
-          return 1 / se2;
-        }
-      });
-      const totalW = weights.reduce((a, b) => a + b, 0);
-      pooledEffect = weights.reduce((s, w, i) => s + w * withData[i].outcome_value, 0) / totalW;
-    }
-
-    const studyTrace = {
-      type: 'scatter', mode: 'markers',
-      name: 'Study',
-      x: withData.map(p => p.outcome_value),
-      y: withData.map(p => p.title.slice(0,45) + (p.year ? ` (${p.year})` : '')),
-      error_x: {
-        type: 'data', symmetric: false,
-        array:      withData.map(p => p.ci_upper != null ? p.ci_upper - p.outcome_value : 0.1),
-        arrayminus: withData.map(p => p.ci_lower != null ? p.outcome_value - p.ci_lower : 0.1),
-        visible: true, color: 'rgba(12,17,23,0.4)', thickness: 2, width: 8,
-      },
-      marker: { size: withData.map(p => Math.max(10, Math.min(26, (p.sample_size || 50) / 40))), color: '#243044', opacity: 0.85 },
-      text: withData.map(p => `<b>${p.title.slice(0,60)}</b><br>Year: ${p.year ?? '—'} · N: ${p.sample_size ?? '—'}<br>Effect: ${p.outcome_value?.toFixed(3)}<br>95% CI: [${p.ci_lower?.toFixed(3) ?? '—'}, ${p.ci_upper?.toFixed(3) ?? '—'}]<br>Bias: ${p.bias_score ?? '—'}/10`),
-      hovertemplate: '%{text}<extra></extra>',
-      orientation: 'h',
-    };
-
-    const traces = [studyTrace];
-
-    // No-effect vertical line
-    traces.push({
-      type: 'scatter', mode: 'lines', name: 'No effect',
-      x: [0, 0],
-      y: [withData[0]?.title.slice(0,45) + (withData[0]?.year ? ` (${withData[0].year})` : ''), withData[withData.length-1]?.title.slice(0,45)],
-      line: { color: 'rgba(184,64,64,0.55)', width: 1.5, dash: 'dash' },
-      hoverinfo: 'skip',
-    });
-
-    // Pooled diamond
-    if (pooledEffect !== null) {
-      const ciWidth = pooledEffect * 0.15; // simplified CI for display
-      traces.push({
-        type: 'scatter', mode: 'lines+markers', name: `${isRandom ? 'Random' : 'Fixed'} Effects Pooled`,
-        x: [pooledEffect - ciWidth, pooledEffect, pooledEffect + ciWidth, pooledEffect],
-        y: ['◆ Pooled Estimate', '◆ Pooled Estimate', '◆ Pooled Estimate', '◆ Pooled Estimate'],
-        line: { color: '#C9A87C', width: 3 },
-        marker: { size: [8, 18, 8, 8], color: '#C9A87C', symbol: ['line-ew', 'diamond', 'line-ew', 'diamond'] },
-        hovertemplate: `Pooled effect: ${pooledEffect.toFixed(3)}<extra></extra>`,
-      });
-    }
-
-    const allYLabels = [...withData.map(p => p.title.slice(0,45) + (p.year ? ` (${p.year})` : '')), '◆ Pooled Estimate'];
-
-    const layout = {
-      paper_bgcolor: '#FFFFFF', plot_bgcolor: '#FAF7F2',
-      font: { family: "'DM Sans', sans-serif", color: '#0C1117', size: 11 },
-      xaxis: { title: 'Effect Size', gridcolor: 'rgba(106,76,53,0.10)', zeroline: false },
-      yaxis: { title: '', automargin: true, tickfont: { size: 11 } },
-      legend: { orientation: 'h', y: -0.15, font: { size: 11 } },
-      margin: { l: 10, r: 30, t: 20, b: 60 },
-      hovermode: 'closest',
-    };
-
-    Plotly.newPlot(el, traces, layout, { responsive: true, displayModeBar: false });
-  } catch(e) {
-    el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
-  }
 };
 
 
