@@ -229,7 +229,7 @@
           </div>
 
           <div>
-            <label>Study type</label>
+            <label>Study type <span title="Study type classification is inferred from title/abstract text and may be inaccurate, especially for Crossref and OpenAlex sources." style="cursor:help;color:var(--subtle);font-size:11px;border-bottom:1px dashed var(--subtle);">accuracy varies ⓘ</span></label>
             <select id="studyType">
               <option value="">Any type</option>
               <option value="rct">RCT</option>
@@ -278,6 +278,7 @@
       <div class="resultsHeader">
         <div class="resultsTitle">Results</div>
         <div class="pagingRow">
+          <button class="btn sm ghost" id="bulkSaveBtn" style="display:none;">💾 Save all to Library</button>
           <button class="btn sm ghost" id="prevBtn" disabled>← Prev</button>
           <span class="pageInfo" id="pageLabel"></span>
           <button class="btn sm ghost" id="nextBtn" disabled>Next →</button>
@@ -408,11 +409,24 @@ function renderResults(itemsRaw){
   const wrap = $id('results');
   renderActiveFilters();
   const items = applyFilters(itemsRaw);
+  const bulkBtn = $id('bulkSaveBtn');
 
   if(!items.length){
-    wrap.innerHTML=`<div class="emptyResults"><p>${itemsRaw.length?'No results after filters — try adjusting your filter settings.':'No results found. Try a different query or source.'}</p></div>`;
+    if(bulkBtn) bulkBtn.style.display='none';
+    const lastQuery = $id('q').value.trim();
+    if(itemsRaw.length){
+      // Results came back but filtered out
+      wrap.innerHTML=`<div class="emptyResults"><p>No results match your current filters.</p><p style="margin-top:8px;"><button class="btn sm" onclick="document.getElementById('clearBtn').click()">Clear filters</button></p></div>`;
+    } else if(lastQuery){
+      // Query ran but returned nothing
+      wrap.innerHTML=`<div class="emptyResults"><p>No papers found for "<strong>${esc(lastQuery)}</strong>".</p><p style="margin-top:6px;font-size:12.5px;color:var(--subtle);">Try adjusting your search terms, switching the source, or broadening your year range.</p></div>`;
+    } else {
+      wrap.innerHTML=`<div class="emptyResults"><p>Enter a query and hit Search to find papers.</p></div>`;
+    }
     return;
   }
+
+  if(bulkBtn) bulkBtn.style.display='';
 
   wrap.innerHTML = items.map((it,i)=>{
     const authors = Array.isArray(it.authors)?it.authors:[];
@@ -555,6 +569,39 @@ function clearFilters(){
 
 $id('searchBtn').onclick = newSearch;
 $id('clearBtn').onclick  = clearFilters;
+
+// Bulk save
+$id('bulkSaveBtn').onclick = async () => {
+  const items = applyFilters(__LAST_ITEMS__);
+  if(!items.length) return;
+  const ok = await confirmModal({
+    title: `Save ${items.length} paper${items.length!==1?'s':''} to Library?`,
+    message: `This will add all ${items.length} results on this page to your library. Already-saved papers will be skipped.`,
+    okText: 'Save all',
+    cancelText: 'Cancel',
+  });
+  if(!ok) return;
+  const token = getToken ? getToken() : null;
+  if(!token){ showToast('Sign in required','Sign in to save papers.','error'); return; }
+  await withBtnLoading($id('bulkSaveBtn'), async () => {
+    let saved=0, skipped=0, errors=0;
+    for(const it of items){
+      try{
+        await fetchJson('/studies',{method:'POST',body:{
+          title: it.title||'Untitled', abstract: it.abstract||'', doi: it.doi||'',
+          year: it.year||null, source: it.source||'', pmid: it.pmid||'',
+          pmcid: it.pmcid||'', venue: it.venue||'',
+          authors: Array.isArray(it.authors)?it.authors.join(', '):'',
+        }});
+        saved++;
+      }catch(e){
+        if(e.message&&e.message.includes('409')) skipped++;
+        else errors++;
+      }
+    }
+    showToast('Bulk save done',`${saved} saved${skipped?`, ${skipped} already in library`:''}${errors?`, ${errors} errors`:''}`,errors?'warn':'success');
+  });
+};
 $id('nextBtn').onclick   = async()=>{ if(!nextCursor)return; stack.push(nextCursor); await fetchPage(nextCursor); };
 $id('prevBtn').onclick   = async()=>{ if(stack.length<=1)return; stack.pop(); await fetchPage(stack[stack.length-1]); };
 $id('q').addEventListener('keydown',e=>{ if(e.key==='Enter') newSearch(); });

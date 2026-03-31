@@ -136,6 +136,25 @@
         <strong>Paper-based AI</strong> lives in the paper panel. Open any paper → Panel → AI tab to summarise or ask questions. This page manages your API key and shows available providers.
       </div>
 
+      <!-- Test connection -->
+      <div class="providerCard" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <div class="providerName" style="font-size:14px;">Test AI Connection</div>
+          <button class="btn sm primary" id="testAiBtn">Run test →</button>
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:8px;">Sends a simple "Say hello" prompt to the currently configured provider. Confirms your key works and shows which model responds.</div>
+        <div id="testAiResult" style="font-size:13px;line-height:1.6;display:none;padding:10px 12px;background:var(--cream3);border:1px solid var(--line);border-radius:var(--r-sm);margin-top:4px;"></div>
+      </div>
+
+      <!-- Fallback chain -->
+      <div class="infoBox" style="margin-bottom:16px;">
+        <strong>Fallback chain:</strong> When a BYOK key is invalid or quota is exceeded, Seren automatically falls back:
+        <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;">
+          <span class="badge green">BYOK Key</span> → <span class="badge">Gemini Flash (free)</span> → <span class="badge">Groq Llama 3.3 (free)</span> → <span style="color:var(--bad);font-size:12px;">Error</span>
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:var(--subtle);">If Gemini Flash quota is reached, Groq is tried automatically. Both are free with no key required.</div>
+      </div>
+
       <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);margin-bottom:12px;">Providers</div>
 
       <div class="providerCard">
@@ -230,6 +249,28 @@ $id('clearKeyBtn').onclick=async()=>{
 };
 
 refresh();
+
+// Test AI connection
+$id('testAiBtn').onclick = async () => {
+  const resultEl = $id('testAiResult');
+  resultEl.style.display = 'block';
+  resultEl.innerHTML = '<span style="color:var(--subtle);">Running test…</span>';
+  await withBtnLoading($id('testAiBtn'), async () => {
+    try {
+      const res = await fetchJson('/ai/ask', {
+        method: 'POST',
+        body: { question: 'Say hello in one sentence. State which AI model you are.', context: '' },
+      });
+      const text = res?.answer || res?.text || JSON.stringify(res);
+      const model = res?.model_used || res?.provider || '';
+      resultEl.innerHTML = `
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--good);margin-bottom:4px;">✓ Connected${model ? ` · ${esc(model)}` : ''}</div>
+        <div>${esc(text)}</div>`;
+    } catch(e) {
+      resultEl.innerHTML = `<div style="color:var(--bad);">✗ Failed: ${esc(e.message)}</div><div style="font-size:12px;color:var(--muted);margin-top:4px;">Check your key or try the free tier (remove your key).</div>`;
+    }
+  });
+};
 </script>
 </body>
 </html>

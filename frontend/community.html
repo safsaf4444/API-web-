@@ -1051,28 +1051,43 @@ document.getElementById('postDetailOverlay').addEventListener('click', e => {
 });
 
 // ── Trending sidebar ──────────────────────────────────────────
+const TRENDING_FALLBACK = [
+  'Evidence-Based Medicine', 'RCT Methodology', 'AI in Research',
+  'Systematic Reviews', 'Clinical Trials', 'Meta-Analysis',
+  'Cardiology', 'Pharmacology',
+];
+
 async function loadTrending() {
+  const list = document.getElementById('trendingList');
   try {
     const topics = await fetchJson('/community/trending', { auth: false });
-    const list   = document.getElementById('trendingList');
-    if (!topics.length) { list.innerHTML = '<div style="font-size:12px;color:var(--subtle);">No data yet.</div>'; return; }
-    list.innerHTML = topics.map((t, i) => `
-      <div class="trendingRow" data-tag="${esc(t.topic)}">
-        <span class="trendingNum">${i+1}</span>
-        <span class="trendingLabel">${esc(t.topic)}</span>
-        <span class="trendingCount">${t.count}</span>
-      </div>`).join('');
-    list.querySelectorAll('.trendingRow').forEach(row => {
-      row.onclick = () => {
-        const tag = row.dataset.tag;
-        document.querySelectorAll('.tagChip').forEach(c => c.classList.remove('active'));
-        const match = document.querySelector(`.tagChip[data-tag="${tag}"]`);
-        if (match) match.classList.add('active');
-        currentTag = tag;
-        loadPosts();
-      };
-    });
-  } catch {}
+    const display = (Array.isArray(topics) && topics.length)
+      ? topics
+      : TRENDING_FALLBACK.map((t, i) => ({ topic: t, count: Math.max(0, 8 - i) }));
+    renderTrendingList(display);
+  } catch {
+    renderTrendingList(TRENDING_FALLBACK.map((t, i) => ({ topic: t, count: 0 })));
+  }
+}
+
+function renderTrendingList(topics) {
+  const list = document.getElementById('trendingList');
+  list.innerHTML = topics.slice(0, 8).map((t, i) => `
+    <div class="trendingRow" data-tag="${esc(t.topic || t)}">
+      <span class="trendingNum">${i+1}</span>
+      <span class="trendingLabel">${esc(t.topic || t)}</span>
+      ${t.count ? `<span class="trendingCount">${t.count}</span>` : ''}
+    </div>`).join('');
+  list.querySelectorAll('.trendingRow').forEach(row => {
+    row.onclick = () => {
+      const tag = row.dataset.tag;
+      document.querySelectorAll('.tagChip').forEach(c => c.classList.remove('active'));
+      const match = document.querySelector(`.tagChip[data-tag="${tag}"]`);
+      if (match) match.classList.add('active');
+      currentTag = tag;
+      loadPosts();
+    };
+  });
 }
 
 loadPosts();

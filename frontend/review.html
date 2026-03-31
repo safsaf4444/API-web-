@@ -304,22 +304,54 @@
       <div id="srAskAnswer"></div>
     </div>
 
-    <!-- Tabs -->
-    <div class="rvTabs" id="rvTabs">
-      <div class="rvTab active" data-tab="criteria">Criteria</div>
-      <div class="rvTab" data-tab="screening">Screening</div>
-      <div class="rvTab" data-tab="extract">Extract</div>
-      <div class="rvTab" data-tab="prisma">PRISMA</div>
-      <div class="rvTab" data-tab="forest">Forest Plot</div>
-      <div class="rvTab" data-tab="network">Network</div>
-      <div class="rvTab" data-tab="oaNetwork">Citation Web</div>
-      <div class="rvTab" data-tab="drift">Evidence Drift</div>
-      <div class="rvTab" data-tab="heatmap">Bias Heatmap</div>
-      <div class="rvTab" data-tab="keypaper">Key Papers</div>
-      <div class="rvTab" data-tab="verdict">Verdict</div>
-      <div class="rvTab" data-tab="roulette">Paper Roulette</div>
-      <div class="rvTab" data-tab="notes">Evidence Notes</div>
-      <div class="rvTab" data-tab="audit">Audit Trail</div>
+    <!-- Tabs — grouped by phase -->
+    <div id="rvTabs" style="margin-bottom:16px;">
+      <div style="display:flex;flex-wrap:wrap;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;">
+        <div style="display:contents;" class="rvPhaseGroup" data-group="setup">
+          <div style="display:flex;align-items:center;padding:5px 8px 5px 12px;border-right:1px solid var(--line);background:var(--cream3);flex-shrink:0;">
+            <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--subtle);white-space:nowrap;">① Setup</span>
+          </div>
+          <div class="rvTab active" data-tab="criteria" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Criteria</div>
+        </div>
+        <div style="display:contents;" class="rvPhaseGroup" data-group="screen">
+          <div style="display:flex;align-items:center;padding:5px 8px 5px 12px;border-right:1px solid var(--line);background:var(--cream3);flex-shrink:0;">
+            <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--subtle);white-space:nowrap;">② Screen</span>
+          </div>
+          <div class="rvTab" data-tab="screening" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Screening</div>
+        </div>
+        <div style="display:contents;" class="rvPhaseGroup" data-group="extract">
+          <div style="display:flex;align-items:center;padding:5px 8px 5px 12px;border-right:1px solid var(--line);background:var(--cream3);flex-shrink:0;">
+            <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--subtle);white-space:nowrap;">③ Extract</span>
+          </div>
+          <div class="rvTab" data-tab="extract" style="border-radius:0;border:none;border-right:1px solid var(--line);">Extract</div>
+        </div>
+        <div style="display:contents;" class="rvPhaseGroup" data-group="analyse">
+          <div style="display:flex;align-items:center;padding:5px 8px 5px 12px;border-right:1px solid var(--line);background:var(--cream3);flex-shrink:0;">
+            <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--subtle);white-space:nowrap;">④ Analyse</span>
+          </div>
+          <div class="rvTab" data-tab="prisma" style="border-radius:0;border:none;border-right:1px solid var(--line2);">PRISMA</div>
+          <div class="rvTab" data-tab="forest" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Forest Plot</div>
+          <div class="rvTab" data-tab="network" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Network</div>
+          <div class="rvTab" data-tab="oaNetwork" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Citation Web</div>
+          <div class="rvTab" data-tab="drift" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Evidence Drift</div>
+          <div class="rvTab" data-tab="heatmap" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Bias Heatmap</div>
+          <div class="rvTab" data-tab="keypaper" style="border-radius:0;border:none;border-right:1px solid var(--line);">Key Papers</div>
+        </div>
+        <div style="display:contents;" class="rvPhaseGroup" data-group="report">
+          <div style="display:flex;align-items:center;padding:5px 8px 5px 12px;border-right:1px solid var(--line);background:var(--cream3);flex-shrink:0;">
+            <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--subtle);white-space:nowrap;">⑤ Report</span>
+          </div>
+          <div class="rvTab" data-tab="verdict" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Verdict</div>
+          <div class="rvTab" data-tab="notes" style="border-radius:0;border:none;border-right:1px solid var(--line2);">Evidence Notes</div>
+          <div class="rvTab" data-tab="audit" style="border-radius:0;border:none;border-right:1px solid var(--line);">Audit Trail</div>
+        </div>
+        <div style="display:contents;" class="rvPhaseGroup" data-group="extras">
+          <div style="display:flex;align-items:center;padding:5px 8px 5px 12px;border-right:1px solid var(--line);background:var(--cream3);flex-shrink:0;">
+            <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--subtle);white-space:nowrap;">Extras</span>
+          </div>
+          <div class="rvTab" data-tab="roulette" style="border-radius:0;border:none;" title="Flip through included papers randomly to surface overlooked studies">Paper Roulette 🎲</div>
+        </div>
+      </div>
     </div>
 
     <!-- CRITERIA PANE -->
@@ -696,9 +728,9 @@ async function loadReviews() {
 document.getElementById('createReviewBtn').onclick = async () => {
   const title = await promptModal({
     title: 'New Systematic Review',
-    message: 'Enter a title for your review:',
-    placeholder: 'e.g. Metformin in T2DM',
-    initialValue: 'New Systematic Review',
+    message: 'Enter a descriptive title for your review — this will label all tabs and reports.',
+    placeholder: 'e.g. Metformin vs placebo in type 2 diabetes',
+    initialValue: '',
     okText: 'Create',
   });
   if (!title || !title.trim()) return;

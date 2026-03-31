@@ -324,8 +324,13 @@ if (window.__SEREN_APPJS_WIRED__) {
     try {
       const res = await fetchJson('/auth/token_status');
       if (res?.valid) {
-        const mins = Math.max(0, Math.floor((res.seconds_left || 0) / 60));
-        setTokenPill('ok', `Active · ${mins}m`);
+        // Track when this session started (first time we see a valid token)
+        if (!sessionStorage.getItem('_session_start')) {
+          sessionStorage.setItem('_session_start', String(Date.now()));
+        }
+        const elapsed = Math.floor((Date.now() - parseInt(sessionStorage.getItem('_session_start') || Date.now())) / 60000);
+        const elapsedStr = elapsed >= 60 ? `${Math.floor(elapsed/60)}h ${elapsed%60}m` : (elapsed > 0 ? `${elapsed}m` : '');
+        setTokenPill('ok', elapsedStr ? `Active · ${elapsedStr}` : 'Active');
       } else {
         setTokenPill('bad', 'Session expired', 'Please sign in again.');
       }

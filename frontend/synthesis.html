@@ -191,23 +191,38 @@
       </div>
 
       <div class="selectedPapersList" id="selectedPapersList">
-        <div class="synthEmpty" id="noPapersMsg">No papers selected. Go to your <a href="library.html">Library</a>, click <strong>&#9638; Select</strong>, choose papers, then click <strong>Synthesise</strong>.</div>
+        <div class="synthEmpty" id="noPapersMsg">
+          <div style="margin-bottom:12px;">No papers selected yet.</div>
+          <div style="font-size:12px;color:var(--subtle);margin-bottom:14px;">Go to your Library, click <strong>&#9638; Select</strong>, choose 2&#8211;10 papers, then click <strong>Synthesise</strong>.</div>
+          <a class="btn primary sm" href="library.html">&#8592; Go to Library to select papers</a>
+        </div>
       </div>
 
-      <!-- Ask your papers Q&A -->
+      <!-- Ask your papers Q&A — visually distinct from Run Analysis -->
       <div class="qaBox" id="crossQABox" style="display:none;">
-        <div class="qaBoxLabel">Ask your papers</div>
-        <div class="qaBoxSub">Ask a question about your selected papers. If the answer isn&#8217;t in the papers, AI will answer from general medical knowledge and clearly flag it.</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+          <span style="font-size:16px;">💬</span>
+          <div class="qaBoxLabel" style="margin-bottom:0;">Ask your papers</div>
+          <span class="badge" style="font-size:9px;background:rgba(61,122,74,.08);color:var(--good);border:1px solid rgba(61,122,74,.2);">Q&A</span>
+        </div>
+        <div class="qaBoxSub">Ask a specific question across your selected papers. If the answer isn&#8217;t in the papers, AI will flag it.</div>
         <div class="qaRow">
           <input id="crossQAInput" placeholder="e.g. What outcome measures were used? What are beta-blockers?" autocomplete="off"/>
-          <button class="btn primary sm" id="runCrossQABtn">Ask</button>
+          <button class="btn sm" id="runCrossQABtn" style="background:var(--good);border-color:var(--good);color:#fff;white-space:nowrap;">Ask →</button>
         </div>
         <div id="crossQAResult"></div>
       </div>
 
       <div class="synthRunRow" id="synthRunRow" style="display:none;">
-        <button class="btn primary" id="runSynthBtn" disabled>&#9651; Run Analysis</button>
-        <span class="synthCountHint" id="synthCountHint">Select at least 2 papers</span>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(36,48,68,.04);border:1px solid var(--line);border-radius:var(--r-sm);flex-wrap:wrap;width:100%;">
+          <span style="font-size:16px;">⚡</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:2px;">Full Analysis</div>
+            <div style="font-size:12px;color:var(--muted);">Consensus · Contradictions · Evidence Gaps · Weighted Conclusion</div>
+          </div>
+          <button class="btn primary" id="runSynthBtn" disabled>&#9651; Run Analysis</button>
+          <span class="synthCountHint" id="synthCountHint" style="font-size:11.5px;color:var(--subtle);">Select at least 2 papers</span>
+        </div>
       </div>
     </div>
 
@@ -351,15 +366,46 @@ function renderHistory() {
       <div class="historyItemIcon">${icon}</div>
       <div class="historyItemInfo">
         <div><span class="historyTypeBadge ${typeCls}">${typeLbl}</span></div>
-        <div class="historyItemTitle" id="histTitle_${esc(h.id)}">${esc(h.title)}</div>
+        <div class="historyItemTitle" id="histTitle_${esc(h.id)}" title="Double-click to rename" style="cursor:text;">${esc(h.title)}</div>
         <div class="historyItemMeta">${h.paperCount} paper${h.paperCount!==1?'s':''} &middot; ${time} ${persistIcon}</div>
       </div>
       <button class="historyItemClose" data-close-id="${esc(h.id)}">&#10005;</button>
     </div>`;
   }).join('');
+  // Inline rename on double-click
+  list.querySelectorAll('.historyItemTitle').forEach(titleEl => {
+    titleEl.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const hid = titleEl.closest('.historyItem').dataset.historyId;
+      const entry = getHistory().find(h => h.id === hid);
+      if (!entry) return;
+      const input = document.createElement('input');
+      input.value = entry.title;
+      input.style.cssText = 'font-size:12px;font-weight:600;color:var(--navy);border:1px solid var(--brass);border-radius:4px;padding:2px 6px;width:100%;';
+      titleEl.replaceWith(input);
+      input.focus();
+      input.select();
+      const commit = () => {
+        const newTitle = input.value.trim() || entry.title;
+        entry.title = newTitle;
+        const newEl = document.createElement('div');
+        newEl.className = 'historyItemTitle';
+        newEl.id = `histTitle_${hid}`;
+        newEl.title = 'Double-click to rename';
+        newEl.style.cursor = 'text';
+        newEl.textContent = newTitle;
+        input.replaceWith(newEl);
+        newEl.addEventListener('dblclick', e2 => e2.stopPropagation());
+      };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', ev => { if (ev.key==='Enter') input.blur(); if (ev.key==='Escape') { input.value=entry.title; input.blur(); } });
+    });
+  });
+
   list.querySelectorAll('.historyItem').forEach(item => {
     item.addEventListener('click', e => {
       if (e.target.closest('.historyItemClose')) return;
+      if (e.target.closest('.historyItemTitle')?.querySelector('input')) return; // don't navigate while renaming
       const entry = getHistory().find(h => h.id === item.dataset.historyId);
       if (!entry) return;
       activeHistoryId = entry.id;

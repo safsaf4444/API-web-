@@ -353,10 +353,17 @@
 
   <div class="paperLeft">
 
+    <!-- Back navigation -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;" id="paperBackNav">
+      <button class="btn sm ghost" onclick="history.length>1?history.back():location.href='search.html'" style="font-size:12px;">← Back</button>
+      <a class="btn sm ghost" href="library.html" style="font-size:12px;">📚 Library</a>
+      <a class="btn sm ghost" href="search.html" style="font-size:12px;">🔍 Search</a>
+    </div>
+
     <div class="card">
-      <!-- Retraction banner — hidden by default, shown if paper is retracted -->
-      <div class="retractionBanner" id="retractionBanner" style="display:none;">
-        ⚠ RETRACTED — This paper has been retracted. Treat its findings with caution.
+      <!-- Retraction banner — non-dismissible, prominent -->
+      <div id="retractionBanner" style="display:none;background:#c0392b;color:#fff;padding:10px 16px;margin:-20px -20px 16px;font-weight:700;font-size:13.5px;border-radius:var(--r) var(--r) 0 0;line-height:1.5;">
+        ⚠ RETRACTED — This paper has been retracted. Do not cite or apply its findings without consulting the retraction notice.
       </div>
 
       <div class="paperTitle" id="title">Loading…</div>
@@ -813,6 +820,8 @@ function renderReadingStatus(study) {
 
 function renderPaper(p) {
   qs("title").textContent = p.title || "(untitled)";
+  // Dynamic page title
+  if (p.title) document.title = `${(p.title).slice(0,80)}${p.title.length>80?'…':''} — Seren`;
 
   // Retraction banner
   const banner = qs("retractionBanner");

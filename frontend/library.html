@@ -667,6 +667,7 @@ const STATE_KEY = 'seren_library_v4';
 let foldersCache   = [];
 let activeFolderId = 'all';
 let activeStatus   = null;
+let activeTagFilter = null;
 let openMenuId     = null;
 
 // Phase 4: selection state
@@ -1003,6 +1004,10 @@ function applyFilters(items) {
     const y = parseYear(it?.year);
     if (yFrom !== null && (y === null || y < yFrom)) return false;
     if (yTo   !== null && (y === null || y > yTo))   return false;
+    if (activeTagFilter) {
+      const tags = (it?.tags || '').split(',').map(t => t.trim().toLowerCase());
+      if (!tags.includes(activeTagFilter.toLowerCase())) return false;
+    }
     return true;
   });
 }
@@ -1076,7 +1081,7 @@ function renderPapers(filtered, total) {
               ${it.study_type ? `<span class="badge green">${esc(it.study_type)}</span>` : ''}
               ${it.source     ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
               ${it.venue      ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
-              ${it.tags       ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass">${esc(t.trim())}</span>`).join('') : ''}
+              ${it.tags       ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass" style="cursor:pointer;" title="Filter by tag: ${esc(t.trim())}" data-tag-filter="${esc(t.trim())}">${esc(t.trim())}</span>`).join('') : ''}
               ${it.comment_count ? `<span class="badge">&#x1F4AC; ${it.comment_count}</span>` : ''}
             </div>
 
@@ -1101,6 +1106,21 @@ function renderPapers(filtered, total) {
       </div>
     </div>`;
   }).join('');
+
+  /* Wire tag filter clicks */
+  list.querySelectorAll('[data-tag-filter]').forEach(tag => {
+    tag.addEventListener('click', e => {
+      e.stopPropagation();
+      const t = tag.dataset.tagFilter;
+      activeTagFilter = (activeTagFilter === t) ? null : t;
+      const subtitle = $id('libSubtitle');
+      if (activeTagFilter) {
+        if (subtitle) subtitle.textContent = `Tag: ${activeTagFilter}`;
+        showToast('Tag filter', `Showing papers tagged "${activeTagFilter}". Click the tag again or Clear filters to remove.`, 'info');
+      }
+      loadStudies();
+    });
+  });
 
   /* Wire folder selects */
   list.querySelectorAll('[data-folder-pick]').forEach(sel => {
@@ -1261,8 +1281,9 @@ $id('clearBtn').onclick = async () => {
   $id('sourceFilter').value = 'all';
   $id('yearFrom').value     = '';
   $id('yearTo').value       = '';
-  activeFolderId = 'all';
-  activeStatus   = null;
+  activeFolderId  = 'all';
+  activeStatus    = null;
+  activeTagFilter = null;
   document.querySelectorAll('.statusChip[data-filter]').forEach(c => c.classList.remove('active'));
   renderFolderList();
   saveState();
