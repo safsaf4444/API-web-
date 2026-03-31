@@ -578,9 +578,12 @@
     <!-- PAPER ROULETTE PANE -->
     <div class="rvPane" data-pane="roulette">
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Paper Roulette — Flip through included papers</div>
-          <button class="btn sm ghost" id="rouletteShuffleBtn">&#8635; Shuffle</button>
+          <div style="display:flex;gap:6px;">
+            <button class="btn sm primary" id="bulkAppraiseBtn">&#9889; Bulk Appraise All</button>
+            <button class="btn sm ghost" id="rouletteShuffleBtn">&#8635; Shuffle</button>
+          </div>
         </div>
         <div id="rouletteContent">
           <div class="emptyState">Include papers in the Screening tab first.</div>
@@ -1481,12 +1484,41 @@ function renderRoulette() {
   const el = document.getElementById('rouletteContent');
   if (!_rouletteItems.length) return;
   const item = _rouletteItems[_rouletteIdx];
-  const title   = esc(item.study_title || item.external_title || 'Untitled');
-  const year    = item.external_year ? esc(String(item.external_year)) : '';
-  const source  = item.external_source ? esc(item.external_source) : '';
-  const doi     = item.external_doi ? `<a href="https://doi.org/${esc(item.external_doi)}" target="_blank" style="color:var(--brass);font-size:11.5px;">DOI ↗</a>` : '';
-  const abstract = item.external_abstract ? esc(item.external_abstract.slice(0, 400)) + (item.external_abstract.length > 400 ? '…' : '') : '<em>No abstract.</em>';
-  const notes   = item.screener_notes ? esc(item.screener_notes) : '';
+  const title    = esc(item.study_title || item.external_title || 'Untitled');
+  const year     = item.external_year ? esc(String(item.external_year)) : '';
+  const source   = item.external_source ? esc(item.external_source) : '';
+  const doi      = item.external_doi ? `<a href="https://doi.org/${esc(item.external_doi)}" target="_blank" style="color:var(--brass);font-size:11.5px;">DOI ↗</a>` : '';
+  const abstract = item.external_abstract ? esc(item.external_abstract.slice(0, 500)) + (item.external_abstract.length > 500 ? '…' : '') : '<em>No abstract.</em>';
+  const notes    = item.screener_notes ? esc(item.screener_notes) : '';
+
+  // Appraisal panel — show cached data if available
+  const ap = item._appraisal || null;
+  let appraisalHtml = '';
+  if (ap) {
+    const strength = parseInt(ap.appraisal?.evidence_strength) || 0;
+    const bars = Array.from({length: 5}, (_, i) =>
+      `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${i < strength ? '#4caf50' : '#e0e0e0'};margin-right:2px;"></span>`
+    ).join('');
+    const biasRaw = (ap.appraisal?.bias_risk || '').toLowerCase();
+    const biasCls = biasRaw.includes('low') ? 'color:#4caf50' : biasRaw.includes('high') ? 'color:#f44336' : 'color:#ff9800';
+    const effectSize = ap.stats?.effect_size || '';
+    const ci = ap.stats?.confidence_interval || '';
+    const sampleSize = ap.stats?.sample_size ? `n=${ap.stats.sample_size}` : '';
+    appraisalHtml = `
+      <div style="background:var(--bg);border:1px solid var(--line2);border-radius:6px;padding:10px 12px;margin-top:12px;font-size:12px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--subtle);margin-bottom:6px;">AI Clinical Appraisal</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+          ${strength ? `<span>Evidence: ${bars}</span>` : ''}
+          ${ap.appraisal?.bias_risk ? `<span style="${biasCls};font-weight:600;">Bias: ${esc(ap.appraisal.bias_risk)}</span>` : ''}
+          ${effectSize ? `<span style="color:var(--muted);">Effect: ${esc(effectSize)}</span>` : ''}
+          ${ci ? `<span style="color:var(--muted);">CI: ${esc(ci)}</span>` : ''}
+          ${sampleSize ? `<span style="color:var(--subtle);">${sampleSize}</span>` : ''}
+        </div>
+        ${ap.appraisal?.evidence_explanation ? `<div style="margin-top:6px;color:var(--muted);line-height:1.5;">${esc(ap.appraisal.evidence_explanation.slice(0,180))}${ap.appraisal.evidence_explanation.length > 180 ? '…' : ''}</div>` : ''}
+      </div>`;
+  } else if (item.study_id) {
+    appraisalHtml = `<div id="rouletteAppraisalSlot" style="margin-top:10px;"></div>`;
+  }
 
   el.innerHTML = `
     <div class="rouletteCard">
@@ -1494,10 +1526,13 @@ function renderRoulette() {
       <div class="rouletteTitle">${title}</div>
       <div class="rouletteAbstract">${abstract}</div>
       ${notes ? `<div style="font-size:12px;color:var(--subtle);margin-bottom:10px;">Screener notes: ${notes}</div>` : ''}
-      <div id="rouletteNotes">
+      ${appraisalHtml}
+      <div id="rouletteNotes" style="margin-top:12px;">
         <textarea id="rouletteNoteInput" placeholder="Add a note about this paper…" style="min-height:60px;font-size:12.5px;resize:vertical;width:100%;"></textarea>
         <div style="display:flex;gap:6px;margin-top:6px;">
           <button class="btn sm primary" id="rouletteSaveNoteBtn">Save Note</button>
+          ${item.study_id && !ap ? `<button class="btn sm ghost" id="rouletteAppraiseBtn">&#129302; Run Appraisal</button>` : ''}
+          ${item.study_id ? `<a class="btn sm ghost" href="/paper/${item.study_id}" target="_blank">Open Paper ↗</a>` : ''}
         </div>
       </div>
       <div class="rouletteNav" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line2);">
@@ -1522,6 +1557,44 @@ function renderRoulette() {
     } catch(e) { showToast('Error', e.message, 'error'); }
   };
   document.getElementById('rouletteNoteInput').value = item.screener_notes || '';
+
+  // Per-card Run Appraisal button
+  const appraiseBtn = document.getElementById('rouletteAppraiseBtn');
+  if (appraiseBtn) {
+    appraiseBtn.onclick = async () => {
+      appraiseBtn.disabled = true;
+      appraiseBtn.textContent = 'Running…';
+      const slot = document.getElementById('rouletteAppraisalSlot');
+      if (slot) slot.innerHTML = '<span style="font-size:12px;color:var(--subtle);">Running AI appraisal…</span>';
+      try {
+        const ap = await fetchJson('/ai/clinical', {
+          method: 'POST',
+          body: {
+            study_id: item.study_id,
+            title: item.external_title || item.study_title || '',
+            abstract: item.external_abstract || '',
+            doi: item.external_doi || '',
+          }
+        });
+        _rouletteItems[_rouletteIdx]._appraisal = ap;
+        renderRoulette();
+        showToast('Done', 'Appraisal complete.', 'success');
+      } catch(e) {
+        if (slot) slot.innerHTML = `<span style="font-size:12px;color:var(--bad);">${esc(e.message)}</span>`;
+        appraiseBtn.disabled = false;
+        appraiseBtn.textContent = '⚡ Run Appraisal';
+      }
+    };
+  }
+
+  // Lazy-load cached appraisal if not yet fetched
+  if (item.study_id && !ap && !item._appraisalChecked) {
+    item._appraisalChecked = true;
+    fetchJson(`/ai/clinical/${item.study_id}`).then(data => {
+      _rouletteItems[_rouletteIdx]._appraisal = data;
+      if (_rouletteItems[_rouletteIdx] === item) renderRoulette();
+    }).catch(() => { /* not cached yet — no-op */ });
+  }
 }
 
 document.getElementById('rouletteShuffleBtn').onclick = () => {
@@ -1529,6 +1602,22 @@ document.getElementById('rouletteShuffleBtn').onclick = () => {
   _rouletteItems.sort(() => Math.random() - 0.5);
   _rouletteIdx = 0;
   renderRoulette();
+};
+
+document.getElementById('bulkAppraiseBtn').onclick = async () => {
+  if (!currentReview) return;
+  const btn = document.getElementById('bulkAppraiseBtn');
+  await withBtnLoading(btn, async () => {
+    const result = await fetchJson(`/reviews/${currentReview.id}/bulk-appraise`, { method: 'POST' });
+    const { processed, skipped_cached, skipped_no_study, errors, total_included } = result;
+    const msg = `Done: ${processed} appraised, ${skipped_cached} already cached, ${skipped_no_study} skipped (no linked study)${errors.length ? `, ${errors.length} errors` : ''}.`;
+    showToast('Bulk Appraise', msg, errors.length ? 'warn' : 'success');
+    // Reload roulette to show newly fetched appraisals
+    if (processed > 0) {
+      _rouletteItems.forEach(i => { i._appraisalChecked = false; i._appraisal = null; });
+      renderRoulette();
+    }
+  });
 };
 
 

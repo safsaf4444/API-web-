@@ -701,6 +701,128 @@ async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get
     )
 
 
+@router.post("/reviews/{review_id}/bulk-appraise")
+async def bulk_appraise(
+    review_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Run AI Clinical Appraisal for all included papers in a review that haven't been appraised yet."""
+    from backend.models import ScreeningItem, SystematicReview
+    import asyncio as _asyncio
+
+    rev = session.get(SystematicReview, review_id)
+    if not rev:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if rev.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    items = session.exec(
+        select(ScreeningItem).where(
+            (ScreeningItem.review_id == review_id) &
+            (ScreeningItem.decision == "included") &
+            (ScreeningItem.study_id != None)  # noqa: E711
+        )
+    ).all()
+
+    processed = 0
+    skipped_cached = 0
+    skipped_no_study = 0
+    errors: list[dict] = []
+
+    byok = _get_byok_keys(current_user)
+
+    for item in items:
+        if not item.study_id:
+            skipped_no_study += 1
+            continue
+
+        study = session.get(Study, item.study_id)
+        if not study or study.owner_username != current_user.username:
+            skipped_no_study += 1
+            continue
+
+        title    = item.external_title or study.title or ""
+        abstract = item.external_abstract or study.abstract or ""
+        doi      = item.external_doi or study.doi or ""
+
+        ck = _cache_key("clinical", title, doi, study.pmid, study.pmcid)
+        cached = session.exec(select(AIResult).where(
+            (AIResult.owner_username == current_user.username) &
+            (AIResult.cache_key == ck) &
+            (AIResult.kind == "clinical") &
+            (AIResult.patient_summary != None)  # noqa: E711
+        )).first()
+
+        if cached:
+            skipped_cached += 1
+            continue
+
+        try:
+            user_msg = f"Title: {title}\nAbstract: {strip_html(abstract or 'No abstract provided.')}"
+            result = await engine_run(_CLINICAL_SYSTEM, user_msg, **byok)
+
+            raw = result.text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+                raw = raw.strip()
+
+            data = json.loads(raw)
+            pico_raw      = data.get("pico", {}) or {}
+            stats_raw     = data.get("stats", {}) or {}
+            appraisal_raw = data.get("appraisal", {}) or {}
+            rewrites_raw  = data.get("rewrites", {}) or {}
+            key_claims    = data.get("key_claims") or []
+            jargon_raw    = data.get("jargon") or []
+            grade_raw     = data.get("grade", {}) or {}
+
+            try:
+                write_clinical_data(session=session, study_id=item.study_id, owner_username=current_user.username, pico_data=pico_raw, statistical_data=stats_raw, evidence_strength=appraisal_raw.get("evidence_strength"), risk_of_bias=appraisal_raw.get("bias_risk"))
+            except Exception:
+                pass
+
+            try:
+                study.extracted_outcome_value = stats_raw.get("outcome_numeric")
+                study.extracted_sample_size   = stats_raw.get("sample_size")
+                study.extracted_bias_score    = appraisal_raw.get("bias_score")
+                study.grade_criteria          = grade_raw if grade_raw else None
+                session.add(study)
+            except Exception:
+                pass
+
+            cache_data = {"pico": pico_raw, "stats": stats_raw, "appraisal": appraisal_raw, "key_claims": key_claims, "jargon": jargon_raw, "grade": grade_raw}
+            try:
+                rec = AIResult(owner_username=current_user.username, cache_key=ck, kind="clinical", model_used=result.provider.value, prompt_version="3.2", question=json.dumps(cache_data), summary=json.dumps(stats_raw), patient_summary=rewrites_raw.get("patient"), clinician_summary=rewrites_raw.get("clinician"), student_summary=rewrites_raw.get("student"))
+                session.add(rec)
+                session.commit()
+            except Exception as e:
+                logger.warning("Bulk appraisal cache write failed: %s", e)
+
+            try:
+                increment_ai_runs(session, item.study_id, current_user.username)
+            except Exception:
+                pass
+
+            processed += 1
+            # Brief yield between papers to keep event loop responsive
+            await _asyncio.sleep(0.1)
+
+        except Exception as e:
+            logger.warning("Bulk appraisal failed for study %s: %s", item.study_id, e)
+            errors.append({"study_id": item.study_id, "title": title[:80], "error": str(e)[:200]})
+
+    return {
+        "review_id": review_id,
+        "processed": processed,
+        "skipped_cached": skipped_cached,
+        "skipped_no_study": skipped_no_study,
+        "errors": errors,
+        "total_included": len(items),
+    }
+
+
 @router.get("/ai/clinical/{study_id}", response_model=AIClinicalResponse)
 def get_clinical(study_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     study = session.get(Study, study_id)
