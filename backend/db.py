@@ -18,12 +18,21 @@ def _run_migrations():
 
     column_migrations = [
         # existing
-        ("airesult",  "share_token",  "VARCHAR"),
-        ("study",     "citation_count", "INTEGER"),
-        ("study",     "is_retracted",   "BOOLEAN DEFAULT FALSE"),
+        ("airesult",          "share_token",             "VARCHAR"),
+        ("study",             "citation_count",           "INTEGER"),
+        ("study",             "is_retracted",             "BOOLEAN DEFAULT FALSE"),
         # phase 4b: comment upvotes + updated_at
-        ("comment",   "upvotes",        "INTEGER DEFAULT 0"),
-        ("comment",   "updated_at",     "TIMESTAMP"),
+        ("comment",           "upvotes",                  "INTEGER DEFAULT 0"),
+        ("comment",           "updated_at",               "TIMESTAMP"),
+        # phase 4c: study extraction fields
+        ("study",             "extracted_outcome_value",  "FLOAT"),
+        ("study",             "extracted_sample_size",    "INTEGER"),
+        ("study",             "extracted_bias_score",     "INTEGER"),
+        ("study",             "grade_criteria",           "JSON"),
+        # phase 4c: AI result text offsets
+        ("airesult",          "text_offsets",             "JSON"),
+        # phase 4d: systematic review evidence notes
+        ("systematicreview",  "evidence_notes",           "TEXT"),
     ]
 
     with engine.connect() as conn:
@@ -51,6 +60,8 @@ def _run_migrations():
 
 
 def init_db():
+    # Ensure all model classes are registered in SQLModel.metadata before create_all
+    import backend.models  # noqa: F401
     SQLModel.metadata.create_all(engine)
     _run_migrations()
 
