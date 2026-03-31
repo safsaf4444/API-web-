@@ -7,7 +7,12 @@ import re
 from datetime import datetime, timezone
 from typing import List, Optional
 
+import io
+import tempfile
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from backend.ai_secure import decrypt_api_key
@@ -182,6 +187,9 @@ def patch_review(
     if "filters" in fields_set:
         review.filters = payload.filters
         changes.append("filters")
+    if "evidence_notes" in fields_set:
+        review.evidence_notes = payload.evidence_notes
+        changes.append("evidence_notes")
 
     if changes:
         _audit(review, "updated", f"Updated: {', '.join(changes)}")
@@ -788,6 +796,116 @@ def get_network(
         edges.append(NetworkEdge(source=src, target=tgt, reason="chronological_path", is_path=True))
 
     return NetworkResponse(review_id=review_id, nodes=nodes, edges=edges)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 4c: Export Report
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/reviews/{review_id}/export-report")
+def export_report(
+    review_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a Markdown report of the review and return it as a downloadable .md file."""
+    review = session.get(SystematicReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    counts = _screening_counts(session, review_id)
+    included_screenings = session.exec(
+        select(ReviewScreening).where(
+            (ReviewScreening.review_id == review_id) &
+            (ReviewScreening.decision == "included")
+        ).order_by(ReviewScreening.id.asc())
+    ).all()
+
+    lines: list[str] = []
+    lines.append(f"# {review.title}")
+    lines.append(f"\n**Phase:** {review.phase}  ")
+    lines.append(f"**Search source:** {review.search_source}  ")
+    lines.append(f"**Search query:** {review.search_query or '—'}  ")
+    lines.append(f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}  ")
+    lines.append(f"**Author:** {current_user.username}\n")
+
+    if review.description:
+        lines.append(f"## Description\n\n{review.description}\n")
+
+    # Criteria
+    inc = (review.inclusion_criteria or {}).get("text", "")
+    exc = (review.exclusion_criteria or {}).get("text", "")
+    if inc or exc:
+        lines.append("## Criteria\n")
+        if inc:
+            lines.append(f"**Inclusion:**\n\n{inc}\n")
+        if exc:
+            lines.append(f"**Exclusion:**\n\n{exc}\n")
+
+    # PRISMA summary
+    lines.append("## PRISMA Summary\n")
+    lines.append(f"| Stage | Count |")
+    lines.append(f"|-------|-------|")
+    lines.append(f"| Records identified | {review.search_results_count or counts['total']} |")
+    lines.append(f"| Screened | {counts['total']} |")
+    lines.append(f"| Included | {counts['included']} |")
+    lines.append(f"| Excluded | {counts['excluded']} |")
+    lines.append(f"| Pending / Maybe | {counts['pending'] + counts['maybe']} |\n")
+
+    # Included papers
+    if included_screenings:
+        lines.append("## Included Papers\n")
+        for i, s in enumerate(included_screenings, 1):
+            study: Study | None = session.get(Study, s.study_id) if s.study_id else None
+            title = (study.title if study else None) or s.external_title or "Untitled"
+            year = (study.year if study else None) or s.external_year or "n/a"
+            doi = (study.doi if study else None) or s.external_doi or ""
+            doi_str = f"  DOI: {doi}" if doi else ""
+            lines.append(f"{i}. **{title}** ({year}){doi_str}")
+            if s.screener_notes:
+                lines.append(f"   > Notes: {s.screener_notes}")
+            if study and study.ai_summary:
+                lines.append(f"   > AI Summary: {study.ai_summary[:300]}…")
+        lines.append("")
+
+    # Evidence notes
+    if review.evidence_notes:
+        lines.append("## Evidence Notes\n")
+        lines.append(review.evidence_notes)
+        lines.append("")
+
+    # Audit summary
+    audit = review.audit_log or []
+    if audit:
+        lines.append(f"## Audit Trail ({len(audit)} entries)\n")
+        for entry in audit[-10:]:  # last 10
+            ts = entry.get("timestamp", "")[:16].replace("T", " ")
+            lines.append(f"- `{ts}` **{entry.get('action', '')}** {entry.get('details', '')}")
+        lines.append("")
+
+    markdown = "\n".join(lines)
+
+    # Write to a temp file and return
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8",
+        prefix=f"review_{review_id}_",
+    )
+    tmp.write(markdown)
+    tmp.flush()
+    tmp.close()
+
+    safe_title = re.sub(r'[^\w\s-]', '', review.title)[:40].strip().replace(' ', '_')
+    filename = f"review_{safe_title or review_id}.md"
+
+    return FileResponse(
+        path=tmp.name,
+        media_type="text/markdown",
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        background=None,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -258,6 +258,8 @@ class ConsensusPoint(BaseModel):
     finding: str
     supporting_studies: List[str] = []
     strength: Optional[str] = None
+    confidence_pct: Optional[int] = None        # Phase 4c: 0–100
+    confidence_reasoning: Optional[str] = None  # Phase 4c
 
 class ContradictionItem(BaseModel):
     issue: str
@@ -373,6 +375,7 @@ class SystematicReviewPatch(BaseModel):
     inclusion_criteria: Optional[Dict[str, Any]] = None
     exclusion_criteria: Optional[Dict[str, Any]] = None
     filters: Optional[Dict[str, Any]] = None
+    evidence_notes: Optional[str] = None
 
 class SystematicReviewRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -391,6 +394,7 @@ class SystematicReviewRead(BaseModel):
     synthesis_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    evidence_notes: Optional[str] = None
     # summary counts (populated by router)
     screening_total: int = 0
     screening_included: int = 0
@@ -700,3 +704,113 @@ class LandingStats(BaseModel):
     syntheses_run: int
     community_posts: int
     researchers: int
+
+
+# ── Phase 4c: Extraction Templates & Records ─────────────────────────────────
+
+class ExtractionFieldDef(BaseModel):
+    name: str
+    type: str = "text"   # text | number | select | boolean
+    required: bool = False
+    options: Optional[List[str]] = None  # for select type
+
+class ExtractionTemplateCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    fields: List[ExtractionFieldDef] = []
+
+class ExtractionTemplateRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    owner_username: str
+    name: str
+    fields: Optional[List[Dict]] = None
+    is_global: bool = False
+    created_at: datetime
+
+class ExtractionRecordCreate(BaseModel):
+    screening_id: int
+    template_id: Optional[int] = None
+    data: Dict[str, Any] = {}
+
+class ExtractionRecordRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    review_id: int
+    screening_id: int
+    template_id: Optional[int] = None
+    owner_username: str
+    data: Optional[Dict[str, Any]] = None
+    ai_extracted: bool = False
+    created_at: datetime
+    updated_at: datetime
+    paper_title: Optional[str] = None  # enriched
+
+class BulkExtractionRequest(BaseModel):
+    template_id: Optional[int] = None
+    fields: Optional[List[str]] = None  # specific fields to extract; None = all template fields
+
+class BulkExtractionResponse(BaseModel):
+    review_id: int
+    extracted: int = 0
+    failed: int = 0
+    records: List[ExtractionRecordRead] = []
+
+
+# ── Phase 4c: Interactive Reading Endpoints ───────────────────────────────────
+
+class ExplainSelectionRequest(BaseModel):
+    study_id: Optional[int] = None
+    selected_text: str = Field(min_length=3, max_length=3000)
+    context: Optional[str] = None   # surrounding text for better AI context
+    mode: str = "explain"           # explain | simplify | meaning | section_qa
+    section: Optional[str] = None   # background | methods | results | conclusion
+
+class ExplainSelectionResponse(BaseModel):
+    explanation: str
+    mode: str
+    study_id: Optional[int] = None
+
+class ExplainTableRequest(BaseModel):
+    study_id: Optional[int] = None
+    table_html: str = Field(min_length=10, max_length=10000)
+
+class ExplainTableResponse(BaseModel):
+    explanation: str
+    study_id: Optional[int] = None
+
+class ExplainFigureRequest(BaseModel):
+    study_id: Optional[int] = None
+    description: str = Field(min_length=5, max_length=2000)
+
+class ExplainFigureResponse(BaseModel):
+    explanation: str
+    study_id: Optional[int] = None
+
+
+# ── Phase 4c: Contradiction Analysis ─────────────────────────────────────────
+
+class ContradictionAnalysisRequest(BaseModel):
+    study_ids: List[int] = Field(min_length=2)
+
+class ContradictionPair(BaseModel):
+    study_a_title: str
+    study_b_title: str
+    claim: str
+    conflict_summary: str
+    resolution: str
+    preferred_study: Optional[str] = None
+    reason: Optional[str] = None
+
+class ContradictionAnalysisResponse(BaseModel):
+    contradictions: List[ContradictionPair] = []
+    summary: str = ""
+    studies_analysed: int = 0
+
+
+# ── Phase 4c: Report Export ───────────────────────────────────────────────────
+
+class ReviewReportResponse(BaseModel):
+    review_id: int
+    title: str
+    markdown: str
+    generated_at: str

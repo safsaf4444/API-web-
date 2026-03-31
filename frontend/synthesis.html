@@ -107,6 +107,10 @@
     .strengthBadge.strong   { background:rgba(61,122,74,.1);  color:var(--good); border-color:rgba(61,122,74,.25); }
     .strengthBadge.moderate { background:rgba(196,134,42,.1); color:var(--warn); border-color:rgba(196,134,42,.25); }
     .strengthBadge.weak     { background:rgba(184,64,64,.1);  color:var(--bad);  border-color:rgba(184,64,64,.25); }
+    .confBadge { display:inline-block; font-size:10px; font-weight:700; padding:1px 7px; border-radius:var(--r-pill); margin-left:6px; vertical-align:middle; cursor:default; }
+    .confBadge.high   { background:rgba(61,122,74,.12);  color:var(--good); border:1px solid rgba(61,122,74,.25); }
+    .confBadge.medium { background:rgba(196,134,42,.12); color:var(--warn); border:1px solid rgba(196,134,42,.25); }
+    .confBadge.low    { background:rgba(184,64,64,.08);  color:var(--bad);  border:1px solid rgba(184,64,64,.2); }
 
     .contradictionItem { background:var(--surface); border:1px solid rgba(184,64,64,.18); border-radius:var(--r-sm); padding:14px 16px; margin-bottom:10px; }
     .contradictionIssue { font-size:13.5px; font-weight:700; color:var(--navy); margin-bottom:10px; }
@@ -630,7 +634,13 @@ function renderResults(data, mode, query) {
   if (!consensus.length) html += '<div class="synthEmpty">No clear consensus points identified.</div>';
   else consensus.forEach(c => {
     const sc = c.strength==='strong'?'strong':c.strength==='weak'?'weak':'moderate';
-    html += `<div class="consensusItem"><div class="consensusFinding">${esc(c.finding)}</div><div class="consensusMeta">${c.strength?`<span class="strengthBadge ${sc}">${esc(c.strength)}</span>`:''} ${(c.supporting_studies||[]).map(s=>`<span class="badge coffee" style="font-size:10px;">${esc(s)}</span>`).join('')}</div></div>`;
+    let confBadge = '';
+    if (c.confidence_pct != null) {
+      const cc = c.confidence_pct >= 70 ? 'high' : c.confidence_pct >= 40 ? 'medium' : 'low';
+      const confTitle = c.confidence_reasoning ? ` title="${esc(c.confidence_reasoning)}"` : '';
+      confBadge = `<span class="confBadge ${cc}"${confTitle}>${c.confidence_pct}% confidence</span>`;
+    }
+    html += `<div class="consensusItem"><div class="consensusFinding">${esc(c.finding)}${confBadge}</div><div class="consensusMeta">${c.strength?`<span class="strengthBadge ${sc}">${esc(c.strength)}</span>`:''} ${(c.supporting_studies||[]).map(s=>`<span class="badge coffee" style="font-size:10px;">${esc(s)}</span>`).join('')}</div></div>`;
   });
   html += '</div>';
 

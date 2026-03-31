@@ -138,6 +138,51 @@
     .driftNarrativeLabel { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--brass); margin-bottom:8px; }
 
     @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+
+    /* ── Quick Screen Mode ──────────────────────────────────────────── */
+    .quickScreenBanner { background:rgba(36,48,68,.06); border:1px solid var(--navy); border-radius:var(--r-sm); padding:8px 14px; display:flex; align-items:center; gap:10px; font-size:12px; color:var(--navy); font-weight:600; margin-bottom:10px; }
+    .quickScreenBanner .kbHint { font-size:11px; color:var(--subtle); font-weight:400; }
+    kbd { background:var(--surface2); border:1px solid var(--line); border-radius:3px; font-size:10px; padding:1px 5px; font-family:monospace; color:var(--navy); }
+    .toggleSwitch { position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
+    .toggleSwitch input { opacity:0; width:0; height:0; }
+    .toggleSwitch .slider { position:absolute; inset:0; background:var(--line); border-radius:20px; cursor:pointer; transition:background .2s; }
+    .toggleSwitch .slider:before { content:''; position:absolute; height:14px; width:14px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:transform .2s; }
+    .toggleSwitch input:checked + .slider { background:var(--navy); }
+    .toggleSwitch input:checked + .slider:before { transform:translateX(16px); }
+
+    /* ── Paper Roulette ─────────────────────────────────────────────── */
+    .rouletteCard { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:20px 22px; max-width:680px; margin:0 auto; }
+    .rouletteTitle { font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--navy); line-height:1.4; margin-bottom:8px; }
+    .rouletteAbstract { font-size:13px; color:var(--muted); line-height:1.7; max-height:160px; overflow:hidden; margin-bottom:14px; }
+    .rouletteMeta { font-size:11.5px; color:var(--subtle); margin-bottom:12px; }
+    .rouletteNav { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .rouletteProgress { font-size:12px; color:var(--subtle); }
+    #rouletteNotes { margin-top:14px; }
+
+    /* ── Extract tab ────────────────────────────────────────────────── */
+    .extractTable { width:100%; border-collapse:collapse; font-size:12px; }
+    .extractTable th { background:var(--surface2); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--subtle); padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+    .extractTable td { padding:8px 10px; border-bottom:1px solid var(--line2); color:var(--text2); vertical-align:top; }
+    .extractTable tr:hover td { background:var(--surface2); }
+    .extractTableWrap { overflow-x:auto; max-height:420px; overflow-y:auto; border:1px solid var(--line); border-radius:var(--r-sm); }
+
+    /* ── Contradiction pairs ────────────────────────────────────────── */
+    .contradictionCard { background:var(--surface2); border:1px solid var(--line); border-radius:var(--r-sm); padding:14px 16px; margin-bottom:10px; }
+    .contradictionHeader { display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; }
+    .contradictionVs { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--bad); background:rgba(184,64,64,.08); border:1px solid rgba(184,64,64,.18); padding:2px 7px; border-radius:var(--r-pill); flex-shrink:0; margin-top:2px; }
+    .contradictionClaim { font-weight:700; font-size:13.5px; color:var(--navy); line-height:1.4; }
+    .contradictionConflict { font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:6px; }
+    .contradictionResolution { font-size:12.5px; color:var(--text2); line-height:1.6; background:rgba(61,122,74,.07); border-left:3px solid var(--good); padding:6px 10px; border-radius:0 var(--r-sm) var(--r-sm) 0; }
+    .contradictionPreferred { font-size:11px; color:var(--good); font-weight:600; margin-top:6px; }
+
+    /* ── Confidence badge ───────────────────────────────────────────── */
+    .confBadge { display:inline-block; font-size:10px; font-weight:700; padding:1px 7px; border-radius:var(--r-pill); margin-left:6px; vertical-align:middle; }
+    .confBadge.high   { background:rgba(61,122,74,.12);  color:var(--good); border:1px solid rgba(61,122,74,.25); }
+    .confBadge.medium { background:rgba(196,134,42,.12); color:var(--warn); border:1px solid rgba(196,134,42,.25); }
+    .confBadge.low    { background:rgba(184,64,64,.08);  color:var(--bad);  border:1px solid rgba(184,64,64,.2); }
+
+    /* ── Evidence Notes ─────────────────────────────────────────────── */
+    #evidenceNotesArea { min-height:100px; font-size:13px; line-height:1.7; resize:vertical; }
   </style>
 </head>
 <body>
@@ -191,10 +236,13 @@
     <div class="rvTabs" id="rvTabs">
       <div class="rvTab active" data-tab="criteria">Criteria</div>
       <div class="rvTab" data-tab="screening">Screening</div>
+      <div class="rvTab" data-tab="extract">Extract</div>
       <div class="rvTab" data-tab="prisma">PRISMA</div>
       <div class="rvTab" data-tab="forest">Forest Plot</div>
       <div class="rvTab" data-tab="network">Network</div>
       <div class="rvTab" data-tab="drift">Evidence Drift</div>
+      <div class="rvTab" data-tab="roulette">Paper Roulette</div>
+      <div class="rvTab" data-tab="notes">Evidence Notes</div>
       <div class="rvTab" data-tab="audit">Audit Trail</div>
     </div>
 
@@ -236,7 +284,9 @@
           <span class="sectionTitle" style="font-size:15px;">Screening Queue</span>
           <span id="screeningCounts" style="font-size:12px;color:var(--subtle);margin-left:10px;"></span>
         </div>
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <label class="toggleSwitch" title="Quick Screen Mode"><input type="checkbox" id="quickScreenToggle"/><span class="slider"></span></label>
+          <span style="font-size:12px;color:var(--muted);font-weight:600;">Quick</span>
           <select id="screenFilterSelect" style="font-size:12px;padding:5px 8px;">
             <option value="">All</option>
             <option value="pending">Pending</option>
@@ -245,6 +295,9 @@
             <option value="maybe">Maybe</option>
           </select>
         </div>
+      </div>
+      <div id="quickScreenBanner" style="display:none;" class="quickScreenBanner">
+        ⚡ Quick Screen Mode &nbsp;<span class="kbHint"><kbd>I</kbd> Include &nbsp;<kbd>E</kbd> Exclude &nbsp;<kbd>M</kbd> Maybe &nbsp;<kbd>↑↓</kbd> Navigate</span>
       </div>
       <div class="screeningQueue" id="screeningQueue">
         <div class="emptyState">Run a search first to populate the screening queue.</div>
@@ -314,6 +367,69 @@
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:10px;">Audit Trail</div>
         <div class="auditLog" id="auditLog">
           <div class="emptyState">No actions recorded yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXTRACT PANE -->
+    <div class="rvPane" data-pane="extract">
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Data Extraction Template</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn sm ghost" id="newTemplateBtn">+ New Template</button>
+          </div>
+        </div>
+        <div id="templatesList" style="font-size:12.5px;color:var(--subtle);">Loading templates…</div>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Extracted Records</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn sm primary" id="bulkExtractBtn">&#9889; AI Bulk Extract</button>
+            <a class="btn sm ghost" id="exportCsvBtn" href="#">&#8595; CSV</a>
+            <a class="btn sm ghost" id="exportXlsxBtn" href="#">&#8595; XLSX</a>
+          </div>
+        </div>
+        <div id="extractionTableWrap">
+          <div class="emptyState">Run AI Bulk Extract or add extraction records to included papers.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAPER ROULETTE PANE -->
+    <div class="rvPane" data-pane="roulette">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Paper Roulette — Flip through included papers</div>
+          <button class="btn sm ghost" id="rouletteShuffleBtn">&#8635; Shuffle</button>
+        </div>
+        <div id="rouletteContent">
+          <div class="emptyState">Include papers in the Screening tab first.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EVIDENCE NOTES PANE -->
+    <div class="rvPane" data-pane="notes">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Evidence Notebook</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span id="notesSaveStatus" style="font-size:11px;color:var(--subtle);"></span>
+            <button class="btn sm primary" id="saveEvidenceNotesBtn">Save Notes</button>
+            <a class="btn sm ghost" id="exportReportBtn" href="#" target="_blank">&#8595; Export Report</a>
+          </div>
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:8px;line-height:1.6;">Free-form notes, observations, and working hypotheses about this review. Included in the Markdown report export.</div>
+        <textarea id="evidenceNotesArea" placeholder="Write your evidence notes here…&#10;&#10;e.g. Key trends, contradictions, clinical implications, next steps…"></textarea>
+
+        <!-- Contradictions sub-section -->
+        <div style="margin-top:22px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px;">AI Contradiction Analysis</div>
+          <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Analyses all included papers with saved study records and identifies conflicting findings.</div>
+          <button class="btn sm primary" id="resolveContradictionsBtn">&#9889; Analyse Contradictions</button>
+          <div id="contradictionsContent" style="margin-top:14px;"></div>
         </div>
       </div>
     </div>
@@ -399,6 +515,8 @@ async function openReview(id) {
   document.getElementById('detailView').style.display = '';
   renderDetail();
   loadScreening();
+  // pre-populate evidence notes textarea
+  document.getElementById('evidenceNotesArea').value = currentReview.evidence_notes || '';
 }
 
 function renderDetail() {
@@ -916,6 +1034,9 @@ function switchTab(name) {
   if (name === 'screening') loadScreening();
   if (name === 'forest')    loadForestPlot();
   if (name === 'network')   loadNetwork();
+  if (name === 'extract')   loadExtractTab();
+  if (name === 'roulette')  loadRoulette();
+  if (name === 'notes')     loadEvidenceNotes();
 }
 
 document.querySelectorAll('.rvTab').forEach(tab => {
@@ -976,6 +1097,337 @@ document.getElementById('srAskInput').addEventListener('keydown', e => {
     document.getElementById('srAskBtn').click();
   }
 });
+
+// ── QUICK SCREEN MODE ────────────────────────────────────────────────────────
+
+let _quickScreenItems = [];
+let _quickScreenIdx   = 0;
+let _quickScreenActive = false;
+
+function getQuickScreenActive() { return document.getElementById('quickScreenToggle').checked; }
+
+document.getElementById('quickScreenToggle').onchange = function() {
+  _quickScreenActive = this.checked;
+  document.getElementById('quickScreenBanner').style.display = _quickScreenActive ? '' : 'none';
+  if (_quickScreenActive) {
+    // Filter to pending items
+    document.getElementById('screenFilterSelect').value = 'pending';
+    loadScreening();
+  }
+};
+
+document.addEventListener('keydown', (e) => {
+  if (!_quickScreenActive || !currentReview) return;
+  const activePane = document.querySelector('.rvPane.active');
+  if (!activePane || activePane.dataset.pane !== 'screening') return;
+  // Ignore if user is typing in an input
+  if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+
+  const cards = Array.from(document.querySelectorAll('#screeningQueue .screenCard'));
+  if (!cards.length) return;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _quickScreenIdx = Math.min(_quickScreenIdx + 1, cards.length - 1);
+    cards.forEach((c, i) => c.style.outline = i === _quickScreenIdx ? '2px solid var(--brass)' : '');
+    cards[_quickScreenIdx].scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _quickScreenIdx = Math.max(_quickScreenIdx - 1, 0);
+    cards.forEach((c, i) => c.style.outline = i === _quickScreenIdx ? '2px solid var(--brass)' : '');
+    cards[_quickScreenIdx].scrollIntoView({ block: 'nearest' });
+    return;
+  }
+
+  const card = cards[_quickScreenIdx];
+  if (!card) return;
+  const sid = parseInt(card.dataset.sid);
+
+  let decision = null;
+  if (e.key === 'i' || e.key === 'I') decision = 'included';
+  if (e.key === 'e' || e.key === 'E') decision = 'excluded';
+  if (e.key === 'm' || e.key === 'M') decision = 'maybe';
+  if (!decision) return;
+
+  e.preventDefault();
+  fetchJson(`/reviews/${currentReview.id}/screening/${sid}`, {
+    method: 'PATCH', body: { decision },
+  }).then(() => {
+    showToast('Quick Screen', `Paper → ${decision}`, 'success', 1400);
+    loadScreening();
+    loadPRISMA();
+  }).catch(err => showToast('Error', err.message, 'error'));
+});
+
+
+// ── PAPER ROULETTE ────────────────────────────────────────────────────────────
+
+let _rouletteItems  = [];
+let _rouletteIdx    = 0;
+
+async function loadRoulette() {
+  if (!currentReview) return;
+  const el = document.getElementById('rouletteContent');
+  el.innerHTML = '<div class="emptyState">Loading…</div>';
+  try {
+    const items = await fetchJson(`/reviews/${currentReview.id}/screening?decision=included`);
+    if (!items.length) {
+      el.innerHTML = '<div class="emptyState">No included papers. Include some in the Screening tab first.</div>';
+      return;
+    }
+    _rouletteItems = items;
+    _rouletteIdx   = 0;
+    renderRoulette();
+  } catch(e) {
+    el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
+  }
+}
+
+function renderRoulette() {
+  const el = document.getElementById('rouletteContent');
+  if (!_rouletteItems.length) return;
+  const item = _rouletteItems[_rouletteIdx];
+  const title   = esc(item.study_title || item.external_title || 'Untitled');
+  const year    = item.external_year ? esc(String(item.external_year)) : '';
+  const source  = item.external_source ? esc(item.external_source) : '';
+  const doi     = item.external_doi ? `<a href="https://doi.org/${esc(item.external_doi)}" target="_blank" style="color:var(--brass);font-size:11.5px;">DOI ↗</a>` : '';
+  const abstract = item.external_abstract ? esc(item.external_abstract.slice(0, 400)) + (item.external_abstract.length > 400 ? '…' : '') : '<em>No abstract.</em>';
+  const notes   = item.screener_notes ? esc(item.screener_notes) : '';
+
+  el.innerHTML = `
+    <div class="rouletteCard">
+      <div class="rouletteMeta">${year} ${source ? '· ' + source : ''} ${doi}</div>
+      <div class="rouletteTitle">${title}</div>
+      <div class="rouletteAbstract">${abstract}</div>
+      ${notes ? `<div style="font-size:12px;color:var(--subtle);margin-bottom:10px;">Screener notes: ${notes}</div>` : ''}
+      <div id="rouletteNotes">
+        <textarea id="rouletteNoteInput" placeholder="Add a note about this paper…" style="min-height:60px;font-size:12.5px;resize:vertical;width:100%;"></textarea>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button class="btn sm primary" id="rouletteSaveNoteBtn">Save Note</button>
+        </div>
+      </div>
+      <div class="rouletteNav" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line2);">
+        <button class="btn sm ghost" id="roulettePrevBtn" ${_rouletteIdx === 0 ? 'disabled' : ''}>&#8592; Prev</button>
+        <span class="rouletteProgress">${_rouletteIdx + 1} / ${_rouletteItems.length}</span>
+        <button class="btn sm ghost" id="rouletteNextBtn" ${_rouletteIdx === _rouletteItems.length - 1 ? 'disabled' : ''}>Next &#8594;</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('roulettePrevBtn').onclick = () => { _rouletteIdx--; renderRoulette(); };
+  document.getElementById('rouletteNextBtn').onclick = () => { _rouletteIdx++; renderRoulette(); };
+  document.getElementById('rouletteSaveNoteBtn').onclick = async () => {
+    const note = document.getElementById('rouletteNoteInput').value.trim();
+    if (!note) return;
+    try {
+      await fetchJson(`/reviews/${currentReview.id}/screening/${item.id}`, {
+        method: 'PATCH', body: { screener_notes: note },
+      });
+      _rouletteItems[_rouletteIdx].screener_notes = note;
+      showToast('Saved', 'Note saved.', 'success');
+    } catch(e) { showToast('Error', e.message, 'error'); }
+  };
+  document.getElementById('rouletteNoteInput').value = item.screener_notes || '';
+}
+
+document.getElementById('rouletteShuffleBtn').onclick = () => {
+  if (!_rouletteItems.length) return;
+  _rouletteItems.sort(() => Math.random() - 0.5);
+  _rouletteIdx = 0;
+  renderRoulette();
+};
+
+
+// ── EXTRACT TAB ───────────────────────────────────────────────────────────────
+
+let _currentTemplateId = null;
+
+async function loadExtractTab() {
+  if (!currentReview) return;
+  await Promise.all([loadTemplates(), loadExtractions()]);
+}
+
+async function loadTemplates() {
+  const el = document.getElementById('templatesList');
+  try {
+    const templates = await fetchJson('/extraction-templates');
+    if (!templates.length) {
+      el.innerHTML = '<span style="color:var(--subtle);font-style:italic;">No templates yet. Create one to define extraction fields.</span>';
+      return;
+    }
+    el.innerHTML = templates.map(t => {
+      const fields = (t.fields || []).map(f => esc(f.name)).join(', ') || '—';
+      const active = _currentTemplateId === t.id ? ' style="border-color:var(--brass);background:rgba(201,168,124,.06);"' : '';
+      return `<div class="screenCard" data-tmpl-id="${t.id}"${active} style="cursor:pointer;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div class="screenCardTitle" style="margin:0;">${esc(t.name)}</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn sm primary" data-select-tmpl="${t.id}">Use</button>
+            <button class="btn sm ghost" style="color:var(--bad);" data-del-tmpl="${t.id}">Del</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--subtle);margin-top:4px;">Fields: ${fields}</div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('[data-select-tmpl]').forEach(btn => {
+      btn.onclick = () => { _currentTemplateId = parseInt(btn.dataset.selectTmpl); loadTemplates(); };
+    });
+    el.querySelectorAll('[data-del-tmpl]').forEach(btn => {
+      btn.onclick = async () => {
+        const confirmed = await confirmModal({ title:'Delete Template', message:'Delete this template?', okText:'Delete', danger:true });
+        if (!confirmed) return;
+        await fetchJson(`/extraction-templates/${btn.dataset.delTmpl}`, { method:'DELETE' });
+        if (_currentTemplateId === parseInt(btn.dataset.delTmpl)) _currentTemplateId = null;
+        loadTemplates();
+      };
+    });
+  } catch(e) {
+    el.innerHTML = `<span style="color:var(--bad);">${esc(e.message)}</span>`;
+  }
+}
+
+async function loadExtractions() {
+  const wrap = document.getElementById('extractionTableWrap');
+  try {
+    const records = await fetchJson(`/reviews/${currentReview.id}/extractions`);
+    if (!records.length) {
+      wrap.innerHTML = '<div class="emptyState">No extraction records yet.</div>';
+      updateExportLinks();
+      return;
+    }
+    // Collect all unique field keys
+    const allFields = new Set();
+    records.forEach(r => { if (r.data) Object.keys(r.data).forEach(k => allFields.add(k)); });
+    const fields = [...allFields];
+
+    let thead = '<tr><th>Paper</th>' + fields.map(f => `<th>${esc(f)}</th>`).join('') + '<th>Source</th></tr>';
+    let tbody = records.map(r => {
+      const cells = fields.map(f => {
+        const v = r.data ? r.data[f] : null;
+        return `<td>${v != null ? esc(String(v)) : '<span style="color:var(--line);">—</span>'}</td>`;
+      }).join('');
+      return `<tr>
+        <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(r.paper_title || '')}">${esc((r.paper_title || 'Unknown').slice(0,40))}</td>
+        ${cells}
+        <td><span class="${r.ai_extracted ? 'gradeBadge moderate' : ''}" style="font-size:10px;">${r.ai_extracted ? '✦ AI' : 'Manual'}</span></td>
+      </tr>`;
+    }).join('');
+    wrap.innerHTML = `<div class="extractTableWrap"><table class="extractTable"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+    updateExportLinks();
+  } catch(e) {
+    wrap.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
+  }
+}
+
+function updateExportLinks() {
+  if (!currentReview) return;
+  document.getElementById('exportCsvBtn').href  = `/reviews/${currentReview.id}/extractions/export?format=csv`;
+  document.getElementById('exportXlsxBtn').href = `/reviews/${currentReview.id}/extractions/export?format=xlsx`;
+}
+
+document.getElementById('newTemplateBtn').onclick = async () => {
+  const name = await promptModal({ title:'New Extraction Template', message:'Template name:', placeholder:'e.g. Standard RCT Extraction', okText:'Next' });
+  if (!name || !name.trim()) return;
+  const fieldsRaw = await promptModal({ title:'Define Fields', message:'Enter field names separated by commas:', placeholder:'dosage, duration, sample_size, primary_outcome, effect_size', okText:'Create' });
+  if (fieldsRaw === null) return;
+  const fields = fieldsRaw.split(',').map(f => f.trim()).filter(Boolean).map(f => ({ name: f, type: 'text', required: false }));
+  try {
+    const t = await fetchJson('/extraction-templates', { method:'POST', body:{ name:name.trim(), fields } });
+    _currentTemplateId = t.id;
+    showToast('Template created', `"${t.name}" with ${fields.length} fields.`, 'success');
+    loadTemplates();
+  } catch(e) { showToast('Error', e.message, 'error'); }
+};
+
+document.getElementById('bulkExtractBtn').onclick = async () => {
+  if (!currentReview) return;
+  const confirmed = await confirmModal({ title:'AI Bulk Extract', message:`Run AI extraction on all included papers? This will use your AI key and may take a moment.`, okText:'Extract', danger:false });
+  if (!confirmed) return;
+  await withBtnLoading(document.getElementById('bulkExtractBtn'), async () => {
+    try {
+      const res = await fetchJson(`/reviews/${currentReview.id}/extract-bulk`, {
+        method:'POST',
+        body:{ template_id: _currentTemplateId || null },
+      });
+      showToast('Extraction complete', `${res.extracted} extracted, ${res.failed} failed.`, 'success');
+      loadExtractions();
+    } catch(e) { showToast('Error', e.message, 'error'); }
+  });
+};
+
+
+// ── EVIDENCE NOTES & EXPORT ───────────────────────────────────────────────────
+
+function loadEvidenceNotes() {
+  if (!currentReview) return;
+  document.getElementById('evidenceNotesArea').value = currentReview.evidence_notes || '';
+}
+
+document.getElementById('saveEvidenceNotesBtn').onclick = async () => {
+  if (!currentReview) return;
+  const notes = document.getElementById('evidenceNotesArea').value;
+  try {
+    currentReview = await fetchJson(`/reviews/${currentReview.id}`, {
+      method: 'PATCH', body: { evidence_notes: notes },
+    });
+    document.getElementById('notesSaveStatus').textContent = 'Saved ✓';
+    setTimeout(() => { document.getElementById('notesSaveStatus').textContent = ''; }, 2000);
+  } catch(e) { showToast('Error', e.message, 'error'); }
+};
+
+document.getElementById('exportReportBtn').onclick = (e) => {
+  e.preventDefault();
+  if (!currentReview) return;
+  window.location.href = `/reviews/${currentReview.id}/export-report`;
+};
+
+
+// ── AI CONTRADICTION ANALYSIS ─────────────────────────────────────────────────
+
+document.getElementById('resolveContradictionsBtn').onclick = async () => {
+  if (!currentReview) return;
+  const el = document.getElementById('contradictionsContent');
+  el.innerHTML = '<div class="emptyState">Fetching included papers…</div>';
+  await withBtnLoading(document.getElementById('resolveContradictionsBtn'), async () => {
+    try {
+      const items = await fetchJson(`/reviews/${currentReview.id}/screening?decision=included`);
+      const studyIds = items.map(i => i.study_id).filter(Boolean);
+      if (studyIds.length < 2) {
+        el.innerHTML = '<div class="emptyState">Need at least 2 included papers with saved study records to analyse contradictions.</div>';
+        return;
+      }
+      el.innerHTML = '<div class="emptyState">Analysing contradictions with AI…</div>';
+      const res = await fetchJson('/ai/resolve-contradictions', { method:'POST', body:{ study_ids: studyIds } });
+
+      if (!res.contradictions.length) {
+        el.innerHTML = `<div style="font-size:13px;color:var(--muted);line-height:1.6;padding:10px 0;">${esc(res.summary || 'No significant contradictions found.')}</div>`;
+        return;
+      }
+      let html = '';
+      if (res.summary) {
+        html += `<div style="font-size:13px;color:var(--text2);line-height:1.65;margin-bottom:14px;background:var(--cream3);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px;">${esc(res.summary)}</div>`;
+      }
+      res.contradictions.forEach(c => {
+        const pref = c.preferred_study ? `<div class="contradictionPreferred">&#10003; Preferred: ${esc(c.preferred_study)}${c.reason ? ' — ' + esc(c.reason) : ''}</div>` : '';
+        html += `<div class="contradictionCard">
+          <div class="contradictionHeader">
+            <span class="contradictionVs">vs</span>
+            <div class="contradictionClaim">${esc(c.claim)}</div>
+          </div>
+          <div class="contradictionConflict">${esc(c.study_a_title)} ↔ ${esc(c.study_b_title)}<br>${esc(c.conflict_summary)}</div>
+          <div class="contradictionResolution">${esc(c.resolution)}</div>
+          ${pref}
+        </div>`;
+      });
+      el.innerHTML = html;
+    } catch(e) {
+      el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
+    }
+  });
+};
+
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 

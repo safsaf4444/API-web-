@@ -23,6 +23,7 @@ from backend.routers.folders import router as folders_router
 from backend.routers.health import router as health_router
 from backend.routers.metrics import router as metrics_router
 from backend.routers.notebooks import router as notebooks_router
+from backend.routers.extraction import router as extraction_router
 from backend.routers.reviews import router as reviews_router
 from backend.routers.studies import router as studies_router
 
@@ -116,6 +117,7 @@ app.include_router(ai_router)
 app.include_router(notebooks_router)   # Phase 4b
 app.include_router(community_router)   # Phase 4b
 app.include_router(reviews_router)     # Phase 4: Systematic Review Tooling
+app.include_router(extraction_router)  # Phase 4c: Data Extraction
 
 # ── Static ────────────────────────────────────────────────────────────────────
 
@@ -144,7 +146,7 @@ _API_PREFIXES = (
     "/auth/", "/studies/", "/folders/", "/comments/",
     "/external/", "/metrics/", "/ai/", "/health",
     "/notebooks/", "/community/",
-    "/reviews/", "/reminders/",
+    "/reviews/", "/reminders/", "/extraction-templates/",
     "/docs", "/redoc", "/openapi",
 )
 

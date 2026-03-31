@@ -227,6 +227,122 @@
       border-radius: var(--r-pill);
       padding: 2px 8px;
     }
+
+    /* ── Interactive Reading Layer ───────────────────────────────── */
+
+    /* Highlight-to-chat floating toolbar */
+    #hlToolbar {
+      position: fixed;
+      z-index: 9900;
+      display: none;
+      background: var(--navy);
+      border-radius: var(--r-pill);
+      box-shadow: 0 4px 16px rgba(0,0,0,.28);
+      padding: 5px 8px;
+      gap: 4px;
+      align-items: center;
+      animation: popIn .12s ease;
+    }
+    #hlToolbar.visible { display: flex; }
+    #hlToolbar button {
+      background: transparent;
+      border: none;
+      color: var(--cream);
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: var(--r-pill);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .1s;
+    }
+    #hlToolbar button:hover { background: rgba(255,255,255,.14); }
+    @keyframes popIn { from { opacity:0; transform:scale(.92) translateY(4px); } to { opacity:1; transform:none; } }
+
+    /* Explain result modal */
+    #explainOverlay {
+      position: fixed; inset: 0;
+      background: rgba(12,17,23,.45);
+      z-index: 9800;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #explainOverlay.visible { display: flex; }
+    #explainModal {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      max-width: 620px;
+      width: 100%;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #explainModalHead {
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--line2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    #explainModalTitle { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--navy); }
+    #explainModalClose { cursor: pointer; color: var(--subtle); font-size: 18px; line-height:1; background:none; border:none; padding:0; }
+    #explainModalSelected {
+      margin: 12px 18px 0;
+      padding: 8px 12px;
+      background: var(--cream3);
+      border-left: 3px solid var(--brass);
+      border-radius: 0 var(--r-sm) var(--r-sm) 0;
+      font-size: 12.5px;
+      color: var(--muted);
+      font-style: italic;
+      line-height: 1.6;
+      flex-shrink: 0;
+    }
+    #explainModalBody {
+      padding: 14px 18px;
+      overflow-y: auto;
+      flex: 1;
+      font-size: 13.5px;
+      line-height: 1.75;
+      color: var(--text2);
+      white-space: pre-wrap;
+    }
+
+    /* Table explainer button */
+    .tableExplainBtn {
+      display: block;
+      margin-top: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 12px;
+      border-radius: var(--r-pill);
+    }
+
+    /* PDF upload zone */
+    #pdfDropZone {
+      border: 2px dashed var(--line);
+      border-radius: var(--r-sm);
+      padding: 24px 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--subtle);
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    #pdfDropZone.dragover { border-color: var(--brass); background: rgba(201,168,124,.06); }
+    #pdfDropZone input[type=file] { display: none; }
+    #pdfResult { margin-top: 12px; font-size: 12.5px; color: var(--text2); line-height: 1.65; }
+    #pdfResult pre { white-space: pre-wrap; font-size: 11.5px; background: var(--surface2); padding: 10px 12px; border-radius: var(--r-sm); overflow-x: auto; max-height: 300px; overflow-y: auto; }
+
+    /* Figure explain area */
+    #figureExplainArea { margin-top: 12px; }
+    #figureExplainArea textarea { min-height: 70px; font-size: 12.5px; }
   </style>
 </head>
 
@@ -309,6 +425,33 @@
       </div>
     </div>
 
+    <!-- PDF Upload & Text Extraction -->
+    <div class="card" id="pdfUploadCard">
+      <div class="sectionLabel">PDF Upload &amp; Text Extraction</div>
+      <div class="hr"></div>
+      <div id="pdfDropZone">
+        <input type="file" id="pdfFileInput" accept=".pdf"/>
+        <div style="font-size:28px;margin-bottom:8px;opacity:.5;">📄</div>
+        <div><strong>Drop a PDF here</strong> or <span style="color:var(--brass);text-decoration:underline;cursor:pointer;" id="pdfBrowseLink">browse</span></div>
+        <div style="font-size:11.5px;margin-top:4px;">Extracts full text, figures metadata, and references · Max 50 MB</div>
+      </div>
+      <div id="pdfResult"></div>
+    </div>
+
+    <!-- Figure / Image Explainer -->
+    <div class="card" id="figureExplainCard">
+      <div class="sectionLabel">Figure / Image Explainer</div>
+      <div class="hr"></div>
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:8px;">Describe a figure, chart, or graph and the AI will explain it in clinical context.</div>
+      <div id="figureExplainArea">
+        <textarea id="figureDescInput" placeholder="e.g. Kaplan-Meier survival curve with two groups, HR=0.72 (95% CI 0.55–0.94), p=0.014. X-axis: months 0–60. Y-axis: Overall survival 0–100%."></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn sm primary" id="figureExplainBtn">&#9881; Explain Figure</button>
+        </div>
+        <div id="figureExplainResult" style="display:none;margin-top:10px;font-size:13px;line-height:1.7;color:var(--text2);background:var(--cream3);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px;white-space:pre-wrap;"></div>
+      </div>
+    </div>
+
   </div>
 
   <div class="paperRight">
@@ -334,6 +477,27 @@
   </div>
 
 </main>
+
+<!-- Highlight-to-chat toolbar -->
+<div id="hlToolbar">
+  <button data-mode="explain">Explain</button>
+  <button data-mode="simplify">Simplify</button>
+  <button data-mode="meaning">What does this mean?</button>
+</div>
+
+<!-- Explain result overlay -->
+<div id="explainOverlay">
+  <div id="explainModal">
+    <div id="explainModalHead">
+      <span id="explainModalTitle">AI Explanation</span>
+      <button id="explainModalClose">&#10005;</button>
+    </div>
+    <div id="explainModalSelected"></div>
+    <div id="explainModalBody">
+      <span style="color:var(--subtle);">Loading&#8230;</span>
+    </div>
+  </div>
+</div>
 
 <script src="api.js"></script>
 <script src="app.js"></script>
@@ -2194,6 +2358,231 @@ qs("closeBtn").onclick = () => {
   }
 
   showThread(true);
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Interactive Reading Layer
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Highlight-to-chat toolbar ────────────────────────────────────────────────
+(function() {
+  const toolbar   = document.getElementById('hlToolbar');
+  const overlay   = document.getElementById('explainOverlay');
+  const modalBody = document.getElementById('explainModalBody');
+  const modalSel  = document.getElementById('explainModalSelected');
+  const modalTitle= document.getElementById('explainModalTitle');
+  const modalClose= document.getElementById('explainModalClose');
+
+  let _selectedText = '';
+  let _selectionContext = '';
+
+  // Reading zones where highlight is supported
+  const zones = ['abstract', 'fullTextBox'];
+
+  document.addEventListener('mouseup', (e) => {
+    // Ignore clicks inside toolbar / modal
+    if (toolbar.contains(e.target) || overlay.contains(e.target)) return;
+
+    const sel = window.getSelection();
+    const text = sel ? sel.toString().trim() : '';
+
+    if (text.length < 10) { toolbar.classList.remove('visible'); return; }
+
+    // Check selection is inside a reading zone
+    const anchorNode = sel.anchorNode;
+    const inZone = zones.some(id => {
+      const el = document.getElementById(id);
+      return el && el.contains(anchorNode);
+    });
+    if (!inZone) { toolbar.classList.remove('visible'); return; }
+
+    _selectedText = text;
+    // Grab surrounding paragraph as context
+    const range = sel.getRangeAt(0);
+    const container = range.commonAncestorContainer;
+    _selectionContext = (container.textContent || '').slice(0, 500);
+
+    // Position toolbar above selection
+    const rect = range.getBoundingClientRect();
+    toolbar.style.left = Math.max(8, rect.left + window.scrollX) + 'px';
+    toolbar.style.top  = (rect.top + window.scrollY - 50) + 'px';
+    toolbar.classList.add('visible');
+  });
+
+  document.addEventListener('mousedown', (e) => {
+    if (!toolbar.contains(e.target)) toolbar.classList.remove('visible');
+  });
+
+  toolbar.querySelectorAll('button').forEach(btn => {
+    btn.onclick = async () => {
+      const mode = btn.dataset.mode;
+      toolbar.classList.remove('visible');
+
+      const modeLabels = { explain: 'Explain', simplify: 'Simplify', meaning: 'What does this mean?' };
+      modalTitle.textContent = modeLabels[mode] || 'AI Explanation';
+      modalSel.textContent = `"${_selectedText.slice(0, 200)}${_selectedText.length > 200 ? '…' : ''}"`;
+      modalBody.innerHTML = '<span style="color:var(--subtle);">Thinking&#8230;</span>';
+      overlay.classList.add('visible');
+
+      try {
+        const res = await fetchJson('/ai/explain-selection', {
+          method: 'POST',
+          body: {
+            selected_text: _selectedText,
+            context: _selectionContext || undefined,
+            mode,
+            study_id: savedStudy ? savedStudy.id : undefined,
+          },
+        });
+        modalBody.textContent = res.explanation;
+      } catch(err) {
+        modalBody.innerHTML = `<span style="color:var(--bad);">${err.message}</span>`;
+      }
+    };
+  });
+
+  modalClose.onclick = () => overlay.classList.remove('visible');
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('visible'); });
+})();
+
+
+// ── Table Explainer (auto-attach to any table in fullTextBox) ────────────────
+function attachTableExplainers(container) {
+  container.querySelectorAll('table').forEach((tbl, idx) => {
+    if (tbl.dataset.explainerAttached) return;
+    tbl.dataset.explainerAttached = '1';
+    const btn = document.createElement('button');
+    btn.className = 'btn sm ghost tableExplainBtn';
+    btn.textContent = '⊞ Explain Table';
+    btn.onclick = async () => {
+      btn.textContent = 'Analysing…';
+      btn.disabled = true;
+      try {
+        const res = await fetchJson('/ai/explain-table', {
+          method: 'POST',
+          body: {
+            table_html: tbl.outerHTML.slice(0, 8000),
+            study_id: savedStudy ? savedStudy.id : undefined,
+          },
+        });
+        // Show result in explain modal
+        const overlay   = document.getElementById('explainOverlay');
+        const modalBody = document.getElementById('explainModalBody');
+        const modalSel  = document.getElementById('explainModalSelected');
+        const modalTitle= document.getElementById('explainModalTitle');
+        modalTitle.textContent = 'Table Explanation';
+        modalSel.textContent = `Table ${idx + 1}`;
+        modalBody.textContent = res.explanation;
+        overlay.classList.add('visible');
+      } catch(err) {
+        showToast('Table Explainer', err.message, 'error');
+      } finally {
+        btn.textContent = '⊞ Explain Table';
+        btn.disabled = false;
+      }
+    };
+    tbl.insertAdjacentElement('afterend', btn);
+  });
+}
+
+// Observe fullTextBox for content changes to attach table explainers
+(function() {
+  const ftBox = document.getElementById('fullTextBox');
+  if (!ftBox) return;
+  const obs = new MutationObserver(() => attachTableExplainers(ftBox));
+  obs.observe(ftBox, { childList: true, subtree: true });
+  attachTableExplainers(ftBox); // run once in case content already loaded
+})();
+
+
+// ── PDF Upload & Text Extraction ─────────────────────────────────────────────
+(function() {
+  const zone      = document.getElementById('pdfDropZone');
+  const fileInput = document.getElementById('pdfFileInput');
+  const browse    = document.getElementById('pdfBrowseLink');
+  const result    = document.getElementById('pdfResult');
+  if (!zone) return;
+
+  browse.onclick = () => fileInput.click();
+  zone.onclick   = (e) => { if (e.target !== browse) fileInput.click(); };
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) handlePdfUpload(f);
+  });
+  fileInput.onchange = () => { if (fileInput.files[0]) handlePdfUpload(fileInput.files[0]); };
+
+  async function handlePdfUpload(file) {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      showToast('Invalid file', 'Only PDF files are accepted.', 'error'); return;
+    }
+    result.innerHTML = '<div style="color:var(--subtle);font-size:12px;">Uploading and extracting…</div>';
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = getToken();
+    try {
+      const resp = await fetch('/ai/upload-pdf', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+      const data = await resp.json();
+      result.innerHTML = `
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--subtle);">
+          <span>📄 <strong>${data.pages}</strong> pages</span>
+          <span>💬 <strong>${data.total_characters.toLocaleString()}</strong> chars</span>
+          <span>🖼 <strong>${data.figures_count}</strong> figures</span>
+          <span>📚 <strong>${data.references_count}</strong> references</span>
+        </div>
+        ${data.references.length ? `<details><summary style="font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;">References (${data.references.length})</summary><pre>${escHtml(data.references.join('\n'))}</pre></details>` : ''}
+        <details open><summary style="font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;margin-top:8px;">Full Text Preview</summary><pre>${escHtml(data.full_text.slice(0, 5000))}${data.full_text.length > 5000 ? '\n…' : ''}</pre></details>
+      `;
+    } catch(err) {
+      result.innerHTML = `<div style="color:var(--bad);font-size:12px;">${escHtml(err.message)}</div>`;
+    }
+    fileInput.value = '';
+  }
+
+  function escHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
+})();
+
+
+// ── Figure Explainer ─────────────────────────────────────────────────────────
+(function() {
+  const btn    = document.getElementById('figureExplainBtn');
+  const input  = document.getElementById('figureDescInput');
+  const result = document.getElementById('figureExplainResult');
+  if (!btn) return;
+
+  btn.onclick = async () => {
+    const desc = input.value.trim();
+    if (!desc) { showToast('Describe first', 'Enter a figure description to explain.', 'info'); return; }
+    await withBtnLoading(btn, async () => {
+      try {
+        const res = await fetchJson('/ai/explain-figure', {
+          method: 'POST',
+          body: {
+            description: desc,
+            study_id: savedStudy ? savedStudy.id : undefined,
+          },
+        });
+        result.textContent = res.explanation;
+        result.style.display = 'block';
+      } catch(err) {
+        showToast('Error', err.message, 'error');
+      }
+    });
+  };
 })();
 
 } // end init guard

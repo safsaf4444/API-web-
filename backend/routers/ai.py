@@ -26,6 +26,10 @@ from backend.schemas import (
     CrossPaperAskRequest, CrossPaperAskResponse,
     CitationRequest, CitationResponse, CitationItem,
     CITATION_FORMATS,
+    ContradictionAnalysisRequest, ContradictionAnalysisResponse, ContradictionPair,
+    ExplainSelectionRequest, ExplainSelectionResponse,
+    ExplainTableRequest, ExplainTableResponse,
+    ExplainFigureRequest, ExplainFigureResponse,
     GRADEData, JargonItem, PICOData, RewritesData, StatisticalData, WeightingItem,
     SynthesisListItem,
 )
@@ -797,7 +801,7 @@ _SYNTHESIS_SYSTEM = """You are a senior systematic review analyst with expertise
 Synthesise the provided research papers and return a valid JSON object with exactly these keys:
 {
   "synthesis_narrative": str,
-  "consensus_points": [{"finding": str, "supporting_studies": [str], "strength": "strong"|"moderate"|"weak"}],
+  "consensus_points": [{"finding": str, "supporting_studies": [str], "strength": "strong"|"moderate"|"weak", "confidence_pct": int_0_to_100, "confidence_reasoning": str}],
   "contradictions": [{"issue": str, "side_a_studies": [str], "side_a_position": str, "side_b_studies": [str], "side_b_position": str, "likely_explanation": str}],
   "gap_analysis": [str],
   "weighted_conclusion": str,
@@ -876,7 +880,7 @@ def _build_synthesis_response(rec: SynthesisResult, study_ids: list, cached: boo
             return json.loads(field or "[]")
         except Exception:
             return []
-    consensus      = [ConsensusPoint(finding=c.get("finding", ""), supporting_studies=c.get("supporting_studies", []), strength=c.get("strength")) for c in _parse(rec.consensus_points) if isinstance(c, dict)]
+    consensus      = [ConsensusPoint(finding=c.get("finding", ""), supporting_studies=c.get("supporting_studies", []), strength=c.get("strength"), confidence_pct=c.get("confidence_pct"), confidence_reasoning=c.get("confidence_reasoning")) for c in _parse(rec.consensus_points) if isinstance(c, dict)]
     contradictions = [ContradictionItem(issue=c.get("issue", ""), side_a_studies=c.get("side_a_studies", []), side_a_position=c.get("side_a_position", ""), side_b_studies=c.get("side_b_studies", []), side_b_position=c.get("side_b_position", ""), likely_explanation=c.get("likely_explanation")) for c in _parse(rec.contradictions) if isinstance(c, dict)]
     weighting      = [WeightingItem(study_title=w.get("study_title", ""), study_type=w.get("study_type"), year=w.get("year"), base_score=w.get("base_score", 1.0), recency_bonus=w.get("recency_bonus", False), final_score=w.get("final_score", 1.0), weight_pct=w.get("weight_pct", 0.0)) for w in _parse(rec.weighting_breakdown) if isinstance(w, dict)]
     gaps           = _parse(rec.gap_analysis)
@@ -1138,7 +1142,7 @@ async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = De
     except Exception as e:
         logger.warning("SynthesisResult (subject query) cache write failed: %s", e)
 
-    consensus      = [ConsensusPoint(finding=c.get("finding", ""), supporting_studies=c.get("supporting_studies", []), strength=c.get("strength")) for c in (data.get("consensus_points") or []) if isinstance(c, dict)]
+    consensus      = [ConsensusPoint(finding=c.get("finding", ""), supporting_studies=c.get("supporting_studies", []), strength=c.get("strength"), confidence_pct=c.get("confidence_pct"), confidence_reasoning=c.get("confidence_reasoning")) for c in (data.get("consensus_points") or []) if isinstance(c, dict)]
     contradictions = [ContradictionItem(issue=c.get("issue", ""), side_a_studies=c.get("side_a_studies", []), side_a_position=c.get("side_a_position", ""), side_b_studies=c.get("side_b_studies", []), side_b_position=c.get("side_b_position", ""), likely_explanation=c.get("likely_explanation")) for c in (data.get("contradictions") or []) if isinstance(c, dict)]
 
     return AISubjectQueryResponse(
@@ -1201,6 +1205,262 @@ def delete_synthesis(synthesis_id: int, session: Session = Depends(get_session),
     session.delete(rec)
     session.commit()
     return {"status": "deleted", "synthesis_id": synthesis_id}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 4c: Interactive Reading — Explain Selection / Table / Figure
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/ai/explain-selection", response_model=ExplainSelectionResponse)
+async def explain_selection(
+    payload: ExplainSelectionRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    byok = _get_byok_keys(current_user)
+    if not byok:
+        raise HTTPException(status_code=400, detail="No AI API key configured.")
+
+    mode_prompts = {
+        "explain": "Explain the following scientific text excerpt in clear, precise language. Use clinical terminology where appropriate but make it accessible to a medical student.",
+        "simplify": "Rewrite the following scientific text in plain English that a non-scientist could understand. Keep it accurate but remove jargon.",
+        "meaning": "What does this text mean in the context of medical research? Explain the significance, implications, and any caveats.",
+        "section_qa": "Answer questions about this specific section of a scientific paper. Be precise and cite the text.",
+    }
+    system = mode_prompts.get(payload.mode, mode_prompts["explain"])
+    if payload.section:
+        system += f" This text is from the {payload.section} section of the paper."
+
+    user_msg = f"Text to analyse:\n\n\"{payload.selected_text}\""
+    if payload.context:
+        user_msg += f"\n\nSurrounding context:\n{payload.context[:500]}"
+
+    result = await engine_run(system, user_msg, **byok)
+    return ExplainSelectionResponse(
+        explanation=result.text if hasattr(result, "text") else str(result),
+        mode=payload.mode,
+        study_id=payload.study_id,
+    )
+
+
+@router.post("/ai/explain-table", response_model=ExplainTableResponse)
+async def explain_table(
+    payload: ExplainTableRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    byok = _get_byok_keys(current_user)
+    if not byok:
+        raise HTTPException(status_code=400, detail="No AI API key configured.")
+
+    system = (
+        "You are a clinical data analyst. Analyse the following results table from a scientific paper. "
+        "Explain: 1) What the rows and columns represent, 2) Key findings and patterns, "
+        "3) Statistical significance of the results, 4) Clinical implications. Be precise and thorough."
+    )
+    user_msg = f"Table content:\n\n{payload.table_html[:5000]}"
+
+    result = await engine_run(system, user_msg, **byok)
+    return ExplainTableResponse(
+        explanation=result.text if hasattr(result, "text") else str(result),
+        study_id=payload.study_id,
+    )
+
+
+@router.post("/ai/explain-figure", response_model=ExplainFigureResponse)
+async def explain_figure(
+    payload: ExplainFigureRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    byok = _get_byok_keys(current_user)
+    if not byok:
+        raise HTTPException(status_code=400, detail="No AI API key configured.")
+
+    system = (
+        "You are a scientific figure interpretation expert. Based on the description of a figure/graph, "
+        "explain: 1) What the axes and data represent, 2) Key trends or patterns, "
+        "3) Statistical conclusions, 4) Clinical significance of the visual data. "
+        "Be thorough but accessible to medical professionals."
+    )
+    user_msg = f"Figure description:\n\n{payload.description}"
+
+    result = await engine_run(system, user_msg, **byok)
+    return ExplainFigureResponse(
+        explanation=result.text if hasattr(result, "text") else str(result),
+        study_id=payload.study_id,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 4c: Contradiction Resolver
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/ai/resolve-contradictions", response_model=ContradictionAnalysisResponse)
+async def resolve_contradictions(
+    payload: ContradictionAnalysisRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    byok = _get_byok_keys(current_user)
+    if not byok:
+        raise HTTPException(status_code=400, detail="No AI API key configured.")
+
+    studies = []
+    for sid in payload.study_ids:
+        study = session.get(Study, sid)
+        if study and study.owner_username == current_user.username:
+            studies.append(study)
+
+    if len(studies) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 accessible studies.")
+
+    paper_ctx = []
+    for i, s in enumerate(studies, 1):
+        abstract = strip_html(s.abstract or "")[:500]
+        paper_ctx.append(
+            f"Study {i} [{s.title} ({s.year or 'n/a'})]:\n"
+            f"Type: {s.study_type or 'unknown'}\n"
+            f"Abstract: {abstract}"
+        )
+
+    system = (
+        "You are a senior systematic review methodologist specializing in evidence synthesis. "
+        "Analyse the following studies and identify contradictions in their findings. "
+        "Return a valid JSON object with these keys:\n"
+        '{"contradictions": [{"study_a_title": str, "study_b_title": str, "claim": str, '
+        '"conflict_summary": str, "resolution": str, "preferred_study": str_or_null, '
+        '"reason": str}], "summary": str}\n'
+        "Rules:\n"
+        "- Identify REAL contradictions where studies reach different conclusions\n"
+        "- For each contradiction, explain which study is more reliable based on: "
+        "study design hierarchy (meta-analysis > RCT > cohort > case-control > case report), "
+        "sample size, methodology quality, and recency\n"
+        "- summary: 2-3 sentence overall assessment\n"
+        "Return JSON only. No markdown fences."
+    )
+    user_msg = "\n\n".join(paper_ctx)
+
+    result = await engine_run(system, user_msg, **byok)
+    text = result.text if hasattr(result, "text") else str(result)
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return ContradictionAnalysisResponse(
+            summary="AI could not generate structured contradiction analysis.",
+            studies_analysed=len(studies),
+        )
+
+    pairs = []
+    for c in data.get("contradictions", []):
+        if isinstance(c, dict):
+            pairs.append(ContradictionPair(
+                study_a_title=c.get("study_a_title", ""),
+                study_b_title=c.get("study_b_title", ""),
+                claim=c.get("claim", ""),
+                conflict_summary=c.get("conflict_summary", ""),
+                resolution=c.get("resolution", ""),
+                preferred_study=c.get("preferred_study"),
+                reason=c.get("reason"),
+            ))
+
+    return ContradictionAnalysisResponse(
+        contradictions=pairs,
+        summary=data.get("summary", ""),
+        studies_analysed=len(studies),
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 4c: PDF Upload & Text Extraction
+# ══════════════════════════════════════════════════════════════════════════════
+
+from fastapi import File, UploadFile
+
+@router.post("/ai/upload-pdf")
+async def upload_pdf(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Extract text, figures metadata, and references from an uploaded PDF."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:  # 50MB limit
+        raise HTTPException(status_code=413, detail="File too large. Max 50MB.")
+
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PDF processing library not installed.")
+
+    try:
+        doc = fitz.open(stream=content, filetype="pdf")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not parse PDF file.")
+
+    pages_text = []
+    figures = []
+    references = []
+    total_chars = 0
+
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        text = page.get_text("text")
+        pages_text.append({"page": page_num + 1, "text": text})
+        total_chars += len(text)
+
+        # Extract image metadata
+        for img_idx, img in enumerate(page.get_images(full=True)):
+            xref = img[0]
+            try:
+                base_image = doc.extract_image(xref)
+                figures.append({
+                    "page": page_num + 1,
+                    "index": img_idx,
+                    "width": base_image.get("width", 0),
+                    "height": base_image.get("height", 0),
+                    "format": base_image.get("ext", "unknown"),
+                })
+            except Exception:
+                pass
+
+    # Try to extract references section
+    full_text = "\n".join(p["text"] for p in pages_text)
+    ref_section = ""
+    for marker in ["References\n", "REFERENCES\n", "Bibliography\n"]:
+        idx = full_text.rfind(marker)
+        if idx >= 0:
+            ref_section = full_text[idx:]
+            break
+
+    if ref_section:
+        import re as _re
+        ref_lines = _re.split(r'\n(?=\[?\d+[\].)])', ref_section)
+        for line in ref_lines[1:]:
+            clean = line.strip()
+            if len(clean) > 20:
+                references.append(clean[:500])
+
+    doc.close()
+
+    return {
+        "status": "ok",
+        "filename": file.filename,
+        "pages": len(pages_text),
+        "total_characters": total_chars,
+        "figures_count": len(figures),
+        "figures": figures[:50],
+        "references_count": len(references),
+        "references": references[:100],
+        "full_text": full_text[:30000],
+        "pages_text": pages_text[:50],
+    }
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
