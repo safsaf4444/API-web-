@@ -183,6 +183,78 @@
 
     /* ── Evidence Notes ─────────────────────────────────────────────── */
     #evidenceNotesArea { min-height:100px; font-size:13px; line-height:1.7; resize:vertical; }
+
+    /* ── Verdict Synthesiser ────────────────────────────────────────── */
+    .verdictBadge { display:inline-flex; align-items:center; gap:8px; font-size:22px; font-weight:800; font-family:var(--font-display); padding:12px 24px; border-radius:var(--r); margin-bottom:16px; }
+    .verdictBadge.supported { background:rgba(61,122,74,.1); color:var(--good); border:2px solid rgba(61,122,74,.3); }
+    .verdictBadge.mixed      { background:rgba(196,134,42,.1); color:var(--warn); border:2px solid rgba(196,134,42,.3); }
+    .verdictBadge.insufficient { background:rgba(184,64,64,.08); color:var(--bad); border:2px solid rgba(184,64,64,.2); }
+    .verdictSection { margin-top:18px; }
+    .verdictSectionLabel { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--brass); margin-bottom:8px; }
+    .verdictSupportCard { background:var(--surface2); border:1px solid var(--line); border-radius:var(--r-sm); padding:10px 14px; margin-bottom:8px; }
+    .verdictWeight.strong { color:var(--good); font-weight:700; }
+    .verdictWeight.moderate { color:var(--warn); font-weight:600; }
+    .verdictWeight.weak { color:var(--subtle); }
+
+    /* ── Bias Heatmap ────────────────────────────────────────────────── */
+    #heatmapEl { width:100%; overflow-x:auto; }
+    .heatmapTable { border-collapse:collapse; font-size:11.5px; min-width:500px; }
+    .heatmapTable th { background:var(--surface2); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--subtle); padding:6px 10px; border:1px solid var(--line); text-align:center; white-space:nowrap; }
+    .heatmapTable td.studyLabel { font-size:12px; font-weight:600; color:var(--navy); padding:6px 12px 6px 8px; border:1px solid var(--line); white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; background:var(--surface); }
+    .heatmapTable td.cell { width:80px; height:32px; border:1px solid var(--line2); cursor:pointer; transition:opacity .12s; text-align:center; font-size:10px; font-weight:700; }
+    .heatmapTable td.cell:hover { opacity:.75; }
+    .heatmapTable td.cell.risk-0 { background:rgba(61,122,74,.25); color:var(--good); }
+    .heatmapTable td.cell.risk-1 { background:rgba(196,134,42,.25); color:var(--warn); }
+    .heatmapTable td.cell.risk-2 { background:rgba(184,64,64,.2); color:var(--bad); }
+    .heatmapLegend { display:flex; gap:16px; margin-top:10px; font-size:12px; }
+    .heatmapLegend span { display:flex; align-items:center; gap:5px; }
+    .heatmapSwatch { width:14px; height:14px; border-radius:3px; display:inline-block; }
+
+    /* ── Key Papers ──────────────────────────────────────────────────── */
+    .keyPaperCard { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm); padding:12px 16px; margin-bottom:8px; display:flex; gap:12px; align-items:flex-start; }
+    .keyPaperRank { font-size:22px; font-weight:800; font-family:var(--font-display); color:var(--brass); width:32px; flex-shrink:0; }
+    .keyPaperBody { flex:1; min-width:0; }
+    .keyPaperTitle { font-size:13.5px; font-weight:700; color:var(--navy); line-height:1.4; margin-bottom:4px; }
+    .keyPaperMeta { font-size:11px; color:var(--subtle); margin-bottom:4px; }
+    .keyPaperCitations { font-size:11px; font-weight:700; color:var(--brass); }
+
+    /* ── OpenAlex Network ────────────────────────────────────────────── */
+    .oaNetworkControls { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
+    .oaNetworkControls label { font-size:11px; font-weight:600; color:var(--muted); margin-bottom:2px; display:block; }
+    .oaNetworkControls input { font-size:12.5px; padding:7px 10px; }
+    .oaNodeLegend { display:flex; gap:12px; flex-wrap:wrap; font-size:11.5px; margin-top:8px; }
+    .oaNodeDot { width:12px; height:12px; border-radius:50%; display:inline-block; margin-right:4px; vertical-align:middle; }
+
+    /* ── Timeline slider ─────────────────────────────────────────────── */
+    .timelineRow { display:flex; gap:10px; align-items:center; margin-top:10px; font-size:12px; color:var(--muted); }
+    .timelineRow input[type=range] { flex:1; accent-color:var(--brass); }
+    #timelineLabel { min-width:80px; text-align:right; font-weight:700; color:var(--navy); }
+
+    /* ── Paper Preview Modal ─────────────────────────────────────────── */
+    #paperPreviewModal { display:none; position:fixed; inset:0; z-index:1000; background:rgba(12,17,23,.55); align-items:center; justify-content:center; }
+    #paperPreviewModal.open { display:flex; animation:fadeIn .18s ease; }
+    .paperPreviewBox { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:24px 28px; max-width:640px; width:90vw; max-height:80vh; overflow-y:auto; position:relative; }
+    .paperPreviewTitle { font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--navy); line-height:1.4; margin-bottom:8px; }
+    .paperPreviewMeta { font-size:12px; color:var(--subtle); margin-bottom:14px; }
+    .paperPreviewSection { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--brass); margin:14px 0 6px; }
+    .paperPreviewAbstract { font-size:13px; color:var(--text2); line-height:1.7; }
+    .paperPreviewClose { position:absolute; top:14px; right:18px; font-size:18px; cursor:pointer; color:var(--subtle); background:none; border:none; }
+
+    /* ── PDF Drop Zone ───────────────────────────────────────────────── */
+    .pdfDropZone { border:2px dashed var(--line); border-radius:var(--r); padding:30px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s; background:var(--surface2); }
+    .pdfDropZone:hover, .pdfDropZone.drag-over { border-color:var(--brass); background:rgba(201,168,124,.06); }
+    .pdfDropZone input[type=file] { display:none; }
+    .pdfDropIcon { font-size:32px; margin-bottom:8px; }
+    .pdfDropLabel { font-size:13px; color:var(--muted); font-weight:500; }
+    .pdfDropSub { font-size:11px; color:var(--subtle); margin-top:4px; }
+    .pdfResultBox { margin-top:14px; background:var(--cream3); border:1px solid var(--line); border-radius:var(--r-sm); padding:14px 16px; font-size:12.5px; color:var(--text2); line-height:1.7; display:none; }
+    .pdfResultBox.visible { display:block; animation:fadeIn .2s ease; }
+
+    /* ── Forest Plot upgrade ─────────────────────────────────────────── */
+    .forestControls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+    .forestControls label { font-size:12px; font-weight:600; color:var(--muted); }
+    .forestExplain { margin-top:14px; font-size:12.5px; color:var(--text2); line-height:1.65; background:var(--cream3); border:1px solid var(--line); border-radius:var(--r-sm); padding:12px 14px; display:none; }
+    .forestExplain.visible { display:block; }
   </style>
 </head>
 <body>
@@ -240,7 +312,11 @@
       <div class="rvTab" data-tab="prisma">PRISMA</div>
       <div class="rvTab" data-tab="forest">Forest Plot</div>
       <div class="rvTab" data-tab="network">Network</div>
+      <div class="rvTab" data-tab="oaNetwork">Citation Web</div>
       <div class="rvTab" data-tab="drift">Evidence Drift</div>
+      <div class="rvTab" data-tab="heatmap">Bias Heatmap</div>
+      <div class="rvTab" data-tab="keypaper">Key Papers</div>
+      <div class="rvTab" data-tab="verdict">Verdict</div>
       <div class="rvTab" data-tab="roulette">Paper Roulette</div>
       <div class="rvTab" data-tab="notes">Evidence Notes</div>
       <div class="rvTab" data-tab="audit">Audit Trail</div>
@@ -317,15 +393,28 @@
     <!-- FOREST PLOT PANE -->
     <div class="rvPane" data-pane="forest">
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Cumulative Forest Plot</div>
           <div id="forestStats" style="font-size:12px;color:var(--subtle);"></div>
         </div>
+        <div class="forestControls">
+          <label><input type="radio" name="forestModel" value="fixed" checked/> Fixed Effects</label>
+          <label><input type="radio" name="forestModel" value="random"/> Random Effects</label>
+          <button class="btn sm ghost" id="forestExplainBtn">? What does this mean?</button>
+        </div>
         <div id="forestPlotEl"><div class="emptyState">Run a search and include papers to generate the forest plot.</div></div>
         <div class="forestLegend">
-          <span><span class="forestLegendDot" style="background:var(--navy);"></span>Study with data</span>
+          <span><span class="forestLegendDot" style="background:var(--navy);"></span>Study (size = sample n)</span>
           <span><span class="forestLegendDot" style="background:var(--subtle);border:2px dashed var(--line);"></span>Data gap</span>
-          <span><span style="display:inline-block;width:24px;height:2px;background:var(--brass);vertical-align:middle;margin-right:4px;"></span>Cumulative effect</span>
+          <span><span style="display:inline-block;width:24px;height:2px;background:var(--brass);vertical-align:middle;margin-right:4px;"></span>Cumulative effect (diamond)</span>
+          <span><span style="display:inline-block;width:20px;height:2px;background:rgba(184,64,64,.5);vertical-align:middle;margin-right:4px;border-top:2px dashed rgba(184,64,64,.5);"></span>No-effect line</span>
+        </div>
+        <div class="forestExplain" id="forestExplain">
+          <strong>How to read this forest plot:</strong><br>
+          Each dot represents one study. The horizontal whiskers show the 95% confidence interval (CI) — the range of plausible true effects. A narrow CI means a large, precise study; a wide CI means a small or uncertain one.<br><br>
+          The <strong>diamond</strong> at the bottom is the pooled summary estimate across all studies. If it does not cross the vertical zero line, the treatment effect is statistically significant.<br><br>
+          <strong>Dot size</strong> scales with sample size — larger dots carry more weight in the pooled estimate.<br><br>
+          <em>Fixed effects</em> assumes all studies estimate the same underlying effect. <em>Random effects</em> allows for between-study heterogeneity and is more conservative when studies differ in design or population.
         </div>
       </div>
     </div>
@@ -350,6 +439,53 @@
       </div>
     </div>
 
+    <!-- OPENALEX CITATION WEB PANE -->
+    <div class="rvPane" data-pane="oaNetwork">
+      <div class="card">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:10px;">OpenAlex Citation Spider-Web</div>
+        <div class="sectionSub">Enter a seed paper DOI to explore its full citation genealogy — ancestors (papers it cites), descendants (papers that cite it), and co-cited papers.</div>
+        <div class="oaNetworkControls">
+          <div>
+            <label>Seed Paper DOI</label>
+            <input id="oaDOIInput" placeholder="e.g. 10.1056/nejmoa2001282" style="min-width:280px;font-family:monospace;"/>
+          </div>
+          <div>
+            <label>Depth</label>
+            <select id="oaDepthSelect" style="font-size:12.5px;padding:7px 10px;">
+              <option value="1">1-hop (faster)</option>
+              <option value="2">2-hop + co-citations</option>
+            </select>
+          </div>
+          <button class="btn sm primary" id="oaLoadBtn">&#9656; Build Network</button>
+        </div>
+        <div class="timelineRow" id="oaTimelineRow" style="display:none;">
+          <span>Filter by year:</span>
+          <input type="range" id="oaTimelineSlider" min="1990" max="2025" step="1" value="1990"/>
+          <span id="timelineLabel">All years</span>
+          <button class="btn sm ghost" id="oaTimelineReset" style="font-size:11px;padding:4px 10px;">Reset</button>
+        </div>
+        <div id="oaNetworkEl" style="width:100%;height:460px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface2);margin-top:10px;">
+          <div class="emptyState" style="padding:80px 20px;">Enter a DOI above and click Build Network.</div>
+        </div>
+        <div class="oaNodeLegend" id="oaNodeLegend" style="display:none;">
+          <span><span class="oaNodeDot" style="background:#C9A87C;border:2px solid #0C1117;"></span>Seed paper</span>
+          <span><span class="oaNodeDot" style="background:#3D7A4A;"></span>Ancestor (cited by seed)</span>
+          <span><span class="oaNodeDot" style="background:#243044;"></span>Descendant (cites seed)</span>
+          <span><span class="oaNodeDot" style="background:#8A5FC8;"></span>Co-cited</span>
+          <span>Node size = citation count &nbsp;·&nbsp; Timeline slider filters by year</span>
+        </div>
+        <div id="oaNetworkSidebar" style="display:none;margin-top:12px;background:var(--cream3);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 16px;font-size:12.5px;line-height:1.65;color:var(--text2);">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <strong id="oaSbTitle" style="font-size:13px;color:var(--navy);line-height:1.4;"></strong>
+            <button style="background:none;border:none;cursor:pointer;color:var(--subtle);font-size:15px;" id="oaSbClose">&#10005;</button>
+          </div>
+          <div id="oaSbMeta" style="font-size:11px;color:var(--subtle);margin:4px 0 8px;"></div>
+          <div id="oaSbAbstract" style="color:var(--muted);"></div>
+          <div id="oaSbDoi" style="margin-top:8px;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- DRIFT PANE -->
     <div class="rvPane" data-pane="drift">
       <div class="card">
@@ -358,6 +494,48 @@
         <div id="driftContent">
           <div class="emptyState">Include papers in screening first.</div>
         </div>
+      </div>
+    </div>
+
+    <!-- BIAS HEATMAP PANE -->
+    <div class="rvPane" data-pane="heatmap">
+      <div class="card">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:6px;">Bias Risk Heatmap</div>
+        <div class="sectionSub">Visual quality grid across included studies. Scores are derived from extracted bias scores and sample sizes. Run AI Clinical Appraisal on individual papers to enrich this data.</div>
+        <div id="heatmapEl"><div class="emptyState">Include papers in the Screening tab first.</div></div>
+        <div class="heatmapLegend" id="heatmapLegend" style="display:none;">
+          <span><span class="heatmapSwatch" style="background:rgba(61,122,74,.35);"></span>Low risk</span>
+          <span><span class="heatmapSwatch" style="background:rgba(196,134,42,.35);"></span>Some concerns</span>
+          <span><span class="heatmapSwatch" style="background:rgba(184,64,64,.3);"></span>High risk</span>
+          <span style="color:var(--subtle);">(Hover a cell for tooltip)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- KEY PAPERS PANE -->
+    <div class="rvPane" data-pane="keypaper">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Key Papers — Most Influential</div>
+            <div class="sectionSub" style="margin:4px 0 0;">Included papers ranked by citation count. Use the DOI link to seed the Citation Web tab.</div>
+          </div>
+        </div>
+        <div id="keyPapersContent"><div class="emptyState">Include papers in the Screening tab first.</div></div>
+      </div>
+    </div>
+
+    <!-- VERDICT PANE -->
+    <div class="rvPane" data-pane="verdict">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+          <div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Final Research Verdict</div>
+            <div class="sectionSub" style="margin:4px 0 0;">AI-generated synthesis conclusion based on all included papers.</div>
+          </div>
+          <button class="btn sm primary" id="generateVerdictBtn">&#9889; Generate Verdict</button>
+        </div>
+        <div id="verdictContent"><div class="emptyState">Click "Generate Verdict" to synthesise all included papers into a final conclusion.</div></div>
       </div>
     </div>
 
@@ -424,6 +602,19 @@
         <div style="font-size:12.5px;color:var(--muted);margin-bottom:8px;line-height:1.6;">Free-form notes, observations, and working hypotheses about this review. Included in the Markdown report export.</div>
         <textarea id="evidenceNotesArea" placeholder="Write your evidence notes here…&#10;&#10;e.g. Key trends, contradictions, clinical implications, next steps…"></textarea>
 
+        <!-- PDF Upload sub-section -->
+        <div style="margin-top:22px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px;">PDF Upload & Analysis</div>
+          <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Drag-and-drop a PDF to extract text, figures, and references. Extracted text can be used in the AI Ask bar.</div>
+          <div class="pdfDropZone" id="pdfDropZone">
+            <input type="file" id="pdfFileInput" accept=".pdf"/>
+            <div class="pdfDropIcon">📄</div>
+            <div class="pdfDropLabel">Drag &amp; drop a PDF here, or click to browse</div>
+            <div class="pdfDropSub">Max 50 MB · Text, figures, and references will be extracted</div>
+          </div>
+          <div class="pdfResultBox" id="pdfResultBox"></div>
+        </div>
+
         <!-- Contradictions sub-section -->
         <div style="margin-top:22px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px;">AI Contradiction Analysis</div>
@@ -437,6 +628,23 @@
   </div>
 
 </div>
+
+<!-- Paper Preview Modal -->
+<div id="paperPreviewModal">
+  <div class="paperPreviewBox">
+    <button class="paperPreviewClose" id="paperPreviewClose">&#10005;</button>
+    <div class="paperPreviewTitle" id="ppTitle"></div>
+    <div class="paperPreviewMeta" id="ppMeta"></div>
+    <div class="paperPreviewSection">Abstract</div>
+    <div class="paperPreviewAbstract" id="ppAbstract"></div>
+    <div id="ppExtraSection" style="display:none;">
+      <div class="paperPreviewSection">Key Results</div>
+      <div id="ppResults" style="font-size:12.5px;color:var(--text2);line-height:1.65;"></div>
+    </div>
+    <div id="ppDoi" style="margin-top:14px;"></div>
+  </div>
+</div>
+
 </main>
 
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
@@ -642,7 +850,8 @@ async function loadScreening() {
           <button class="btn sm ${item.decision==='included'?'primary':''}" data-action="included" data-sid="${item.id}">&#10003; Include</button>
           <button class="btn sm ${item.decision==='excluded'?'primary':''}" style="${item.decision==='excluded'?'background:var(--bad);border-color:var(--bad);color:white;':''}" data-action="excluded" data-sid="${item.id}">&#10005; Exclude</button>
           <button class="btn sm ${item.decision==='maybe'?'primary':''}" style="${item.decision==='maybe'?'background:var(--warn);border-color:var(--warn);color:white;':''}" data-action="maybe" data-sid="${item.id}">? Maybe</button>
-          ${item.exclusion_reason ? `<span style="font-size:11px;color:var(--subtle);margin-left:8px;">Reason: ${esc(item.exclusion_reason)}</span>` : ''}
+          <button class="btn sm ghost" data-preview="${item.id}" style="margin-left:auto;" title="Preview paper">&#128269; Preview</button>
+          ${item.exclusion_reason ? `<span style="font-size:11px;color:var(--subtle);">Reason: ${esc(item.exclusion_reason)}</span>` : ''}
         </div>
       </div>
     `).join('');
@@ -668,6 +877,16 @@ async function loadScreening() {
           loadScreening();
           loadPRISMA();
         } catch(e) { showToast('Error', e.message, 'error'); }
+      };
+    });
+
+    // Preview button → open paper preview modal
+    queue.querySelectorAll('[data-preview]').forEach(btn => {
+      btn.onclick = () => {
+        const sid = parseInt(btn.dataset.preview);
+        const item = items.find(i => i.id === sid);
+        if (!item) return;
+        openPaperPreview(item);
       };
     });
   } catch(e) {
@@ -1426,6 +1645,533 @@ document.getElementById('resolveContradictionsBtn').onclick = async () => {
       el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
     }
   });
+};
+
+
+// ── FOREST PLOT: fixed/random toggle ─────────────────────────────────────────
+
+document.querySelectorAll('input[name="forestModel"]').forEach(radio => {
+  radio.onchange = () => { _forestLoaded = false; loadForestPlot(); };
+});
+
+document.getElementById('forestExplainBtn').onclick = () => {
+  const el = document.getElementById('forestExplain');
+  el.classList.toggle('visible');
+  document.getElementById('forestExplainBtn').textContent =
+    el.classList.contains('visible') ? '↑ Close explanation' : '? What does this mean?';
+};
+
+// Patch loadForestPlot to respect model choice
+const _origLoadForestPlot = loadForestPlot;
+loadForestPlot = async function() {
+  if (!currentReview) return;
+  const el = document.getElementById('forestPlotEl');
+  if (!el || typeof Plotly === 'undefined') return;
+  el.innerHTML = '<div class="emptyState">Loading forest plot…</div>';
+
+  const modelEl = document.querySelector('input[name="forestModel"]:checked');
+  const isRandom = modelEl && modelEl.value === 'random';
+
+  try {
+    const data = await fetchJson(`/reviews/${currentReview.id}/cumulative-stats`);
+    const statsEl = document.getElementById('forestStats');
+    if (statsEl) statsEl.textContent = `${data.total_included} papers · ${data.total_with_data} with numeric data · ${isRandom ? 'Random' : 'Fixed'} effects`;
+
+    if (!data.points.length) {
+      el.innerHTML = '<div class="emptyState">No included papers yet.</div>';
+      return;
+    }
+
+    const withData    = data.points.filter(p => p.has_data);
+    const withoutData = data.points.filter(p => !p.has_data);
+
+    // Weighted pooled estimate using DerSimonian-Laird (random) or inverse-variance (fixed)
+    let pooledEffect = null;
+    if (withData.length) {
+      const weights = withData.map(p => {
+        if (isRandom) {
+          // Add heterogeneity variance τ² (simplified: τ² = variance of outcomes)
+          const mean = withData.reduce((a, b) => a + b.outcome_value, 0) / withData.length;
+          const tau2 = withData.reduce((s, p) => s + Math.pow(p.outcome_value - mean, 2), 0) / (withData.length - 1 || 1);
+          const se2 = (p.ci_upper != null && p.ci_lower != null) ? Math.pow((p.ci_upper - p.ci_lower) / 3.92, 2) : 1;
+          return 1 / (se2 + tau2);
+        } else {
+          const se2 = (p.ci_upper != null && p.ci_lower != null) ? Math.pow((p.ci_upper - p.ci_lower) / 3.92, 2) : 1 / Math.max(p.sample_size || 100, 1);
+          return 1 / se2;
+        }
+      });
+      const totalW = weights.reduce((a, b) => a + b, 0);
+      pooledEffect = weights.reduce((s, w, i) => s + w * withData[i].outcome_value, 0) / totalW;
+    }
+
+    const studyTrace = {
+      type: 'scatter', mode: 'markers',
+      name: 'Study',
+      x: withData.map(p => p.outcome_value),
+      y: withData.map(p => p.title.slice(0,45) + (p.year ? ` (${p.year})` : '')),
+      error_x: {
+        type: 'data', symmetric: false,
+        array:      withData.map(p => p.ci_upper != null ? p.ci_upper - p.outcome_value : 0.1),
+        arrayminus: withData.map(p => p.ci_lower != null ? p.outcome_value - p.ci_lower : 0.1),
+        visible: true, color: 'rgba(12,17,23,0.4)', thickness: 2, width: 8,
+      },
+      marker: { size: withData.map(p => Math.max(10, Math.min(26, (p.sample_size || 50) / 40))), color: '#243044', opacity: 0.85 },
+      text: withData.map(p => `<b>${p.title.slice(0,60)}</b><br>Year: ${p.year ?? '—'} · N: ${p.sample_size ?? '—'}<br>Effect: ${p.outcome_value?.toFixed(3)}<br>95% CI: [${p.ci_lower?.toFixed(3) ?? '—'}, ${p.ci_upper?.toFixed(3) ?? '—'}]<br>Bias: ${p.bias_score ?? '—'}/10`),
+      hovertemplate: '%{text}<extra></extra>',
+      orientation: 'h',
+    };
+
+    const traces = [studyTrace];
+
+    // No-effect vertical line
+    traces.push({
+      type: 'scatter', mode: 'lines', name: 'No effect',
+      x: [0, 0],
+      y: [withData[0]?.title.slice(0,45) + (withData[0]?.year ? ` (${withData[0].year})` : ''), withData[withData.length-1]?.title.slice(0,45)],
+      line: { color: 'rgba(184,64,64,0.55)', width: 1.5, dash: 'dash' },
+      hoverinfo: 'skip',
+    });
+
+    // Pooled diamond
+    if (pooledEffect !== null) {
+      const ciWidth = pooledEffect * 0.15; // simplified CI for display
+      traces.push({
+        type: 'scatter', mode: 'lines+markers', name: `${isRandom ? 'Random' : 'Fixed'} Effects Pooled`,
+        x: [pooledEffect - ciWidth, pooledEffect, pooledEffect + ciWidth, pooledEffect],
+        y: ['◆ Pooled Estimate', '◆ Pooled Estimate', '◆ Pooled Estimate', '◆ Pooled Estimate'],
+        line: { color: '#C9A87C', width: 3 },
+        marker: { size: [8, 18, 8, 8], color: '#C9A87C', symbol: ['line-ew', 'diamond', 'line-ew', 'diamond'] },
+        hovertemplate: `Pooled effect: ${pooledEffect.toFixed(3)}<extra></extra>`,
+      });
+    }
+
+    const allYLabels = [...withData.map(p => p.title.slice(0,45) + (p.year ? ` (${p.year})` : '')), '◆ Pooled Estimate'];
+
+    const layout = {
+      paper_bgcolor: '#FFFFFF', plot_bgcolor: '#FAF7F2',
+      font: { family: "'DM Sans', sans-serif", color: '#0C1117', size: 11 },
+      xaxis: { title: 'Effect Size', gridcolor: 'rgba(106,76,53,0.10)', zeroline: false },
+      yaxis: { title: '', automargin: true, tickfont: { size: 11 } },
+      legend: { orientation: 'h', y: -0.15, font: { size: 11 } },
+      margin: { l: 10, r: 30, t: 20, b: 60 },
+      hovermode: 'closest',
+    };
+
+    Plotly.newPlot(el, traces, layout, { responsive: true, displayModeBar: false });
+  } catch(e) {
+    el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
+  }
+};
+
+
+// ── OPENALEX CITATION WEB ─────────────────────────────────────────────────────
+
+let _oaCy = null;
+let _oaAllNodes = [];
+let _oaYearRange = [];
+
+document.getElementById('oaLoadBtn').onclick = async () => {
+  const doi = document.getElementById('oaDOIInput').value.trim().replace('https://doi.org/', '');
+  if (!doi || !currentReview) return;
+  const depth = parseInt(document.getElementById('oaDepthSelect').value);
+  const el = document.getElementById('oaNetworkEl');
+  el.innerHTML = '<div class="emptyState" style="padding:80px 20px;">Fetching from OpenAlex… this may take a few seconds.</div>';
+  document.getElementById('oaNodeLegend').style.display = 'none';
+  document.getElementById('oaTimelineRow').style.display = 'none';
+  document.getElementById('oaNetworkSidebar').style.display = 'none';
+
+  await withBtnLoading(document.getElementById('oaLoadBtn'), async () => {
+    try {
+      const net = await fetchJson(`/reviews/${currentReview.id}/citation-network-openalex?doi=${encodeURIComponent(doi)}&depth=${depth}`);
+      _oaAllNodes = net.nodes;
+      _oaYearRange = net.year_range;
+      renderOANetwork(net.nodes, net.edges);
+      document.getElementById('oaNodeLegend').style.display = '';
+      if (_oaYearRange.length === 2) {
+        const slider = document.getElementById('oaTimelineSlider');
+        slider.min = _oaYearRange[0];
+        slider.max = _oaYearRange[1];
+        slider.value = _oaYearRange[0];
+        document.getElementById('timelineLabel').textContent = 'All years';
+        document.getElementById('oaTimelineRow').style.display = '';
+      }
+    } catch(e) {
+      el.innerHTML = `<div class="emptyState" style="color:var(--bad);padding:80px 20px;">${esc(e.message)}</div>`;
+    }
+  });
+};
+
+function renderOANetwork(nodes, edges) {
+  const el = document.getElementById('oaNetworkEl');
+  if (!el || typeof cytoscape === 'undefined') return;
+  el.innerHTML = '';
+
+  const nodeTypeColor = { seed: '#C9A87C', ancestor: '#3D7A4A', descendant: '#243044', cocite: '#8A5FC8' };
+  const maxCit = Math.max(1, ...nodes.map(n => n.citation_count || 0));
+
+  const cyNodes = nodes.map(n => ({
+    data: {
+      id: n.id, label: n.label,
+      year: n.year, doi: n.doi, field: n.field,
+      authors: n.authors, source: n.source,
+      abstract: n.abstract, citation_count: n.citation_count,
+      node_type: n.node_type, is_key_paper: n.is_key_paper,
+      size: n.citation_count ? 22 + Math.round((n.citation_count / maxCit) * 40) : 20,
+      color: nodeTypeColor[n.node_type] || '#888',
+    }
+  }));
+
+  const cyEdges = edges.map((e, i) => ({
+    data: { id: `oe${i}`, source: e.source, target: e.target, edge_type: e.edge_type }
+  }));
+
+  if (_oaCy) { _oaCy.destroy(); _oaCy = null; }
+
+  _oaCy = cytoscape({
+    container: el,
+    elements: [...cyNodes, ...cyEdges],
+    layout: {
+      name: 'preset',
+      positions: (node) => {
+        const d = node.data();
+        const year = d.year || 2000;
+        const tIdx = ['ancestor','seed','descendant','cocite'].indexOf(d.node_type);
+        const xBase = ((year - 1950) / 80) * 900;
+        const yJitter = (tIdx * 120) + (Math.random() * 80 - 40);
+        return { x: xBase, y: yJitter };
+      },
+      fit: true, padding: 30,
+    },
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': 'data(color)',
+          'width': 'data(size)', 'height': 'data(size)',
+          'label': 'data(label)',
+          'font-size': '9px', 'color': '#0C1117',
+          'text-valign': 'bottom', 'text-halign': 'center',
+          'text-margin-y': '4px',
+          'text-max-width': '90px', 'text-wrap': 'ellipsis',
+          'border-width': 2, 'border-color': 'rgba(255,255,255,0.7)',
+        }
+      },
+      {
+        selector: 'node[is_key_paper]',
+        style: { 'border-width': 3, 'border-color': '#C9A87C', 'border-style': 'double' }
+      },
+      { selector: 'node:selected', style: { 'background-color': '#C9A87C', 'border-color': '#0C1117' } },
+      {
+        selector: 'edge[edge_type = "references"]',
+        style: { 'width': 1.5, 'line-color': 'rgba(61,122,74,0.4)', 'curve-style': 'bezier',
+          'target-arrow-shape': 'triangle', 'target-arrow-color': 'rgba(61,122,74,0.5)', 'arrow-scale': 0.8 }
+      },
+      {
+        selector: 'edge[edge_type = "cites"]',
+        style: { 'width': 1.5, 'line-color': 'rgba(36,48,68,0.35)', 'curve-style': 'bezier',
+          'target-arrow-shape': 'triangle', 'target-arrow-color': 'rgba(36,48,68,0.4)', 'arrow-scale': 0.8 }
+      },
+      {
+        selector: 'edge[edge_type = "co_citation"]',
+        style: { 'width': 1, 'line-color': 'rgba(138,95,200,0.3)', 'curve-style': 'bezier', 'line-style': 'dashed' }
+      },
+    ],
+  });
+
+  _oaCy.on('tap', 'node', function(evt) {
+    const d = evt.target.data();
+    const sb = document.getElementById('oaNetworkSidebar');
+    document.getElementById('oaSbTitle').textContent = d.label || 'Untitled';
+    document.getElementById('oaSbMeta').textContent = [d.year, d.authors, d.source, d.field, `${d.citation_count} citations`].filter(Boolean).join(' · ');
+    document.getElementById('oaSbAbstract').textContent = d.abstract || 'No abstract available.';
+    const doiEl = document.getElementById('oaSbDoi');
+    doiEl.innerHTML = d.doi ? `<a href="https://doi.org/${esc(d.doi)}" target="_blank" style="color:var(--brass);font-size:11.5px;">Open paper ↗</a>` : '';
+    sb.style.display = '';
+  });
+
+  document.getElementById('oaSbClose').onclick = () => {
+    document.getElementById('oaNetworkSidebar').style.display = 'none';
+    if (_oaCy) _oaCy.$('node').unselect();
+  };
+}
+
+// Timeline slider
+document.getElementById('oaTimelineSlider').addEventListener('input', function() {
+  const year = parseInt(this.value);
+  const labelEl = document.getElementById('timelineLabel');
+  labelEl.textContent = `≥ ${year}`;
+  if (!_oaCy) return;
+  _oaCy.nodes().forEach(n => {
+    const nodeYear = n.data('year') || 0;
+    n.style('opacity', nodeYear >= year || nodeYear === 0 ? 1 : 0.15);
+  });
+  _oaCy.edges().forEach(e => {
+    const src = _oaCy.$id(e.data('source'));
+    const tgt = _oaCy.$id(e.data('target'));
+    const srcY = src.data('year') || 0;
+    const tgtY = tgt.data('year') || 0;
+    const vis = (srcY >= year || srcY === 0) && (tgtY >= year || tgtY === 0);
+    e.style('opacity', vis ? 0.7 : 0.05);
+  });
+});
+
+document.getElementById('oaTimelineReset').onclick = () => {
+  if (!_oaCy || !_oaYearRange.length) return;
+  const slider = document.getElementById('oaTimelineSlider');
+  slider.value = _oaYearRange[0];
+  document.getElementById('timelineLabel').textContent = 'All years';
+  _oaCy.nodes().style('opacity', 1);
+  _oaCy.edges().style('opacity', 0.65);
+};
+
+
+// ── BIAS HEATMAP ──────────────────────────────────────────────────────────────
+
+async function loadHeatmap() {
+  if (!currentReview) return;
+  const el = document.getElementById('heatmapEl');
+  el.innerHTML = '<div class="emptyState">Building heatmap…</div>';
+  try {
+    const data = await fetchJson(`/reviews/${currentReview.id}/bias-heatmap`);
+    if (!data.studies.length) {
+      el.innerHTML = '<div class="emptyState">No included papers with appraisal data.</div>';
+      return;
+    }
+    const riskLabel = ['Low', 'Some', 'High'];
+    const riskTitle = ['Low risk', 'Some concerns', 'High risk'];
+    let html = '<table class="heatmapTable"><thead><tr><th>Study</th>';
+    data.dimensions.forEach(d => { html += `<th>${esc(d)}</th>`; });
+    html += '</tr></thead><tbody>';
+
+    data.studies.forEach(study => {
+      html += `<tr><td class="studyLabel" title="${esc(study)}">${esc(study)}</td>`;
+      data.dimensions.forEach(dim => {
+        const cell = data.cells.find(c => c.study === study && c.dimension === dim);
+        const score = cell ? cell.score : 1;
+        html += `<td class="cell risk-${score}" title="${esc(dim)}: ${riskTitle[score]}">${riskLabel[score]}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+    document.getElementById('heatmapLegend').style.display = '';
+  } catch(e) {
+    el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
+  }
+}
+
+
+// ── KEY PAPERS ────────────────────────────────────────────────────────────────
+
+async function loadKeyPapers() {
+  if (!currentReview) return;
+  const el = document.getElementById('keyPapersContent');
+  el.innerHTML = '<div class="emptyState">Loading…</div>';
+  try {
+    const data = await fetchJson(`/reviews/${currentReview.id}/key-papers`);
+    if (!data.papers.length) {
+      el.innerHTML = '<div class="emptyState">No included papers found.</div>';
+      return;
+    }
+    el.innerHTML = data.papers.map(p => {
+      const doiLink = p.doi ? `<a href="https://doi.org/${esc(p.doi)}" target="_blank" style="color:var(--brass);font-size:11.5px;" title="Use this DOI in the Citation Web tab">DOI ↗ | Seed Citation Web</a>` : '';
+      const doiSeed = p.doi ? `<button class="btn sm ghost" style="font-size:10px;padding:2px 8px;margin-left:6px;" onclick="seedCitationWeb('${esc(p.doi)}')">&#9660; Citation Web</button>` : '';
+      return `<div class="keyPaperCard">
+        <div class="keyPaperRank">#${p.rank}</div>
+        <div class="keyPaperBody">
+          <div class="keyPaperTitle">${esc(p.title)}</div>
+          <div class="keyPaperMeta">${p.year ? esc(String(p.year)) : '—'}${p.doi ? ` · ${esc(p.doi)}` : ''}</div>
+          <div class="keyPaperCitations">&#9733; ${p.citation_count.toLocaleString()} citations ${doiSeed}</div>
+          ${p.abstract_snippet ? `<div style="font-size:12px;color:var(--subtle);margin-top:4px;">${esc(p.abstract_snippet)}&#8230;</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
+  }
+}
+
+function seedCitationWeb(doi) {
+  document.getElementById('oaDOIInput').value = doi;
+  switchTab('oaNetwork');
+}
+
+
+// ── VERDICT SYNTHESISER ───────────────────────────────────────────────────────
+
+document.getElementById('generateVerdictBtn').onclick = async () => {
+  if (!currentReview) return;
+  const el = document.getElementById('verdictContent');
+  el.innerHTML = '<div class="emptyState">Generating verdict with AI…</div>';
+  await withBtnLoading(document.getElementById('generateVerdictBtn'), async () => {
+    try {
+      const v = await fetchJson(`/reviews/${currentReview.id}/verdict`, { method: 'POST' });
+      const verdictClass = { Supported: 'supported', Mixed: 'mixed', Insufficient: 'insufficient' }[v.verdict] || 'mixed';
+      const verdictIcon = { Supported: '✅', Mixed: '⚖️', Insufficient: '⚠️' }[v.verdict] || '⚖️';
+
+      let html = `
+        <div class="verdictBadge ${verdictClass}">${verdictIcon} ${esc(v.verdict)} Evidence
+          ${v.confidence_pct != null ? `<span class="confBadge ${v.confidence.toLowerCase()}" style="font-size:13px;">${v.confidence_pct}% confidence</span>` : ''}
+        </div>
+        <div style="font-size:14px;color:var(--text2);line-height:1.75;margin-bottom:16px;">${esc(v.summary)}</div>
+      `;
+
+      if (v.key_supporting_studies.length) {
+        html += `<div class="verdictSection"><div class="verdictSectionLabel">Key Supporting Studies</div>`;
+        v.key_supporting_studies.forEach(s => {
+          html += `<div class="verdictSupportCard">
+            <div style="font-size:13px;font-weight:700;color:var(--navy);">${esc(s.title)} ${s.year ? `(${s.year})` : ''} <span class="verdictWeight ${s.weight}">[${esc(s.weight)}]</span></div>
+            <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${esc(s.finding)}</div>
+          </div>`;
+        });
+        html += '</div>';
+      }
+
+      if (v.key_contradictions.length) {
+        html += `<div class="verdictSection"><div class="verdictSectionLabel">Key Contradictions</div><ul style="margin:0;padding-left:20px;font-size:13px;color:var(--muted);line-height:1.7;">`;
+        v.key_contradictions.forEach(c => { html += `<li>${esc(c)}</li>`; });
+        html += '</ul></div>';
+      }
+
+      if (v.limitations.length) {
+        html += `<div class="verdictSection"><div class="verdictSectionLabel">Limitations</div><ul style="margin:0;padding-left:20px;font-size:13px;color:var(--muted);line-height:1.7;">`;
+        v.limitations.forEach(l => { html += `<li>${esc(l)}</li>`; });
+        html += '</ul></div>';
+      }
+
+      if (v.recommendation) {
+        html += `<div class="verdictSection"><div class="verdictSectionLabel">Recommendation</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.65;background:rgba(61,122,74,.06);border-left:3px solid var(--good);padding:10px 14px;border-radius:0 var(--r-sm) var(--r-sm) 0;">${esc(v.recommendation)}</div>
+        </div>`;
+      }
+
+      el.innerHTML = html;
+    } catch(e) {
+      el.innerHTML = `<div class="emptyState" style="color:var(--bad);">${esc(e.message)}</div>`;
+    }
+  });
+};
+
+
+// ── PAPER PREVIEW MODAL ───────────────────────────────────────────────────────
+
+function openPaperPreview(item) {
+  const title   = item.study_title || item.external_title || 'Untitled';
+  const year    = item.external_year || '—';
+  const source  = item.external_source || '';
+  const doi     = item.external_doi || '';
+  const abstract = item.external_abstract || 'No abstract available.';
+
+  document.getElementById('ppTitle').textContent = title;
+  document.getElementById('ppMeta').textContent = [year, source].filter(Boolean).join(' · ');
+  document.getElementById('ppAbstract').textContent = abstract;
+  document.getElementById('ppDoi').innerHTML = doi
+    ? `<a href="https://doi.org/${esc(doi)}" target="_blank" style="color:var(--brass);font-weight:600;font-size:12.5px;">Open paper ↗</a>`
+    : '';
+  document.getElementById('ppExtraSection').style.display = 'none';
+
+  // If the item has a study_id, attempt to load AI results for key findings
+  if (item.study_id) {
+    fetchJson(`/studies/${item.study_id}/appraisal`).then(appraisal => {
+      if (appraisal && appraisal.overall_summary) {
+        document.getElementById('ppResults').textContent = appraisal.overall_summary;
+        document.getElementById('ppExtraSection').style.display = '';
+      }
+    }).catch(() => {});
+  }
+
+  document.getElementById('paperPreviewModal').classList.add('open');
+}
+
+document.getElementById('paperPreviewClose').onclick = () => {
+  document.getElementById('paperPreviewModal').classList.remove('open');
+};
+document.getElementById('paperPreviewModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('paperPreviewModal')) {
+    document.getElementById('paperPreviewModal').classList.remove('open');
+  }
+});
+
+
+// ── PDF DRAG-DROP ─────────────────────────────────────────────────────────────
+
+const pdfDrop = document.getElementById('pdfDropZone');
+const pdfInput = document.getElementById('pdfFileInput');
+
+pdfDrop.addEventListener('click', () => pdfInput.click());
+pdfInput.addEventListener('change', () => { if (pdfInput.files[0]) handlePDFUpload(pdfInput.files[0]); });
+
+pdfDrop.addEventListener('dragover', e => { e.preventDefault(); pdfDrop.classList.add('drag-over'); });
+pdfDrop.addEventListener('dragleave', () => pdfDrop.classList.remove('drag-over'));
+pdfDrop.addEventListener('drop', e => {
+  e.preventDefault();
+  pdfDrop.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') handlePDFUpload(file);
+  else showToast('Invalid file', 'Please drop a PDF file.', 'error');
+});
+
+async function handlePDFUpload(file) {
+  const resultBox = document.getElementById('pdfResultBox');
+  resultBox.classList.remove('visible');
+  resultBox.textContent = '';
+  pdfDrop.querySelector('.pdfDropLabel').textContent = `Processing "${file.name}"…`;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('token');
+    const resp = await fetch('/ai/upload-pdf', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!resp.ok) throw new Error(`Upload failed: ${resp.status}`);
+    const data = await resp.json();
+
+    let text = `✅ Extracted from "${esc(data.filename)}"\n`;
+    text += `Pages: ${data.pages} · Characters: ${data.total_characters?.toLocaleString()}\n`;
+    text += `Figures found: ${data.figures_count} · References: ${data.references_count}\n\n`;
+    if (data.references?.length) {
+      text += `Top References:\n` + data.references.slice(0,5).map((r,i) => `${i+1}. ${r}`).join('\n') + '\n\n';
+    }
+    if (data.full_text) {
+      text += `First 500 chars of text:\n${data.full_text.slice(0,500)}…`;
+    }
+    resultBox.textContent = text;
+    resultBox.classList.add('visible');
+    showToast('PDF Extracted', `${data.pages} pages · ${data.references_count} references found.`, 'success');
+  } catch(e) {
+    showToast('Upload failed', e.message, 'error');
+  } finally {
+    pdfDrop.querySelector('.pdfDropLabel').textContent = 'Drag & drop a PDF here, or click to browse';
+  }
+}
+
+
+// ── TAB SWITCHING — patch to handle new tabs ──────────────────────────────────
+
+const _origSwitchTab = switchTab;
+switchTab = function(name) {
+  // Run base switcher for tab/pane visibility
+  document.querySelectorAll('.rvTab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.rvPane').forEach(p => p.classList.remove('active'));
+  const tab  = document.querySelector(`.rvTab[data-tab="${name}"]`);
+  const pane = document.querySelector(`.rvPane[data-pane="${name}"]`);
+  if (tab)  tab.classList.add('active');
+  if (pane) pane.classList.add('active');
+
+  // Data loaders for all tabs
+  if (name === 'prisma')    loadPRISMA();
+  if (name === 'drift')     loadDrift();
+  if (name === 'screening') loadScreening();
+  if (name === 'forest')    loadForestPlot();
+  if (name === 'network')   loadNetwork();
+  if (name === 'extract')   loadExtractTab();
+  if (name === 'roulette')  loadRoulette();
+  if (name === 'notes')     loadEvidenceNotes();
+  if (name === 'heatmap')   loadHeatmap();
+  if (name === 'keypaper')  loadKeyPapers();
 };
 
 

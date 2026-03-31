@@ -22,15 +22,19 @@ from backend.models import (
     AIResult, PaperReminder, ReviewScreening, Study, SystematicReview, User,
 )
 from backend.schemas import (
+    BiasCell, BiasHeatmapResponse,
     BulkScreeningUpdate,
+    CitationEdge, CitationNetworkResponse, CitationNode,
     CumulativeStatPoint, CumulativeStatsResponse,
     EvidenceDriftPoint, EvidenceDriftResponse,
+    KeyPaper, KeyPapersResponse,
     NetworkEdge, NetworkNode, NetworkResponse,
     PaperReminderCreate, PaperReminderPatch, PaperReminderRead,
     PRISMAData,
     REVIEW_PHASES, SCREENING_DECISIONS,
     ReviewAskRequest, ReviewAskResponse,
     ReviewScreeningCreate, ReviewScreeningPatch, ReviewScreeningRead,
+    SupportingStudy, VerdictRequest, VerdictResponse,
     SystematicReviewCreate, SystematicReviewPatch, SystematicReviewRead,
 )
 
@@ -1104,3 +1108,459 @@ def delete_reminder(
     session.delete(rem)
     session.commit()
     return {"status": "deleted", "reminder_id": reminder_id}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 5: OpenAlex Citation Network
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/reviews/{review_id}/citation-network-openalex", response_model=CitationNetworkResponse)
+async def openalex_citation_network(
+    review_id: int,
+    doi: str = Query(..., description="Seed paper DOI"),
+    depth: int = Query(default=1, ge=1, le=2, description="1=direct only, 2=2-hop"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Build a full citation spider-web for a seed DOI using OpenAlex.
+    Returns ancestors (references), descendants (citing papers), and co-citations.
+    """
+    import urllib.request
+    import urllib.error
+    import urllib.parse
+
+    review = session.get(SystematicReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    def _openalex_get(url: str) -> dict:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "SerenMedical/1.0 (mailto:admin@seren.app)"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return {}
+            raise HTTPException(status_code=502, detail=f"OpenAlex error: {e.code}")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"OpenAlex request failed: {e}")
+
+    def _node_from_work(work: dict, node_type: str) -> CitationNode:
+        wid      = work.get("id", "")
+        title    = (work.get("title") or "Untitled")[:120]
+        year     = work.get("publication_year")
+        ccount   = work.get("cited_by_count", 0)
+        doi_raw  = (work.get("doi") or "").replace("https://doi.org/", "")
+        concepts = work.get("concepts") or []
+        field    = concepts[0].get("display_name") if concepts else None
+        authors_list = work.get("authorships") or []
+        authors_str  = ", ".join(
+            a.get("author", {}).get("display_name", "") for a in authors_list[:3]
+        )
+        abstract_inv = work.get("abstract_inverted_index") or {}
+        abstract_text = ""
+        if abstract_inv:
+            max_pos = max((pos for positions in abstract_inv.values() for pos in positions), default=0)
+            word_arr = [""] * (max_pos + 1)
+            for word, positions in abstract_inv.items():
+                for pos in positions:
+                    if pos <= max_pos:
+                        word_arr[pos] = word
+            abstract_text = " ".join(w for w in word_arr if w)[:300]
+        source_loc = work.get("primary_location") or {}
+        source_name = (source_loc.get("source") or {}).get("display_name") or ""
+        return CitationNode(
+            id=wid or doi_raw,
+            label=title,
+            year=year,
+            citation_count=ccount,
+            node_type=node_type,
+            field=field,
+            doi=doi_raw or None,
+            abstract=abstract_text or None,
+            authors=authors_str or None,
+            source=source_name or None,
+            is_key_paper=(ccount >= 100),
+        )
+
+    # ── 1. Fetch seed paper ───────────────────────────────────────────────────
+    encoded_doi = urllib.parse.quote(doi, safe="")
+    seed_data = _openalex_get(
+        f"https://api.openalex.org/works/https://doi.org/{encoded_doi}"
+        f"?select=id,title,publication_year,cited_by_count,doi,concepts,authorships,abstract_inverted_index,referenced_works,primary_location"
+    )
+    if not seed_data or "id" not in seed_data:
+        raise HTTPException(status_code=404, detail="Paper not found on OpenAlex. Check the DOI.")
+
+    seed_id = seed_data["id"]
+    nodes: list[CitationNode] = [_node_from_work(seed_data, "seed")]
+    edges: list[CitationEdge] = []
+    seen_ids: set[str] = {seed_id}
+
+    # ── 2. Ancestors: papers this study references ────────────────────────────
+    ref_ids = seed_data.get("referenced_works") or []
+    # Batch fetch up to 40 references
+    batch = ref_ids[:40]
+    if batch:
+        ids_param = "|".join(batch)
+        ref_data = _openalex_get(
+            f"https://api.openalex.org/works?filter=openalex_id:{ids_param}"
+            f"&per-page=40&select=id,title,publication_year,cited_by_count,doi,concepts,authorships,primary_location"
+        )
+        for work in (ref_data.get("results") or []):
+            wid = work.get("id", "")
+            if wid and wid not in seen_ids:
+                seen_ids.add(wid)
+                nodes.append(_node_from_work(work, "ancestor"))
+                edges.append(CitationEdge(source=seed_id, target=wid, edge_type="references"))
+
+    # ── 3. Descendants: papers that cite this study ───────────────────────────
+    cite_data = _openalex_get(
+        f"https://api.openalex.org/works?filter=cites:{seed_id}"
+        f"&per-page=40&sort=cited_by_count:desc"
+        f"&select=id,title,publication_year,cited_by_count,doi,concepts,authorships,primary_location"
+    )
+    for work in (cite_data.get("results") or []):
+        wid = work.get("id", "")
+        if wid and wid not in seen_ids:
+            seen_ids.add(wid)
+            nodes.append(_node_from_work(work, "descendant"))
+            edges.append(CitationEdge(source=wid, target=seed_id, edge_type="cites"))
+
+    # ── 4. Co-citations: top-2 references shared by ≥2 descendants ───────────
+    if depth >= 2:
+        ref_count: dict[str, int] = {}
+        for e in edges:
+            if e.edge_type == "cites":
+                # fetch that descendant's references (first 3 only, lightweight)
+                desc_data = _openalex_get(
+                    f"https://api.openalex.org/works/{urllib.parse.quote(e.source, safe='')}"
+                    f"?select=referenced_works"
+                )
+                for rid in (desc_data.get("referenced_works") or [])[:20]:
+                    if rid != seed_id and rid not in seen_ids:
+                        ref_count[rid] = ref_count.get(rid, 0) + 1
+        # Take top 10 co-cited papers
+        top_cocite = sorted(ref_count.items(), key=lambda x: x[1], reverse=True)[:10]
+        if top_cocite:
+            co_ids = "|".join(r[0] for r in top_cocite)
+            co_data = _openalex_get(
+                f"https://api.openalex.org/works?filter=openalex_id:{co_ids}"
+                f"&per-page=10&select=id,title,publication_year,cited_by_count,doi,concepts,authorships,primary_location"
+            )
+            for work in (co_data.get("results") or []):
+                wid = work.get("id", "")
+                if wid and wid not in seen_ids:
+                    seen_ids.add(wid)
+                    nodes.append(_node_from_work(work, "cocite"))
+                    edges.append(CitationEdge(source=seed_id, target=wid, edge_type="co_citation"))
+
+    # ── 5. Year range for timeline slider ────────────────────────────────────
+    years = [n.year for n in nodes if n.year]
+    year_range = [min(years), max(years)] if years else []
+
+    return CitationNetworkResponse(
+        seed_doi=doi,
+        nodes=nodes,
+        edges=edges,
+        year_range=year_range,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 5: Key Papers (most influential included papers)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/reviews/{review_id}/key-papers", response_model=KeyPapersResponse)
+def key_papers(
+    review_id: int,
+    top_n: int = Query(default=10, ge=1, le=50),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the top-N most-cited included papers in this review."""
+    review = session.get(SystematicReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    from backend.services.ai_service import strip_html
+
+    included = session.exec(
+        select(ReviewScreening).where(
+            (ReviewScreening.review_id == review_id) &
+            (ReviewScreening.decision == "included")
+        )
+    ).all()
+
+    papers = []
+    for s in included:
+        study: Study | None = session.get(Study, s.study_id) if s.study_id else None
+        title = (study.title if study else None) or s.external_title or "Untitled"
+        year  = (study.year  if study else None) or s.external_year
+        doi   = (study.doi   if study else None) or s.external_doi
+        cc    = (study.citation_count if study else None) or 0
+        abstract_raw = (study.abstract if study else None) or s.external_abstract or ""
+        snippet = strip_html(abstract_raw)[:150] or None
+        papers.append(KeyPaper(
+            screening_id=s.id,
+            title=title[:100],
+            year=year,
+            citation_count=cc,
+            doi=doi,
+            abstract_snippet=snippet,
+            rank=0,
+        ))
+
+    papers.sort(key=lambda p: p.citation_count, reverse=True)
+    for i, p in enumerate(papers[:top_n], 1):
+        p.rank = i
+
+    return KeyPapersResponse(review_id=review_id, papers=papers[:top_n])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 5: Bias Heatmap
+# ══════════════════════════════════════════════════════════════════════════════
+
+_BIAS_DIMENSIONS = [
+    "Selection Bias",
+    "Performance Bias",
+    "Detection Bias",
+    "Attrition Bias",
+    "Reporting Bias",
+    "Sample Size",
+]
+
+@router.get("/reviews/{review_id}/bias-heatmap", response_model=BiasHeatmapResponse)
+def bias_heatmap(
+    review_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return a bias heatmap grid: studies × bias dimensions.
+    Scores: 0 = low risk (green), 1 = some concerns (yellow), 2 = high risk (red).
+    Pulls from cached AIResult bias_score + risk_of_bias fields where available.
+    """
+    review = session.get(SystematicReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    included = session.exec(
+        select(ReviewScreening).where(
+            (ReviewScreening.review_id == review_id) &
+            (ReviewScreening.decision == "included")
+        )
+    ).all()
+
+    study_names: list[str] = []
+    cells: list[BiasCell] = []
+
+    for s in included:
+        study: Study | None = session.get(Study, s.study_id) if s.study_id else None
+        title = ((study.title if study else None) or s.external_title or "Untitled")[:50]
+        study_names.append(title)
+
+        # Try to read cached appraisal from AIResult
+        bias_score_raw = study.extracted_bias_score if study else None  # 0-10
+        sample_size    = study.extracted_sample_size if study else None
+
+        # Try cached AI clinical appraisal for richer data
+        appraisal_data: dict = {}
+        if study:
+            ck = hashlib.sha256("|".join(f"{k}={v}" for k, v in sorted({
+                "kind": "clinical", "title": (study.title or "").strip().lower(),
+                "doi": (study.doi or "").strip().lower(),
+                "pmid": (study.pmid or "").strip().lower(),
+                "pmcid": (study.pmcid or "").strip().lower(), "question": "",
+            }.items())).encode()).hexdigest()
+            cached = session.exec(
+                select(AIResult).where(
+                    (AIResult.owner_username == current_user.username) &
+                    (AIResult.cache_key == ck) & (AIResult.kind == "clinical")
+                )
+            ).first()
+            if cached and cached.synthesis_narrative:
+                try:
+                    appraisal_data = json.loads(cached.synthesis_narrative) if isinstance(cached.synthesis_narrative, str) else {}
+                except Exception:
+                    pass
+
+        # Map overall bias_score (0-10) to 0/1/2 per dimension heuristically
+        # If we have a detailed appraisal, use it; else derive from the scalar
+        def _scalar_to_risk(val: Optional[float], invert: bool = False) -> int:
+            """Convert a 0-10 or 0-5 scalar to 0/1/2 risk."""
+            if val is None:
+                return 1  # unknown = some concerns
+            if invert:
+                val = 10 - val
+            if val <= 3:
+                return 0
+            if val <= 6:
+                return 1
+            return 2
+
+        overall_risk = _scalar_to_risk(bias_score_raw)
+        # Sample size: small (<30) = high risk, medium (30-100) = some, large (>100) = low
+        if sample_size is None:
+            ss_risk = 1
+        elif sample_size < 30:
+            ss_risk = 2
+        elif sample_size < 100:
+            ss_risk = 1
+        else:
+            ss_risk = 0
+
+        dim_scores = {
+            "Selection Bias":    appraisal_data.get("selection_bias_score", overall_risk),
+            "Performance Bias":  appraisal_data.get("performance_bias_score", overall_risk),
+            "Detection Bias":    appraisal_data.get("detection_bias_score", overall_risk),
+            "Attrition Bias":    appraisal_data.get("attrition_bias_score", overall_risk),
+            "Reporting Bias":    appraisal_data.get("reporting_bias_score", overall_risk),
+            "Sample Size":       ss_risk,
+        }
+
+        for dim in _BIAS_DIMENSIONS:
+            score = int(dim_scores.get(dim, 1))
+            score = max(0, min(2, score))
+            cells.append(BiasCell(study=title, dimension=dim, score=score))
+
+    return BiasHeatmapResponse(
+        review_id=review_id,
+        studies=study_names,
+        dimensions=_BIAS_DIMENSIONS,
+        cells=cells,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 5: Verdict Synthesiser
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/reviews/{review_id}/verdict", response_model=VerdictResponse)
+async def synthesise_verdict(
+    review_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate a final research verdict (Supported / Mixed / Insufficient evidence)
+    using an AI prompt over all included papers.
+    """
+    review = session.get(SystematicReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    byok = _get_byok_keys(current_user)
+    if not byok:
+        raise HTTPException(status_code=400, detail="No AI API key configured.")
+
+    included = session.exec(
+        select(ReviewScreening).where(
+            (ReviewScreening.review_id == review_id) &
+            (ReviewScreening.decision == "included")
+        )
+    ).all()
+
+    if len(included) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 included papers to generate a verdict.")
+
+    from backend.services.ai_service import strip_html
+    from backend.services.ai_engine import run as engine_run
+
+    paper_summaries = []
+    for i, s in enumerate(included, 1):
+        study: Study | None = session.get(Study, s.study_id) if s.study_id else None
+        title    = (study.title if study else None) or s.external_title or "Untitled"
+        year     = (study.year  if study else None) or s.external_year or "n/a"
+        abstract = strip_html((study.abstract if study else None) or s.external_abstract or "")[:400]
+        bias_s   = study.extracted_bias_score if study else None
+        sample_s = study.extracted_sample_size if study else None
+        outcome  = study.extracted_outcome_value if study else None
+
+        meta = []
+        if bias_s is not None: meta.append(f"bias_score={bias_s}/10")
+        if sample_s:           meta.append(f"n={sample_s}")
+        if outcome is not None: meta.append(f"outcome={outcome}")
+        meta_str = f" [{', '.join(meta)}]" if meta else ""
+        paper_summaries.append(f"Paper {i}: {title} ({year}){meta_str}\n{abstract}")
+
+    paper_ctx = "\n\n".join(paper_summaries)
+    system_prompt = (
+        "You are a systematic review expert. Analyse the included papers and generate a final verdict.\n"
+        "Return ONLY valid JSON with this exact structure:\n"
+        "{\n"
+        '  "verdict": "Supported" | "Mixed" | "Insufficient",\n'
+        '  "confidence": "High" | "Moderate" | "Low",\n'
+        '  "confidence_pct": <0-100>,\n'
+        '  "summary": "<2-3 sentence plain-English conclusion>",\n'
+        '  "key_supporting_studies": [\n'
+        '    {"title": "...", "year": <int|null>, "finding": "...", "weight": "strong"|"moderate"|"weak"}\n'
+        "  ],\n"
+        '  "key_contradictions": ["<contradiction 1>", "..."],\n'
+        '  "limitations": ["<limitation 1>", "..."],\n'
+        '  "recommendation": "<clinical/research recommendation>"\n'
+        "}"
+    )
+    user_msg = (
+        f"Systematic Review: {review.title}\n"
+        f"Review question / description: {review.description or review.search_query or '(not specified)'}\n\n"
+        f"Included papers ({len(included)}):\n\n{paper_ctx}\n\n"
+        "Generate the verdict JSON now."
+    )
+
+    try:
+        result = await engine_run(system_prompt, user_msg, **byok)
+        raw = result.text if hasattr(result, "text") else str(result)
+        # Strip markdown fences if present
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip().rstrip("`").strip()
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Fallback: return a basic verdict if JSON parse fails
+        data = {
+            "verdict": "Mixed", "confidence": "Low", "confidence_pct": 30,
+            "summary": "Unable to parse AI response. Please try again.",
+            "key_supporting_studies": [], "key_contradictions": [],
+            "limitations": ["AI response parsing failed"], "recommendation": "",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI error: {e}")
+
+    supporting = [
+        SupportingStudy(
+            title=s.get("title", ""),
+            year=s.get("year"),
+            finding=s.get("finding", ""),
+            weight=s.get("weight", "moderate"),
+        )
+        for s in (data.get("key_supporting_studies") or [])
+    ]
+
+    return VerdictResponse(
+        review_id=review_id,
+        verdict=data.get("verdict", "Mixed"),
+        confidence=data.get("confidence", "Low"),
+        confidence_pct=data.get("confidence_pct"),
+        summary=data.get("summary", ""),
+        key_supporting_studies=supporting,
+        key_contradictions=data.get("key_contradictions") or [],
+        limitations=data.get("limitations") or [],
+        recommendation=data.get("recommendation", ""),
+    )

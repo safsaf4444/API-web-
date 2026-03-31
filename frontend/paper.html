@@ -93,6 +93,8 @@
       max-height: 520px; overflow-y: auto; margin-top: 12px;
     }
     #fullTextBox p { margin: 0 0 12px; }
+    mark.wf-hit { background:#FFE082; color:inherit; border-radius:2px; }
+    mark.wf-hit.wf-current { background:#FF9800; color:#fff; border-radius:2px; outline:2px solid #E65100; }
     #fullTextHint { font-size: 12.5px; color: var(--subtle); line-height: 1.6; }
 
     .panelTopRow {
@@ -418,6 +420,14 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
         <button type="button" class="btn primary sm" id="loadFullBtn" disabled>Load full text (OA)</button>
         <button type="button" class="btn sm" id="openFullBtn" disabled>Open provider page ↗</button>
+      </div>
+      <!-- Word Filter / Search -->
+      <div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap;" id="wordFilterBar">
+        <input id="wordFilterInput" type="text" placeholder="Search in text…" style="font-size:12.5px;padding:6px 10px;border-radius:var(--r-pill);border:1px solid var(--line);background:var(--surface2);color:var(--text2);min-width:180px;" autocomplete="off"/>
+        <button class="btn sm ghost" id="wordFilterPrev" title="Previous match">↑</button>
+        <button class="btn sm ghost" id="wordFilterNext" title="Next match">↓</button>
+        <span id="wordFilterStatus" style="font-size:11px;color:var(--subtle);min-width:70px;"></span>
+        <button class="btn sm ghost" id="wordFilterClear" style="font-size:11px;padding:4px 10px;">Clear</button>
       </div>
       <div class="hr"></div>
       <div id="fullTextBox">
@@ -2492,6 +2502,111 @@ function attachTableExplainers(container) {
   const obs = new MutationObserver(() => attachTableExplainers(ftBox));
   obs.observe(ftBox, { childList: true, subtree: true });
   attachTableExplainers(ftBox); // run once in case content already loaded
+})();
+
+
+// ── Word Filter & Keyword Jump ────────────────────────────────────────────────
+(function() {
+  const input    = document.getElementById('wordFilterInput');
+  const prevBtn  = document.getElementById('wordFilterPrev');
+  const nextBtn  = document.getElementById('wordFilterNext');
+  const clearBtn = document.getElementById('wordFilterClear');
+  const status   = document.getElementById('wordFilterStatus');
+  if (!input) return;
+
+  let _matchIdx = 0;
+
+  function getBox() { return document.getElementById('fullTextBox'); }
+
+  function clearHighlights() {
+    const box = getBox();
+    if (!box) return;
+    // Unwrap all <mark class="wf-hit"> tags, restoring text nodes
+    box.querySelectorAll('mark.wf-hit').forEach(m => {
+      const parent = m.parentNode;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+    });
+    // Normalize merged text nodes
+    box.normalize();
+  }
+
+  function highlight(query) {
+    clearHighlights();
+    status.textContent = '';
+    if (!query || query.length < 2) return 0;
+    const box = getBox();
+    if (!box) return 0;
+
+    // Walk text nodes and wrap matches
+    const escapedQ = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedQ, 'gi');
+    const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT, null);
+    const textNodes = [];
+    let node;
+    while ((node = walker.nextNode())) textNodes.push(node);
+
+    let count = 0;
+    textNodes.forEach(tn => {
+      let text = tn.textContent;
+      if (!regex.test(text)) return;
+      regex.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0, m;
+      while ((m = regex.exec(text)) !== null) {
+        if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        const mark = document.createElement('mark');
+        mark.className = 'wf-hit';
+        mark.textContent = m[0];
+        frag.appendChild(mark);
+        last = regex.lastIndex;
+        count++;
+      }
+      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      tn.parentNode.replaceChild(frag, tn);
+    });
+
+    return count;
+  }
+
+  function setCurrent(idx) {
+    const marks = getBox() ? getBox().querySelectorAll('mark.wf-hit') : [];
+    if (!marks.length) return;
+    marks.forEach(m => m.classList.remove('wf-current'));
+    _matchIdx = ((idx % marks.length) + marks.length) % marks.length;
+    marks[_matchIdx].classList.add('wf-current');
+    marks[_matchIdx].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    status.textContent = `${_matchIdx + 1} / ${marks.length}`;
+  }
+
+  let _debounceT = null;
+  input.addEventListener('input', () => {
+    clearTimeout(_debounceT);
+    _debounceT = setTimeout(() => {
+      const q = input.value.trim();
+      const count = highlight(q);
+      if (count > 0) {
+        _matchIdx = 0;
+        setCurrent(0);
+        status.textContent = `1 / ${count}`;
+      } else {
+        status.textContent = q.length >= 2 ? 'No matches' : '';
+      }
+    }, 280);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); setCurrent(_matchIdx + (e.shiftKey ? -1 : 1)); }
+    if (e.key === 'Escape') { clearBtn.click(); }
+  });
+
+  nextBtn.onclick = () => setCurrent(_matchIdx + 1);
+  prevBtn.onclick = () => setCurrent(_matchIdx - 1);
+  clearBtn.onclick = () => {
+    input.value = '';
+    clearHighlights();
+    status.textContent = '';
+  };
 })();
 
 

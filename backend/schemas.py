@@ -509,6 +509,88 @@ class NetworkResponse(BaseModel):
     nodes: List[NetworkNode] = []
     edges: List[NetworkEdge] = []
 
+
+# ── Phase 5: Extended Citation Network (OpenAlex) ────────────────────────────
+
+class CitationNode(BaseModel):
+    id: str                                      # OpenAlex ID or DOI
+    label: str
+    year: Optional[int] = None
+    citation_count: int = 0
+    node_type: str = "seed"                      # seed | ancestor | descendant | cocite
+    field: Optional[str] = None                  # top concept/field
+    doi: Optional[str] = None
+    abstract: Optional[str] = None
+    authors: Optional[str] = None
+    source: Optional[str] = None                 # journal/venue
+    is_key_paper: bool = False
+
+class CitationEdge(BaseModel):
+    source: str
+    target: str
+    edge_type: str = "references"                # references | cites | co_citation
+
+class CitationNetworkResponse(BaseModel):
+    seed_doi: str
+    nodes: List[CitationNode] = []
+    edges: List[CitationEdge] = []
+    year_range: List[int] = []                   # [min_year, max_year] for timeline slider
+
+
+# ── Phase 5: Verdict Synthesiser ─────────────────────────────────────────────
+
+class VerdictRequest(BaseModel):
+    review_id: int
+
+class SupportingStudy(BaseModel):
+    title: str
+    year: Optional[int] = None
+    finding: str
+    weight: str = "moderate"                     # strong | moderate | weak
+
+class VerdictResponse(BaseModel):
+    review_id: int
+    verdict: str                                  # "Supported" | "Mixed" | "Insufficient"
+    confidence: str                               # "High" | "Moderate" | "Low"
+    confidence_pct: Optional[int] = None         # 0-100
+    summary: str
+    key_supporting_studies: List[SupportingStudy] = []
+    key_contradictions: List[str] = []
+    limitations: List[str] = []
+    recommendation: str = ""
+
+
+# ── Phase 5: Bias Heatmap ─────────────────────────────────────────────────────
+
+class BiasCell(BaseModel):
+    study: str
+    dimension: str
+    score: int                                   # 0=low, 1=some, 2=high risk
+    reason: Optional[str] = None
+
+class BiasHeatmapResponse(BaseModel):
+    review_id: int
+    studies: List[str] = []
+    dimensions: List[str] = []
+    cells: List[BiasCell] = []
+
+
+# ── Phase 5: Key Papers ───────────────────────────────────────────────────────
+
+class KeyPaper(BaseModel):
+    screening_id: int
+    title: str
+    year: Optional[int] = None
+    citation_count: int = 0
+    doi: Optional[str] = None
+    abstract_snippet: Optional[str] = None
+    rank: int = 0
+
+class KeyPapersResponse(BaseModel):
+    review_id: int
+    papers: List[KeyPaper] = []
+
+
 class ReviewAskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=500)
 
