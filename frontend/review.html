@@ -113,6 +113,31 @@
     .prismaBox.clickable { cursor:pointer; transition:border-color .15s, box-shadow .15s; }
     .prismaBox.clickable:hover { border-color:var(--brass); box-shadow:var(--shadow-sm); }
     .prismaBox.clickable:hover .prismaLbl { color:var(--brass); }
+
+    /* SR Ask Bar */
+    .srAskBar { display:flex; gap:8px; align-items:center; margin-top:10px; }
+    .srAskBar input { flex:1; font-size:13px; padding:8px 12px; border-radius:var(--r-pill); border:1px solid var(--line); background:var(--surface2); color:var(--text2); transition:border-color .12s; }
+    .srAskBar input:focus { border-color:var(--brass); outline:none; }
+    .srAskBar input::placeholder { color:var(--subtle); }
+    .srAskBar button { white-space:nowrap; flex-shrink:0; }
+    #srAskAnswer { margin-top:12px; font-size:13.5px; line-height:1.7; color:var(--text2); background:var(--cream3); border:1px solid var(--line); border-radius:var(--r-sm); padding:14px 16px; display:none; white-space:pre-wrap; }
+    #srAskAnswer.visible { display:block; animation:fadeIn .25s ease; }
+
+    /* Network sidebar panel */
+    .networkWrap { display:flex; gap:12px; }
+    .networkWrap #networkEl { flex:1; height:420px; }
+    #networkSidebar { width:240px; flex-shrink:0; background:var(--surface2); border:1px solid var(--line); border-radius:var(--r-sm); padding:12px 14px; font-size:12.5px; color:var(--text2); line-height:1.6; display:none; overflow-y:auto; max-height:420px; }
+    #networkSidebar.visible { display:block; }
+    #networkSidebar .sbTitle { font-weight:700; color:var(--navy); margin-bottom:6px; font-size:13px; line-height:1.4; }
+    #networkSidebar .sbMeta { font-size:11px; color:var(--subtle); margin-bottom:8px; }
+    #networkSidebar .sbSnippet { font-size:12px; color:var(--muted); line-height:1.6; border-left:3px solid var(--brass); padding-left:8px; margin-top:6px; }
+    #networkSidebar .sbClose { float:right; cursor:pointer; color:var(--subtle); font-size:14px; line-height:1; }
+
+    /* Narrative block */
+    .driftNarrative { margin-top:18px; font-size:13.5px; line-height:1.8; color:var(--text2); background:var(--cream3); border:1px solid var(--line); border-radius:var(--r-sm); padding:16px 18px; white-space:pre-wrap; }
+    .driftNarrativeLabel { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--brass); margin-bottom:8px; }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
   </style>
 </head>
 <body>
@@ -151,6 +176,16 @@
 
     <!-- Phase stepper -->
     <div class="phaseStepper" id="phaseStepper"></div>
+
+    <!-- SR Ask Bar -->
+    <div class="card" style="padding:14px 18px;margin-bottom:0;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:6px;">Ask This Review</div>
+      <div class="srAskBar">
+        <input id="srAskInput" type="text" placeholder="e.g. What is the most consistent finding across included papers?" maxlength="500"/>
+        <button class="btn sm primary" id="srAskBtn">&#9654; Ask</button>
+      </div>
+      <div id="srAskAnswer"></div>
+    </div>
 
     <!-- Tabs -->
     <div class="rvTabs" id="rvTabs">
@@ -249,8 +284,16 @@
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);">Citation Network Map</div>
           <button class="btn sm ghost" id="networkRelayoutBtn" style="display:none;">Re-layout</button>
         </div>
-        <div id="networkEl"><div class="emptyState" style="padding:60px 20px;">Include papers in the screening queue to build the citation network.</div></div>
-        <div class="networkLegend">Node size = citation count &nbsp;·&nbsp; Edges = shared first author &nbsp;·&nbsp; Drag to explore</div>
+        <div class="networkWrap">
+          <div id="networkEl"><div class="emptyState" style="padding:60px 20px;">Include papers in the screening queue to build the citation network.</div></div>
+          <div id="networkSidebar">
+            <span class="sbClose" id="networkSidebarClose">&#10005;</span>
+            <div class="sbTitle" id="sbTitle"></div>
+            <div class="sbMeta" id="sbMeta"></div>
+            <div class="sbSnippet" id="sbSnippet"></div>
+          </div>
+        </div>
+        <div class="networkLegend">Node size = citation count &nbsp;·&nbsp; <span style="display:inline-block;width:18px;height:3px;background:var(--brass);vertical-align:middle;margin:0 3px;border-radius:2px;"></span> Discovery path &nbsp;·&nbsp; Edges = shared first author &nbsp;·&nbsp; Click path node for details</div>
       </div>
     </div>
 
@@ -568,6 +611,7 @@ async function loadPRISMA() {
 async function loadDrift() {
   if (!currentReview) return;
   const el = document.getElementById('driftContent');
+  el.innerHTML = '<div class="emptyState">Analysing evidence drift&#8230;</div>';
   try {
     const d = await fetchJson(`/reviews/${currentReview.id}/drift`);
     if (!d.periods.length) {
@@ -576,15 +620,23 @@ async function loadDrift() {
     }
     let html = '<div class="driftPeriods">';
     d.periods.forEach(p => {
+      const outcomeNote = p.avg_outcome_value != null
+        ? `<div class="driftLabel" style="margin-top:4px;">μ outcome: <strong>${p.avg_outcome_value.toFixed(3)}</strong></div>` : '';
+      const biasNote = p.avg_bias_score != null
+        ? `<div class="driftLabel">bias: <strong>${p.avg_bias_score.toFixed(1)}/10</strong></div>` : '';
       html += `<div class="driftCard">
         <div class="driftPeriod">${esc(p.period)}</div>
         <div class="driftCount">${p.paper_count}</div>
         <div class="driftLabel">papers</div>
+        ${outcomeNote}${biasNote}
       </div>`;
     });
     html += '</div>';
     if (d.drift_summary) {
       html += `<div style="margin-top:14px;font-size:13px;color:var(--text2);line-height:1.6;background:var(--cream3);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px;">${esc(d.drift_summary)}</div>`;
+    }
+    if (d.narrative) {
+      html += `<div class="driftNarrative"><div class="driftNarrativeLabel">&#9881; AI Discovery Narrative</div>${esc(d.narrative)}</div>`;
     }
     el.innerHTML = html;
   } catch(e) {
@@ -692,6 +744,21 @@ async function loadForestPlot() {
 // ── CITATION NETWORK (Cytoscape) ──────────────────────────────────────────────
 
 let _cy = null;
+let _networkData = null;
+
+function showNetworkSidebar(nodeData) {
+  const sb = document.getElementById('networkSidebar');
+  document.getElementById('sbTitle').textContent = nodeData.label || 'Untitled';
+  document.getElementById('sbMeta').textContent =
+    [nodeData.study_type, nodeData.year, nodeData.source].filter(Boolean).join(' · ') || 'No metadata';
+  document.getElementById('sbSnippet').textContent = nodeData.abstract_snippet || 'No abstract available.';
+  sb.classList.add('visible');
+}
+
+document.getElementById('networkSidebarClose').onclick = () => {
+  document.getElementById('networkSidebar').classList.remove('visible');
+  if (_cy) _cy.$('node').unselect();
+};
 
 async function loadNetwork() {
   if (!currentReview) return;
@@ -703,7 +770,8 @@ async function loadNetwork() {
   el.innerHTML = '<div class="emptyState">Building network…</div>';
 
   try {
-    const net = await fetchJson(`/reviews/${currentReview.id}/network`);
+    _networkData = await fetchJson(`/reviews/${currentReview.id}/network`);
+    const net = _networkData;
 
     if (!net.nodes.length) {
       el.innerHTML = '<div class="emptyState">No included papers yet. Include papers in the Screening tab first.</div>';
@@ -714,29 +782,64 @@ async function loadNetwork() {
 
     const maxCit = Math.max(1, ...net.nodes.map(n => n.citation_count || 0));
 
-    const cyNodes = net.nodes.map(n => ({
-      data: {
-        id: n.id, label: n.label,
-        year: n.year, doi: n.doi, source: n.source,
-        citation_count: n.citation_count,
-        // size 24–60 scaled to citation count
-        size: n.citation_count ? 24 + Math.round((n.citation_count / maxCit) * 36) : 24,
-      }
+    // ── Compound parent nodes by study_type ────────────────────────────────
+    const studyTypes = [...new Set(net.nodes.map(n => n.study_type).filter(Boolean))];
+    const clusterNodes = studyTypes.map(st => ({
+      data: { id: `cluster_${st}`, label: st, isCluster: true }
     }));
 
+    const cyNodes = net.nodes.map(n => {
+      const parentId = n.study_type ? `cluster_${n.study_type}` : undefined;
+      return {
+        data: {
+          id: n.id, label: n.label,
+          year: n.year, doi: n.doi, source: n.source,
+          study_type: n.study_type,
+          citation_count: n.citation_count,
+          abstract_snippet: n.abstract_snippet,
+          text_offsets: n.text_offsets,
+          size: n.citation_count ? 24 + Math.round((n.citation_count / maxCit) * 36) : 24,
+          ...(parentId ? { parent: parentId } : {}),
+        }
+      };
+    });
+
     const cyEdges = net.edges.map((e, i) => ({
-      data: { id: `e${i}`, source: e.source, target: e.target, reason: e.reason }
+      data: {
+        id: `e${i}`, source: e.source, target: e.target,
+        reason: e.reason, isPath: e.is_path,
+      }
     }));
 
     if (_cy) { _cy.destroy(); _cy = null; }
 
     _cy = cytoscape({
       container: el,
-      elements: [...cyNodes, ...cyEdges],
-      layout: { name: 'cose', animate: true, animationDuration: 600, nodeRepulsion: 6000, idealEdgeLength: 120, fit: true, padding: 24 },
+      elements: [...clusterNodes, ...cyNodes, ...cyEdges],
+      layout: {
+        name: 'cose', animate: true, animationDuration: 700,
+        nodeRepulsion: 8000, idealEdgeLength: 130,
+        fit: true, padding: 28,
+      },
       style: [
+        // Cluster (compound parent) nodes
         {
-          selector: 'node',
+          selector: 'node[isCluster]',
+          style: {
+            'background-color': 'rgba(36,48,68,0.06)',
+            'border-width': 1.5, 'border-color': 'rgba(36,48,68,0.25)',
+            'border-style': 'dashed',
+            'label': 'data(label)',
+            'font-size': '10px', 'font-weight': '700',
+            'color': 'rgba(36,48,68,0.55)',
+            'text-valign': 'top', 'text-halign': 'center',
+            'text-margin-y': '-6px',
+            'padding': '18px',
+          }
+        },
+        // Regular paper nodes
+        {
+          selector: 'node:childless',
           style: {
             'background-color': '#243044',
             'width': 'data(size)', 'height': 'data(size)',
@@ -750,27 +853,41 @@ async function loadNetwork() {
           }
         },
         {
-          selector: 'node:selected',
+          selector: 'node:childless:selected',
           style: { 'background-color': '#C9A87C', 'border-color': '#0C1117', opacity: 1 }
         },
+        // Author-link edges
         {
-          selector: 'node[citation_count = 0]',
-          style: { 'background-color': '#A09585', 'border-color': 'rgba(106,76,53,0.3)' }
-        },
-        {
-          selector: 'edge',
+          selector: 'edge[!isPath]',
           style: {
-            'width': 1.5, 'line-color': 'rgba(201,168,124,0.45)',
-            'curve-style': 'bezier', 'opacity': 0.7,
+            'width': 1.5, 'line-color': 'rgba(201,168,124,0.4)',
+            'curve-style': 'bezier', 'opacity': 0.65,
+          }
+        },
+        // Chronological discovery path edges — brass/gold, thick
+        {
+          selector: 'edge[isPath]',
+          style: {
+            'width': 4, 'line-color': '#C9A87C',
+            'curve-style': 'bezier', 'opacity': 0.9,
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#C9A87C',
+            'arrow-scale': 1.2,
           }
         },
       ],
     });
 
-    // Node tooltip on tap
-    _cy.on('tap', 'node', function(evt) {
+    // Tap path node → open sidebar
+    _cy.on('tap', 'node:childless', function(evt) {
       const d = evt.target.data();
-      showToast(d.label, `${d.year || 'n/a'} · ${d.source || ''} · ${d.citation_count ?? '—'} citations`, 'info', 3500);
+      // Check if node is on any path edge
+      const onPath = _cy.edges('[isPath]').some(e => e.data('source') === d.id || e.data('target') === d.id);
+      if (onPath || d.abstract_snippet) {
+        showNetworkSidebar(d);
+      } else {
+        showToast(d.label, `${d.year || 'n/a'} · ${d.source || ''} · ${d.citation_count ?? '—'} citations`, 'info', 3000);
+      }
     });
 
     const relayoutBtn = document.getElementById('networkRelayoutBtn');
@@ -829,6 +946,36 @@ document.getElementById('deleteReviewBtn').onclick = async () => {
     document.getElementById('backToListBtn').click();
   } catch(e) { showToast('Error', e.message, 'error'); }
 };
+
+// ── SR ASK BAR ───────────────────────────────────────────────────────────────
+
+document.getElementById('srAskBtn').onclick = async () => {
+  if (!currentReview) return;
+  const q = document.getElementById('srAskInput').value.trim();
+  if (!q) return;
+  const answerEl = document.getElementById('srAskAnswer');
+  answerEl.classList.remove('visible');
+  answerEl.textContent = '';
+  await withBtnLoading(document.getElementById('srAskBtn'), async () => {
+    try {
+      const res = await fetchJson(`/reviews/${currentReview.id}/ask`, {
+        method: 'POST',
+        body: { question: q },
+      });
+      answerEl.textContent = res.answer;
+      answerEl.classList.add('visible');
+    } catch(e) {
+      showToast('Ask failed', e.message, 'error');
+    }
+  });
+};
+
+document.getElementById('srAskInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('srAskBtn').click();
+  }
+});
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -9,6 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
+from backend.ai_secure import decrypt_api_key
 from backend.db import get_session
 from backend.deps.auth import get_current_user
 from backend.models import (
@@ -22,6 +24,7 @@ from backend.schemas import (
     PaperReminderCreate, PaperReminderPatch, PaperReminderRead,
     PRISMAData,
     REVIEW_PHASES, SCREENING_DECISIONS,
+    ReviewAskRequest, ReviewAskResponse,
     ReviewScreeningCreate, ReviewScreeningPatch, ReviewScreeningRead,
     SystematicReviewCreate, SystematicReviewPatch, SystematicReviewRead,
 )
@@ -43,6 +46,19 @@ def _audit(review: SystematicReview, action: str, details: str = "") -> None:
     })
     review.audit_log = log
     review.updated_at = datetime.now(timezone.utc)
+
+
+def _get_byok_keys(user: User) -> dict:
+    if not user.ai_key_enc:
+        return {}
+    try:
+        key = decrypt_api_key(user.ai_key_enc)
+    except Exception:
+        return {}
+    if key.startswith("sk-ant-"): return {"anthropic_key": key}
+    if key.startswith("AIza"):    return {"gemini_key": key}
+    if key.startswith("gsk_"):    return {"groq_key": key}
+    return {"openai_key": key}
 
 
 def _screening_counts(session: Session, review_id: int) -> dict:
@@ -446,7 +462,7 @@ def get_prisma(
 # ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/reviews/{review_id}/drift", response_model=EvidenceDriftResponse)
-def get_drift(
+async def get_drift(
     review_id: int,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -520,11 +536,49 @@ def get_drift(
         f"Run synthesis on each period separately for a detailed shift analysis."
     )
 
+    # ── AI narrative (graceful fallback if no key) ────────────────────────────
+    narrative: str | None = None
+    byok = _get_byok_keys(current_user)
+    if byok and len(points) >= 2:
+        try:
+            from backend.services.ai_engine import run as engine_run
+            pico_summary_lines = []
+            for pt in points:
+                titles_preview = ", ".join(pt.study_titles[:3])
+                if len(pt.study_titles) > 3:
+                    titles_preview += f" …+{len(pt.study_titles)-3} more"
+                line = (
+                    f"{pt.period}: {pt.paper_count} paper(s)"
+                    + (f", avg outcome {pt.avg_outcome_value:.3f}" if pt.avg_outcome_value is not None else "")
+                    + (f", avg bias {pt.avg_bias_score:.1f}/10" if pt.avg_bias_score is not None else "")
+                    + f". Papers: {titles_preview}"
+                )
+                pico_summary_lines.append(line)
+            pico_block = "\n".join(pico_summary_lines)
+            system_prompt = (
+                "You are a senior systematic review methodologist. "
+                "Write a concise, evidence-based discovery narrative in exactly 3 paragraphs. "
+                "Paragraph 1: describe the earliest evidence and its limitations. "
+                "Paragraph 2: describe how the evidence evolved in the middle periods. "
+                "Paragraph 3: summarise the most recent evidence and its clinical implications. "
+                "Be analytical and cite time periods by name."
+            )
+            user_msg = (
+                f"Systematic Review: {review.title}\n\n"
+                f"Chronological evidence data by 5-year period:\n{pico_block}\n\n"
+                "Write the 3-paragraph Discovery Narrative."
+            )
+            result = await engine_run(system_prompt, user_msg, **byok)
+            narrative = result.text if hasattr(result, "text") else str(result)
+        except Exception as _e:
+            logger.warning("Drift narrative AI call failed: %s", _e)
+
     return EvidenceDriftResponse(
         review_id=review_id,
         periods=points,
         drift_detected=drift_detected,
         drift_summary=drift_summary,
+        narrative=narrative,
     )
 
 
@@ -655,6 +709,10 @@ def get_network(
     nodes = []
     # author_last → list of node_ids for edge building
     author_map: dict[str, list[str]] = {}
+    # For chronological path: (year, node_id)
+    year_order: list[tuple] = []
+
+    from backend.services.ai_service import strip_html
 
     for s in included:
         node_id = str(s.id)
@@ -663,13 +721,41 @@ def get_network(
         year   = (study.year  if study else None) or s.external_year
         doi    = (study.doi   if study else None) or s.external_doi
         citation_count = study.citation_count if study else None
+        study_type = (study.study_type if study else None)
+
+        # Abstract snippet ≤200 chars for sidebar
+        abstract_raw = (study.abstract if study else None) or s.external_abstract or ""
+        abstract_snippet = strip_html(abstract_raw)[:200] or None
+
+        # text_offsets from cached AIResult (if study exists)
+        text_offsets = None
+        if study:
+            ck = hashlib.sha256("|".join(f"{k}={v}" for k, v in sorted({
+                "kind": "clinical", "title": (study.title or "").strip().lower(),
+                "doi": (study.doi or "").strip().lower(),
+                "pmid": (study.pmid or "").strip().lower(),
+                "pmcid": (study.pmcid or "").strip().lower(), "question": "",
+            }.items())).encode()).hexdigest()
+            cached = session.exec(
+                select(AIResult).where(
+                    (AIResult.owner_username == current_user.username) &
+                    (AIResult.cache_key == ck) & (AIResult.kind == "clinical")
+                )
+            ).first()
+            if cached and cached.text_offsets:
+                text_offsets = cached.text_offsets
 
         nodes.append(NetworkNode(
             id=node_id, label=label[:60], year=year,
             citation_count=citation_count,
             source=s.external_source or (study.source if study else None),
-            doi=doi,
+            doi=doi, study_type=study_type,
+            abstract_snippet=abstract_snippet,
+            text_offsets=text_offsets,
         ))
+
+        if year:
+            year_order.append((year, node_id))
 
         # Index by first-author last name for edge building
         authors_str = study.authors if study else None
@@ -691,7 +777,89 @@ def get_network(
                     seen_pairs.add(pair)
                     edges.append(NetworkEdge(source=nids[i], target=nids[j], reason="shared_author"))
 
+    # Chronological discovery path: connect oldest → newest by year
+    year_order_sorted = sorted(year_order, key=lambda t: t[0])
+    for i in range(len(year_order_sorted) - 1):
+        src = year_order_sorted[i][1]
+        tgt = year_order_sorted[i + 1][1]
+        pair = frozenset([src, tgt])
+        if pair not in seen_pairs:
+            seen_pairs.add(pair)
+        edges.append(NetworkEdge(source=src, target=tgt, reason="chronological_path", is_path=True))
+
     return NetworkResponse(review_id=review_id, nodes=nodes, edges=edges)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 4c: SR-Ask — query included papers only
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/reviews/{review_id}/ask", response_model=ReviewAskResponse)
+async def review_ask(
+    review_id: int,
+    payload: ReviewAskRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Answer a question using only the included papers of this systematic review."""
+    review = session.get(SystematicReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    byok = _get_byok_keys(current_user)
+    if not byok:
+        raise HTTPException(status_code=400, detail="No AI API key configured. Add your key in Settings.")
+
+    included = session.exec(
+        select(ReviewScreening).where(
+            (ReviewScreening.review_id == review_id) &
+            (ReviewScreening.decision == "included")
+        )
+    ).all()
+
+    if not included:
+        raise HTTPException(status_code=400, detail="No included papers to query against. Include papers in the Screening tab first.")
+
+    from backend.services.ai_service import strip_html
+    from backend.services.ai_engine import run as engine_run
+
+    paper_ctx_parts = []
+    for i, s in enumerate(included, 1):
+        study: Study | None = session.get(Study, s.study_id) if s.study_id else None
+        title = (study.title if study else None) or s.external_title or "Untitled"
+        year = (study.year if study else None) or s.external_year or "n/a"
+        abstract = (study.abstract if study else None) or s.external_abstract or "No abstract."
+        abstract = strip_html(abstract)[:500]
+        paper_ctx_parts.append(f"Paper {i} [{title} ({year})]:\n{abstract}")
+
+    paper_ctx = "\n\n".join(paper_ctx_parts)
+
+    system = (
+        "You are a systematic review assistant. Answer questions based ONLY on the included papers provided. "
+        "Cite papers by their title when referencing them (e.g., 'Paper 1 [title] found...'). "
+        "If the papers do not contain enough information to answer, say so clearly. "
+        "Be concise, precise, and clinically relevant."
+    )
+    user_msg = (
+        f"Systematic Review: {review.title}\n"
+        f"Included papers ({len(included)}):\n\n{paper_ctx}\n\n"
+        f"Question: {payload.question}"
+    )
+
+    try:
+        result = await engine_run(system, user_msg, **byok)
+        answer = result.text if hasattr(result, "text") else str(result)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI error: {e}")
+
+    return ReviewAskResponse(
+        answer=answer,
+        review_id=review_id,
+        question=payload.question,
+        papers_used=len(included),
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

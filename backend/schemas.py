@@ -459,6 +459,7 @@ class EvidenceDriftResponse(BaseModel):
     periods: List[EvidenceDriftPoint] = []
     drift_detected: bool = False
     drift_summary: Optional[str] = None
+    narrative: Optional[str] = None          # Phase 4c: AI discovery narrative
 
 
 # ── Phase 4c: Living Review Cumulative Stats ──────────────────────────────────
@@ -489,16 +490,29 @@ class NetworkNode(BaseModel):
     citation_count: Optional[int] = None
     source: Optional[str] = None
     doi: Optional[str] = None
+    study_type: Optional[str] = None
+    abstract_snippet: Optional[str] = None   # ≤200 chars for sidebar
+    text_offsets: Optional[List[Dict]] = None # for redline jump
 
 class NetworkEdge(BaseModel):
     source: str
     target: str
     reason: str = "shared_author"
+    is_path: bool = False                     # chronological discovery path
 
 class NetworkResponse(BaseModel):
     review_id: int
     nodes: List[NetworkNode] = []
     edges: List[NetworkEdge] = []
+
+class ReviewAskRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=500)
+
+class ReviewAskResponse(BaseModel):
+    answer: str
+    review_id: int
+    question: str
+    papers_used: int = 0
 
 class PaperReminderCreate(BaseModel):
     study_id: int
