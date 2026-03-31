@@ -196,6 +196,9 @@ class SystematicReview(SQLModel, table=True):
 
     synthesis_id: Optional[int] = Field(default=None, foreign_key="synthesisresult.id")
 
+    # Phase 4c: global evidence notes for this review
+    evidence_notes: Optional[str] = None
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -352,3 +355,30 @@ class Bookmark(SQLModel, table=True):
     target_id:      int
     target_type:    str           # "post" | "reply"
     created_at:     datetime     = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ── Phase 4c: Extraction Templates & Records ─────────────────────────────────
+
+class ExtractionTemplate(SQLModel, table=True):
+    """User-defined extraction form schema (reusable across reviews)."""
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    owner_username: str           = Field(index=True)
+    name:           str
+    fields:         Optional[Any] = Field(default=None, sa_column=Column(JSON))
+    # fields: [{name: str, type: "text"|"number"|"select"|"boolean", required: bool, options: [str]?}]
+    is_global:      bool          = Field(default=False)
+    created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ExtractionRecord(SQLModel, table=True):
+    """Filled extraction form data for one paper in a review."""
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    review_id:      int           = Field(foreign_key="systematicreview.id", index=True)
+    screening_id:   int           = Field(foreign_key="reviewscreening.id", index=True)
+    template_id:    Optional[int] = Field(default=None, foreign_key="extractiontemplate.id")
+    owner_username: str           = Field(index=True)
+    data:           Optional[Any] = Field(default=None, sa_column=Column(JSON))
+    # data: {field_name: value, ...}
+    ai_extracted:   bool          = Field(default=False)
+    created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
