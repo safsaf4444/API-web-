@@ -369,10 +369,17 @@ if (window.__SEREN_APPJS_WIRED__) {
         if (due.length > 0) {
           pill.style.display = '';
           countEl.textContent = due.length;
-          pill.onclick = () => {
+          pill.onclick = async () => {
             const titles = due.slice(0, 5).map(r => `• ${r.study_title || 'Paper #' + r.study_id}`).join('\n');
-            const msg = `You have ${due.length} paper reminder${due.length !== 1 ? 's' : ''} due:\n\n${titles}${due.length > 5 ? '\n(and more…)' : ''}`;
-            alert(msg);
+            const msg = titles + (due.length > 5 ? '\n…and more' : '');
+            const go = await confirmModal({
+              title: `${due.length} Reminder${due.length !== 1 ? 's' : ''} Due`,
+              message: msg,
+              okText: 'Go to Library',
+              cancelText: 'Dismiss',
+              danger: false,
+            });
+            if (go) window.location.href = 'library.html';
           };
         } else {
           pill.style.display = 'none';

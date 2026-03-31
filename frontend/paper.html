@@ -1612,7 +1612,7 @@ function renderEvidencePanel(data, study) {
             await navigator.clipboard.writeText(shareUrl);
             showToast("Link copied!", "Shareable URL copied to clipboard.", "success");
           } catch {
-            prompt("Copy this shareable link:", shareUrl);
+            promptModal({ title: 'Share Link', message: 'Copy this shareable link (Ctrl+A, Ctrl+C):', initialValue: shareUrl, okText: 'Done' });
           }
         } catch(err) {
           showToast("Share failed", err.message, "error");
@@ -1793,7 +1793,7 @@ function showCitation() {
         qs("copyCitBtn").textContent = "✓ Copied";
         setTimeout(() => { if (qs("copyCitBtn")) qs("copyCitBtn").textContent = "Copy"; }, 1800);
       } catch {
-        prompt("Copy this citation:", formatted);
+        promptModal({ title: 'Copy Citation', message: 'Select all and copy (Ctrl+A, Ctrl+C):', initialValue: formatted, okText: 'Done' });
       }
     };
 

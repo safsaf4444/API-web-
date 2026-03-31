@@ -270,7 +270,13 @@ async function loadReviews() {
 }
 
 document.getElementById('createReviewBtn').onclick = async () => {
-  const title = prompt('Review title:', 'New Systematic Review');
+  const title = await promptModal({
+    title: 'New Systematic Review',
+    message: 'Enter a title for your review:',
+    placeholder: 'e.g. Metformin in T2DM',
+    initialValue: 'New Systematic Review',
+    okText: 'Create',
+  });
   if (!title || !title.trim()) return;
   try {
     const review = await fetchJson('/reviews', { method: 'POST', body: { title: title.trim() } });
@@ -432,7 +438,12 @@ async function loadScreening() {
         const decision = btn.dataset.action;
         let exclusion_reason = null;
         if (decision === 'excluded') {
-          exclusion_reason = prompt('Reason for exclusion (optional):') || null;
+          exclusion_reason = await promptModal({
+            title: 'Exclude Paper',
+            message: 'Reason for exclusion (optional):',
+            placeholder: 'e.g. Wrong population, not an RCT…',
+            okText: 'Confirm Exclude',
+          });
         }
         try {
           await fetchJson(`/reviews/${currentReview.id}/screening/${sid}`, {
@@ -548,7 +559,13 @@ document.getElementById('backToListBtn').onclick = () => {
 
 document.getElementById('deleteReviewBtn').onclick = async () => {
   if (!currentReview) return;
-  if (!confirm(`Delete review "${currentReview.title}"? This cannot be undone.`)) return;
+  const confirmed = await confirmModal({
+    title: 'Delete Review',
+    message: `Delete "${currentReview.title}"? This cannot be undone.`,
+    okText: 'Delete',
+    danger: true,
+  });
+  if (!confirmed) return;
   try {
     await fetchJson(`/reviews/${currentReview.id}`, { method: 'DELETE' });
     showToast('Deleted', 'Review deleted.', 'success');

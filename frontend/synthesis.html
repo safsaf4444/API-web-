@@ -378,8 +378,14 @@ function renderHistory() {
   });
 }
 
-document.getElementById('clearHistoryBtn').onclick = () => {
-  if (confirm('Clear all synthesis history? This deletes saved results from the server.')) clearHistory();
+document.getElementById('clearHistoryBtn').onclick = async () => {
+  const ok = await confirmModal({
+    title: 'Clear History',
+    message: 'Clear all synthesis history? This deletes saved results from the server.',
+    okText: 'Clear All',
+    danger: true,
+  });
+  if (ok) clearHistory();
 };
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -791,14 +797,14 @@ function renderResults(data, mode, query) {
         btn.onclick = async () => {
           const text = document.getElementById(`citeText_${btn.dataset.citeIdx}`)?.textContent || '';
           try { await navigator.clipboard.writeText(text); btn.textContent='&#10003; Copied'; setTimeout(()=>{btn.textContent='Copy';},1800); }
-          catch { prompt('Copy:', text); }
+          catch { promptModal({ title: 'Copy Citation', message: 'Select all and copy (Ctrl+A, Ctrl+C):', initialValue: text, okText: 'Done' }); }
         };
       });
 
       const copyAllBtn = document.getElementById('copyAllCitationsBtn');
       if (copyAllBtn) copyAllBtn.onclick = async () => {
         try { await navigator.clipboard.writeText(allText); showToast('Copied', `All ${citations.length} citations copied.`, 'success'); }
-        catch { prompt('Copy all:', allText); }
+        catch { promptModal({ title: 'Copy All Citations', message: 'Select all and copy (Ctrl+A, Ctrl+C):', initialValue: allText, okText: 'Done' }); }
       };
 
       const exportAllBtn = document.getElementById('exportAllCitationsBtn');
