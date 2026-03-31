@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/routers/reviews.py''\\).read\\(\\)\\); print\\(''reviews.py OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/schemas.py''\\).read\\(\\)\\); print\\(''schemas.py OK''\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

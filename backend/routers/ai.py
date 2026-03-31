@@ -1068,12 +1068,16 @@ async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = De
     )).first()
     if cached and cached.synthesis_narrative:
         resp = _build_synthesis_response(cached, [], cached=True)
+        try:
+            cached_papers = json.loads(cached.study_ids or "[]")
+        except:
+            cached_papers = []
         return AISubjectQueryResponse(
             synthesis_id=resp.synthesis_id, query=payload.query, papers_found=cached.paper_count,
             synthesis_narrative=resp.synthesis_narrative, consensus_points=resp.consensus_points,
             contradictions=resp.contradictions, gap_analysis=resp.gap_analysis,
             weighted_conclusion=resp.weighted_conclusion, steel_man=resp.steel_man,
-            papers_used=[], cached=True,
+            papers_used=cached_papers, cached=True,
         )
 
     src        = (payload.source or "europepmc").strip().lower()
@@ -1124,7 +1128,7 @@ async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = De
     try:
         rec = SynthesisResult(
             owner_username=current_user.username, cache_key=ck,
-            study_ids=json.dumps([]), mode="subject_query", query=payload.query,
+            study_ids=json.dumps(papers_used), mode="subject_query", query=payload.query,
             synthesis_narrative=data.get("synthesis_narrative"),
             consensus_points=json.dumps(data.get("consensus_points") or []),
             contradictions=json.dumps(data.get("contradictions") or []),

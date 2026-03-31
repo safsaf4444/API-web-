@@ -547,7 +547,7 @@ async def get_drift(
     # ── AI narrative (graceful fallback if no key) ────────────────────────────
     narrative: str | None = None
     byok = _get_byok_keys(current_user)
-    if byok and len(points) >= 2:
+    if len(points) >= 2:
         try:
             from backend.services.ai_engine import run as engine_run
             pico_summary_lines = []
@@ -579,7 +579,8 @@ async def get_drift(
             result = await engine_run(system_prompt, user_msg, **byok)
             narrative = result.text if hasattr(result, "text") else str(result)
         except Exception as _e:
-            logger.warning("Drift narrative AI call failed: %s", _e)
+            import logging
+            logging.warning("Drift narrative AI call failed: %s", _e)
 
     return EvidenceDriftResponse(
         review_id=review_id,
