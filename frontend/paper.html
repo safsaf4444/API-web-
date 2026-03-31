@@ -1397,23 +1397,30 @@ function renderEvidencePanel(data, study) {
          </div>`
       : "";
 
+    const textOffsets = data.text_offsets || [];
+    const hasOffsets  = textOffsets.length > 0;
+    const offsetHint  = hasOffsets ? ' title="Click to highlight in abstract" style="cursor:pointer;"' : '';
+
     html += `
       <div style="margin-bottom:14px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px;">PICO Framework</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);">PICO Framework</div>
+          ${hasOffsets ? '<span style="font-size:10px;color:var(--brass);font-weight:600;">&#8594; Click a field to highlight source</span>' : ''}
+        </div>
         <div class="evidenceGrid">
-          <div class="evidenceCell">
+          <div class="evidenceCell${hasOffsets ? ' picoClickable' : ''}" data-pico-field="population"${offsetHint}>
             <div class="evidenceCellLabel">Population</div>
             <div class="evidenceCellValue${!pico.population ? ' empty' : ''}">${pico.population ? escapeHtml(pico.population) : 'Not specified'}</div>
           </div>
-          <div class="evidenceCell">
+          <div class="evidenceCell${hasOffsets ? ' picoClickable' : ''}" data-pico-field="intervention"${offsetHint}>
             <div class="evidenceCellLabel">Intervention</div>
             <div class="evidenceCellValue${!pico.intervention ? ' empty' : ''}">${pico.intervention ? escapeHtml(pico.intervention) : 'Not specified'}</div>
           </div>
-          <div class="evidenceCell">
+          <div class="evidenceCell${hasOffsets ? ' picoClickable' : ''}" data-pico-field="comparator"${offsetHint}>
             <div class="evidenceCellLabel">Comparator</div>
             <div class="evidenceCellValue${!pico.comparator ? ' empty' : ''}">${pico.comparator ? escapeHtml(pico.comparator) : 'Not specified'}</div>
           </div>
-          <div class="evidenceCell">
+          <div class="evidenceCell${hasOffsets ? ' picoClickable' : ''}" data-pico-field="outcome"${offsetHint}>
             <div class="evidenceCellLabel">Outcome</div>
             <div class="evidenceCellValue${!pico.outcome ? ' empty' : ''}">${pico.outcome ? escapeHtml(pico.outcome) : 'Not specified'}</div>
           </div>
@@ -1468,6 +1475,34 @@ function renderEvidencePanel(data, study) {
              </div>`
           : ""}
       </div>`;
+
+    /* GRADE */
+    const grade = data.grade || null;
+    if (grade && grade.overall) {
+      const gradeColors = { high: 'var(--good)', moderate: 'var(--warn)', low: 'var(--bad)', very_low: 'var(--bad)' };
+      const gradeColor  = gradeColors[grade.overall] || 'var(--subtle)';
+      const gradeRows   = [
+        { label: 'Imprecision',       val: grade.imprecision },
+        { label: 'Inconsistency',     val: grade.inconsistency },
+        { label: 'Indirectness',      val: grade.indirectness },
+        { label: 'Publication Bias',  val: grade.publication_bias },
+      ].filter(r => r.val).map(r => {
+        const isSeriousConcern = (r.val || '').includes('serious') || r.val === 'suspected';
+        return `<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0;border-bottom:1px solid var(--line2);">
+          <span style="color:var(--muted);">${r.label}</span>
+          <span style="font-weight:600;color:${isSeriousConcern ? 'var(--bad)' : 'var(--good)'};">${escapeHtml(r.val.replace(/_/g, ' '))}</span>
+        </div>`;
+      }).join('');
+      html += `
+        <div class="hr"></div>
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--subtle);">GRADE Assessment</div>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 9px;border-radius:999px;background:${gradeColor}18;color:${gradeColor};border:1px solid ${gradeColor}40;">${grade.overall.replace('_', ' ')}</span>
+          </div>
+          ${gradeRows || '<div style="font-size:12px;color:var(--subtle);">No domain-level data.</div>'}
+        </div>`;
+    }
 
     /* Key claims */
     if (keyClaims && keyClaims.length) {
@@ -1572,6 +1607,62 @@ function renderEvidencePanel(data, study) {
       historyContent.style.display = open ? "block" : "none";
       if (historyIcon) historyIcon.textContent = open ? "▼ Hide" : "▶ Show";
     };
+  }
+
+  /* ── Scientific Redline: wire PICO click-to-highlight ── */
+  if (hasData && (data.text_offsets || []).length) {
+    const offsets = data.text_offsets;
+
+    // Find the abstract element — try multiple selectors
+    const abstractEl = document.querySelector('#abstractText .abstractBox') ||
+                       document.querySelector('.abstractBox') ||
+                       document.getElementById('abstractText');
+
+    if (abstractEl) {
+      // Stash original plain text once
+      if (!abstractEl.dataset.redlineOrig) {
+        abstractEl.dataset.redlineOrig = abstractEl.innerText || abstractEl.textContent || '';
+      }
+      const origText = abstractEl.dataset.redlineOrig;
+
+      document.querySelectorAll('.picoClickable').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const field = cell.dataset.picoField;
+          const offset = offsets.find(o => o.field === field);
+          if (!offset) return;
+
+          // Remove existing highlights
+          document.querySelectorAll('.picoClickable').forEach(c => c.classList.remove('picoActive'));
+          cell.classList.add('picoActive');
+
+          // Try snippet search (more reliable than char positions across HTML)
+          const snippet = offset.snippet || '';
+          if (!snippet) { abstractEl.innerHTML = escapeHtml(origText); return; }
+
+          const idx = origText.toLowerCase().indexOf(snippet.toLowerCase());
+          if (idx === -1) {
+            // Fallback: just show a toast
+            showToast('Source', snippet.slice(0, 80), 'info', 3500);
+            return;
+          }
+
+          const before = escapeHtml(origText.slice(0, idx));
+          const match  = escapeHtml(origText.slice(idx, idx + snippet.length));
+          const after  = escapeHtml(origText.slice(idx + snippet.length));
+          abstractEl.innerHTML = `${before}<mark class="redlineHl">${match}</mark>${after}`;
+
+          // Scroll highlight into view
+          const markEl = abstractEl.querySelector('.redlineHl');
+          if (markEl) markEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+      });
+
+      // Click anywhere else in abstract to clear highlight
+      abstractEl.addEventListener('click', () => {
+        abstractEl.innerHTML = escapeHtml(origText);
+        document.querySelectorAll('.picoClickable').forEach(c => c.classList.remove('picoActive'));
+      });
+    }
   }
 
   /* Wire run / re-run button */

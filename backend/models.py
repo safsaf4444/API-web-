@@ -71,6 +71,12 @@ class Study(SQLModel, table=True):
     citation_count: Optional[int] = Field(default=None)
     is_retracted:   bool          = Field(default=False)
 
+    # Phase 4c: Living Review — structured extraction fields
+    extracted_outcome_value: Optional[float]         = Field(default=None)
+    extracted_sample_size:   Optional[int]            = Field(default=None)
+    extracted_bias_score:    Optional[int]            = Field(default=None)
+    grade_criteria:          Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+
 
 class StudyExternalRef(SQLModel, table=True):
     __table_args__ = (
@@ -132,6 +138,9 @@ class AIResult(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # Phase 4c: Source-grounded text offsets for scientific redline
+    text_offsets: Optional[Any] = Field(default=None, sa_column=Column(JSON))
 
 
 # ── Phase 4: Multi-Paper Synthesis ───────────────────────────────────────────

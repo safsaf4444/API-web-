@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -11,11 +12,13 @@ from sqlmodel import Session, select
 from backend.db import get_session
 from backend.deps.auth import get_current_user
 from backend.models import (
-    PaperReminder, ReviewScreening, Study, SystematicReview, User,
+    AIResult, PaperReminder, ReviewScreening, Study, SystematicReview, User,
 )
 from backend.schemas import (
     BulkScreeningUpdate,
+    CumulativeStatPoint, CumulativeStatsResponse,
     EvidenceDriftPoint, EvidenceDriftResponse,
+    NetworkEdge, NetworkNode, NetworkResponse,
     PaperReminderCreate, PaperReminderPatch, PaperReminderRead,
     PRISMAData,
     REVIEW_PHASES, SCREENING_DECISIONS,
@@ -465,7 +468,7 @@ def get_drift(
     if not included:
         return EvidenceDriftResponse(review_id=review_id, drift_detected=False, drift_summary="No included papers to analyse.")
 
-    # Group by 5-year periods
+    # Group by 5-year periods, enriching with Study extraction data
     periods: dict[str, list] = {}
     for s in included:
         year = s.external_year
@@ -474,7 +477,8 @@ def get_drift(
         decade_start = (year // 5) * 5
         period_label = f"{decade_start}–{decade_start + 4}"
         periods.setdefault(period_label, [])
-        periods[period_label].append(s)
+        study = session.get(Study, s.study_id) if s.study_id else None
+        periods[period_label].append((s, study))
 
     if len(periods) < 2:
         return EvidenceDriftResponse(
@@ -482,7 +486,7 @@ def get_drift(
             periods=[EvidenceDriftPoint(
                 period=p,
                 paper_count=len(papers),
-                study_titles=[sp.external_title or "Untitled" for sp in papers],
+                study_titles=[(sp.external_title or "Untitled") for sp, _ in papers],
             ) for p, papers in sorted(periods.items())],
             drift_detected=False,
             drift_summary="Not enough time periods to detect drift (need papers from at least 2 different 5-year periods).",
@@ -490,19 +494,29 @@ def get_drift(
 
     points = []
     for period_label in sorted(periods.keys()):
-        papers = periods[period_label]
+        paper_pairs = periods[period_label]
+        outcome_vals = [st.extracted_outcome_value for _, st in paper_pairs if st and st.extracted_outcome_value is not None]
+        bias_vals    = [st.extracted_bias_score    for _, st in paper_pairs if st and st.extracted_bias_score    is not None]
+        avg_outcome  = round(sum(outcome_vals) / len(outcome_vals), 4) if outcome_vals else None
+        avg_bias     = round(sum(bias_vals)    / len(bias_vals),    2) if bias_vals    else None
         points.append(EvidenceDriftPoint(
             period=period_label,
-            paper_count=len(papers),
-            study_titles=[sp.external_title or "Untitled" for sp in papers],
+            paper_count=len(paper_pairs),
+            avg_outcome_value=avg_outcome,
+            avg_bias_score=avg_bias,
+            study_titles=[(sp.external_title or "Untitled") for sp, _ in paper_pairs],
         ))
 
-    # Simple drift detection: flag if paper count distribution varies significantly
-    counts = [p.paper_count for p in points]
     drift_detected = len(points) >= 2
+    first_outcome  = points[0].avg_outcome_value
+    last_outcome   = points[-1].avg_outcome_value
+    outcome_note   = ""
+    if first_outcome is not None and last_outcome is not None:
+        direction = "increasing" if last_outcome > first_outcome else "decreasing" if last_outcome < first_outcome else "stable"
+        outcome_note = f" Mean outcome shifted from {first_outcome} to {last_outcome} ({direction})."
     drift_summary = (
         f"Evidence spans {len(points)} time periods ({points[0].period} to {points[-1].period}). "
-        f"Earlier period has {points[0].paper_count} paper(s), latest has {points[-1].paper_count} paper(s). "
+        f"Earlier period has {points[0].paper_count} paper(s), latest has {points[-1].paper_count} paper(s).{outcome_note} "
         f"Run synthesis on each period separately for a detailed shift analysis."
     )
 
@@ -512,6 +526,172 @@ def get_drift(
         drift_detected=drift_detected,
         drift_summary=drift_summary,
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 4c: Cumulative Stats (Living Forest Plot)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _parse_ci_bounds(ci_str: str | None) -> tuple[float | None, float | None]:
+    """Extract numeric CI bounds from strings like '0.5 to 1.2' or '95% CI: 0.3–0.8'."""
+    if not ci_str:
+        return None, None
+    s = re.sub(r'(?:95%\s*CI:?\s*|\(|\))', '', ci_str, flags=re.I).strip()
+    m = re.search(r'(-?\d+\.?\d*)\s*(?:to|[-–,])\s*(-?\d+\.?\d*)', s)
+    if m:
+        try:
+            return float(m.group(1)), float(m.group(2))
+        except ValueError:
+            pass
+    return None, None
+
+
+@router.get("/reviews/{review_id}/cumulative-stats", response_model=CumulativeStatsResponse)
+def get_cumulative_stats(
+    review_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Return included papers sorted by year with running pooled effect and cumulative sample size."""
+    review = session.get(SystematicReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    included = session.exec(
+        select(ReviewScreening).where(
+            (ReviewScreening.review_id == review_id) &
+            (ReviewScreening.decision == "included")
+        )
+    ).all()
+
+    rows = []
+    for s in included:
+        study: Study | None = session.get(Study, s.study_id) if s.study_id else None
+        year = s.external_year or (study.year if study else None)
+        title = (study.title if study else None) or s.external_title or "Untitled"
+        source = s.external_source or (study.source if study else "unknown")
+
+        outcome_val = study.extracted_outcome_value if study else None
+        sample_size = study.extracted_sample_size if study else None
+        bias_score  = study.extracted_bias_score  if study else None
+
+        # Try to get CI from cached AIResult
+        ci_lower, ci_upper = None, None
+        if study:
+            from sqlalchemy import and_
+            import hashlib as _h
+            raw = f"clinical|{(study.title or '').strip().lower()}|{(study.doi or '').strip().lower()}|{(study.pmid or '').strip().lower()}|{(study.pmcid or '').strip().lower()}|"
+            ck = _h.sha256("|".join(f"{k}={v}" for k, v in sorted({"kind": "clinical", "title": (study.title or "").strip().lower(), "doi": (study.doi or "").strip().lower(), "pmid": (study.pmid or "").strip().lower(), "pmcid": (study.pmcid or "").strip().lower(), "question": ""}.items())).encode()).hexdigest()
+            cached = session.exec(select(AIResult).where((AIResult.owner_username == current_user.username) & (AIResult.cache_key == ck) & (AIResult.kind == "clinical"))).first()
+            if cached:
+                try:
+                    stats_raw = json.loads(cached.summary or "{}")
+                    ci_lower, ci_upper = _parse_ci_bounds(stats_raw.get("confidence_interval"))
+                except Exception:
+                    pass
+
+        rows.append({
+            "year": year, "title": title, "source": source,
+            "outcome_value": outcome_val, "sample_size": sample_size,
+            "bias_score": bias_score, "ci_lower": ci_lower, "ci_upper": ci_upper,
+        })
+
+    # Sort by year (null years last)
+    rows.sort(key=lambda r: (r["year"] is None, r["year"] or 9999))
+
+    # Calculate cumulative running stats
+    cum_n = 0
+    cum_effect_sum = 0.0
+    cum_effect_count = 0
+    points = []
+    for r in rows:
+        if r["sample_size"]:
+            cum_n += r["sample_size"]
+        if r["outcome_value"] is not None:
+            cum_effect_sum += r["outcome_value"]
+            cum_effect_count += 1
+        cum_effect = round(cum_effect_sum / cum_effect_count, 4) if cum_effect_count else None
+        points.append(CumulativeStatPoint(
+            year=r["year"], title=r["title"], source=r["source"],
+            outcome_value=r["outcome_value"], sample_size=r["sample_size"],
+            bias_score=r["bias_score"], ci_lower=r["ci_lower"], ci_upper=r["ci_upper"],
+            cumulative_n=cum_n, cumulative_effect=cum_effect,
+            has_data=r["outcome_value"] is not None,
+        ))
+
+    total_with_data = sum(1 for p in points if p.has_data)
+    return CumulativeStatsResponse(
+        review_id=review_id, points=points,
+        total_included=len(points), total_with_data=total_with_data,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 4c: Citation Network Graph
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/reviews/{review_id}/network", response_model=NetworkResponse)
+def get_network(
+    review_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Return node/edge graph of included papers for Cytoscape citation network."""
+    review = session.get(SystematicReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    included = session.exec(
+        select(ReviewScreening).where(
+            (ReviewScreening.review_id == review_id) &
+            (ReviewScreening.decision == "included")
+        )
+    ).all()
+
+    nodes = []
+    # author_last → list of node_ids for edge building
+    author_map: dict[str, list[str]] = {}
+
+    for s in included:
+        node_id = str(s.id)
+        study: Study | None = session.get(Study, s.study_id) if s.study_id else None
+        label  = (study.title if study else None) or s.external_title or "Untitled"
+        year   = (study.year  if study else None) or s.external_year
+        doi    = (study.doi   if study else None) or s.external_doi
+        citation_count = study.citation_count if study else None
+
+        nodes.append(NetworkNode(
+            id=node_id, label=label[:60], year=year,
+            citation_count=citation_count,
+            source=s.external_source or (study.source if study else None),
+            doi=doi,
+        ))
+
+        # Index by first-author last name for edge building
+        authors_str = study.authors if study else None
+        if authors_str:
+            first_author = authors_str.split(",")[0].strip().split()[-1].lower()
+            if len(first_author) > 2:
+                author_map.setdefault(first_author, []).append(node_id)
+
+    # Build edges: papers sharing a first-author last name
+    edges = []
+    seen_pairs: set[frozenset] = set()
+    for author, nids in author_map.items():
+        if len(nids) < 2:
+            continue
+        for i in range(len(nids)):
+            for j in range(i + 1, len(nids)):
+                pair = frozenset([nids[i], nids[j]])
+                if pair not in seen_pairs:
+                    seen_pairs.add(pair)
+                    edges.append(NetworkEdge(source=nids[i], target=nids[j], reason="shared_author"))
+
+    return NetworkResponse(review_id=review_id, nodes=nodes, edges=edges)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

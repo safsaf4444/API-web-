@@ -26,7 +26,7 @@ from backend.schemas import (
     CrossPaperAskRequest, CrossPaperAskResponse,
     CitationRequest, CitationResponse, CitationItem,
     CITATION_FORMATS,
-    JargonItem, PICOData, RewritesData, StatisticalData, WeightingItem,
+    GRADEData, JargonItem, PICOData, RewritesData, StatisticalData, WeightingItem,
     SynthesisListItem,
 )
 from backend.services.ai_engine import run as engine_run
@@ -133,34 +133,38 @@ def _wire_ai_runs(session: Session, username: str, doi: str | None, pmid: str | 
         pass
 
 
-def _parse_clinical_cache(cached: AIResult) -> tuple[dict, dict, dict, list, list]:
+def _parse_clinical_cache(cached: AIResult) -> tuple[dict, dict, dict, list, list, list, dict]:
     """
     Fully restore all clinical fields from a cached AIResult.
-    Handles both v3.0 (pico only) and v3.1 (full cache_data) formats.
-    Returns (pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw).
+    Handles v3.0 (pico only), v3.1 (full cache_data), v3.2 (+ grade/offsets) formats.
+    Returns (pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw, text_offsets, grade_raw).
     """
     pico_raw: dict = {}
     stats_raw: dict = {}
     appraisal_raw: dict = {}
     key_claims: list = []
     jargon_raw: list = []
+    text_offsets: list = []
+    grade_raw: dict = {}
     try:
         raw_q = json.loads(cached.question or "{}")
         if "pico" in raw_q:
-            # v3.1 — full cache_data
             pico_raw      = raw_q.get("pico", {}) or {}
             stats_raw     = raw_q.get("stats", {}) or {}
             appraisal_raw = raw_q.get("appraisal", {}) or {}
             key_claims    = raw_q.get("key_claims", []) or []
             jargon_raw    = raw_q.get("jargon", []) or []
+            grade_raw     = raw_q.get("grade", {}) or {}
         else:
-            # v3.0 — only pico stored
             pico_raw = raw_q or {}
         if not stats_raw:
             stats_raw = json.loads(cached.summary or "{}") or {}
+        # text_offsets stored in dedicated column (v3.2+)
+        if cached.text_offsets:
+            text_offsets = cached.text_offsets if isinstance(cached.text_offsets, list) else []
     except Exception:
         pass
-    return pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw
+    return pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw, text_offsets, grade_raw
 
 
 # ── Citation formatter (no AI required) ──────────────────────────────────────
@@ -543,19 +547,46 @@ async def ai_ask(payload: AIAskRequest, session: Session = Depends(get_session),
 _CLINICAL_SYSTEM = """You are a senior clinical evidence appraiser.
 Analyze the provided abstract and title. Return a valid JSON object with exactly these keys:
 {
-  "pico": {"population": str, "intervention": str, "comparator": str, "outcome": str, "primary_outcome": str_or_null},
-  "stats": {"sample_size": int_or_null, "p_value": str_or_null, "effect_size": str_or_null, "confidence_interval": str_or_null, "nnt_nnh": str_or_null, "clinical_significance": str_or_null},
-  "appraisal": {"evidence_strength": int_1_to_5, "evidence_explanation": str, "bias_risk": "Low"|"Moderate"|"High", "limitations": [str]},
+  "pico": {
+    "population": str, "intervention": str, "comparator": str, "outcome": str, "primary_outcome": str_or_null,
+    "offsets": {
+      "population":    {"snippet": str, "start_char": int, "end_char": int},
+      "intervention":  {"snippet": str, "start_char": int, "end_char": int},
+      "comparator":    {"snippet": str, "start_char": int, "end_char": int},
+      "outcome":       {"snippet": str, "start_char": int, "end_char": int}
+    }
+  },
+  "stats": {
+    "sample_size": int_or_null, "p_value": str_or_null, "effect_size": str_or_null,
+    "confidence_interval": str_or_null, "nnt_nnh": str_or_null,
+    "clinical_significance": str_or_null,
+    "outcome_numeric": float_or_null
+  },
+  "appraisal": {
+    "evidence_strength": int_1_to_5, "evidence_explanation": str,
+    "bias_risk": "Low"|"Moderate"|"High", "bias_score": int_0_to_10, "limitations": [str]
+  },
+  "grade": {
+    "imprecision": "not_serious"|"serious"|"very_serious",
+    "inconsistency": "not_serious"|"serious"|"very_serious",
+    "indirectness": "not_serious"|"serious"|"very_serious",
+    "publication_bias": "undetected"|"suspected"|"unknown",
+    "overall": "high"|"moderate"|"low"|"very_low"
+  },
   "key_claims": [str],
   "jargon": [{"term": str, "definition": str}],
   "rewrites": {"patient": str, "clinician": str, "student": str}
 }
 Rules:
-- primary_outcome: the single primary endpoint/outcome if identifiable, else null
-- clinical_significance: whether findings are clinically meaningful (separate from statistical p-values)
-- evidence_explanation: 1-2 sentence reasoning for the evidence_strength score
-- key_claims: 3-6 main claims or findings from the study, as concise bullet-point strings
-- jargon: 3-8 technical terms used in the abstract with plain-English definitions
+- offsets: character positions (0-indexed) in the ABSTRACT TEXT of the supporting evidence snippet for each PICO element. Use -1/-1 if not locatable in text.
+- outcome_numeric: primary outcome as a float if extractable (OR, RR, mean diff, HbA1c value, etc.). Null if not numeric.
+- bias_score: 0=no bias, 10=critical bias. Base on study design, blinding, randomisation, COI mentions.
+- grade: GRADE evidence quality based on study design and reported statistics. Default to "high" for RCTs, "low" for observational, then downgrade for imprecision/inconsistency.
+- primary_outcome: the single primary endpoint, else null.
+- clinical_significance: whether findings are clinically meaningful beyond statistical significance.
+- evidence_explanation: 1-2 sentence reasoning for the evidence_strength score.
+- key_claims: 3-6 main findings as concise bullet strings.
+- jargon: 3-8 technical terms with plain-English definitions.
 Return JSON only. No prose, no markdown fences, no keys outside this structure.
 If a value cannot be determined from the abstract, use null."""
 
@@ -576,15 +607,17 @@ async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get
     )).first()
 
     if cached and cached.patient_summary:
-        pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw = _parse_clinical_cache(cached)
+        pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw, text_offsets, grade_raw = _parse_clinical_cache(cached)
         jargon_items = [JargonItem(term=j.get("term", ""), definition=j.get("definition", "")) for j in jargon_raw if isinstance(j, dict)]
+        grade = GRADEData(**grade_raw) if grade_raw else None
         return AIClinicalResponse(
             study_id=payload.study_id,
             pico=PICOData(population=pico_raw.get("population"), intervention=pico_raw.get("intervention"), comparator=pico_raw.get("comparator"), outcome=pico_raw.get("outcome"), primary_outcome=pico_raw.get("primary_outcome")),
-            stats=StatisticalData(sample_size=stats_raw.get("sample_size"), p_value=stats_raw.get("p_value"), effect_size=stats_raw.get("effect_size"), confidence_interval=stats_raw.get("confidence_interval"), nnt_nnh=stats_raw.get("nnt_nnh"), clinical_significance=stats_raw.get("clinical_significance")),
-            appraisal=AppraisalData(evidence_strength=appraisal_raw.get("evidence_strength"), evidence_explanation=appraisal_raw.get("evidence_explanation"), bias_risk=appraisal_raw.get("bias_risk"), limitations=appraisal_raw.get("limitations") or []),
+            stats=StatisticalData(sample_size=stats_raw.get("sample_size"), p_value=stats_raw.get("p_value"), effect_size=stats_raw.get("effect_size"), confidence_interval=stats_raw.get("confidence_interval"), nnt_nnh=stats_raw.get("nnt_nnh"), clinical_significance=stats_raw.get("clinical_significance"), outcome_numeric=stats_raw.get("outcome_numeric")),
+            appraisal=AppraisalData(evidence_strength=appraisal_raw.get("evidence_strength"), evidence_explanation=appraisal_raw.get("evidence_explanation"), bias_risk=appraisal_raw.get("bias_risk"), bias_score=appraisal_raw.get("bias_score"), limitations=appraisal_raw.get("limitations") or []),
             rewrites=RewritesData(patient=cached.patient_summary, clinician=cached.clinician_summary, student=cached.student_summary),
-            key_claims=key_claims, jargon=jargon_items, cached=True, prompt_version=cached.prompt_version,
+            key_claims=key_claims, jargon=jargon_items, grade=grade, text_offsets=text_offsets or None,
+            cached=True, prompt_version=cached.prompt_version,
         )
 
     user_msg = f"Title: {payload.title}\nAbstract: {strip_html(payload.abstract or 'No abstract provided.')}"
@@ -609,15 +642,39 @@ async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get
     rewrites_raw  = data.get("rewrites", {}) or {}
     key_claims    = data.get("key_claims") or []
     jargon_raw    = data.get("jargon") or []
+    grade_raw     = data.get("grade", {}) or {}
+
+    # Build text_offsets list from pico.offsets
+    pico_offsets_raw = pico_raw.get("offsets", {}) or {}
+    text_offsets = []
+    for field in ("population", "intervention", "comparator", "outcome"):
+        off = pico_offsets_raw.get(field) or {}
+        if off.get("snippet"):
+            text_offsets.append({
+                "field":      field,
+                "snippet":    off.get("snippet", ""),
+                "start_char": off.get("start_char", -1),
+                "end_char":   off.get("end_char", -1),
+            })
 
     try:
         write_clinical_data(session=session, study_id=payload.study_id, owner_username=current_user.username, pico_data=pico_raw, statistical_data=stats_raw, evidence_strength=appraisal_raw.get("evidence_strength"), risk_of_bias=appraisal_raw.get("bias_risk"))
     except Exception as e:
         logger.warning("write_clinical_data failed (non-fatal): %s", e)
 
-    cache_data = {"pico": pico_raw, "stats": stats_raw, "appraisal": appraisal_raw, "key_claims": key_claims, "jargon": jargon_raw}
+    # Phase 4c: write structured extraction fields back to Study
     try:
-        rec = AIResult(owner_username=current_user.username, cache_key=ck, kind="clinical", model_used=result.provider.value, prompt_version="3.1", question=json.dumps(cache_data), summary=json.dumps(stats_raw), patient_summary=rewrites_raw.get("patient"), clinician_summary=rewrites_raw.get("clinician"), student_summary=rewrites_raw.get("student"))
+        study.extracted_outcome_value = stats_raw.get("outcome_numeric")
+        study.extracted_sample_size   = stats_raw.get("sample_size")
+        study.extracted_bias_score    = appraisal_raw.get("bias_score")
+        study.grade_criteria          = grade_raw if grade_raw else None
+        session.add(study)
+    except Exception as e:
+        logger.warning("Study extraction write failed (non-fatal): %s", e)
+
+    cache_data = {"pico": pico_raw, "stats": stats_raw, "appraisal": appraisal_raw, "key_claims": key_claims, "jargon": jargon_raw, "grade": grade_raw}
+    try:
+        rec = AIResult(owner_username=current_user.username, cache_key=ck, kind="clinical", model_used=result.provider.value, prompt_version="3.2", question=json.dumps(cache_data), summary=json.dumps(stats_raw), patient_summary=rewrites_raw.get("patient"), clinician_summary=rewrites_raw.get("clinician"), student_summary=rewrites_raw.get("student"), text_offsets=text_offsets if text_offsets else None)
         session.add(rec)
         session.commit()
     except Exception as e:
@@ -628,14 +685,15 @@ async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get
     except Exception:
         pass
 
+    grade = GRADEData(**grade_raw) if grade_raw else None
     jargon_items = [JargonItem(term=j.get("term", ""), definition=j.get("definition", "")) for j in jargon_raw if isinstance(j, dict)]
     return AIClinicalResponse(
         study_id=payload.study_id,
         pico=PICOData(population=pico_raw.get("population"), intervention=pico_raw.get("intervention"), comparator=pico_raw.get("comparator"), outcome=pico_raw.get("outcome"), primary_outcome=pico_raw.get("primary_outcome")),
-        stats=StatisticalData(sample_size=stats_raw.get("sample_size"), p_value=str(stats_raw["p_value"]) if stats_raw.get("p_value") is not None else None, effect_size=stats_raw.get("effect_size"), confidence_interval=stats_raw.get("confidence_interval"), nnt_nnh=stats_raw.get("nnt_nnh"), clinical_significance=stats_raw.get("clinical_significance")),
-        appraisal=AppraisalData(evidence_strength=appraisal_raw.get("evidence_strength"), evidence_explanation=appraisal_raw.get("evidence_explanation"), bias_risk=appraisal_raw.get("bias_risk"), limitations=appraisal_raw.get("limitations") or []),
+        stats=StatisticalData(sample_size=stats_raw.get("sample_size"), p_value=str(stats_raw["p_value"]) if stats_raw.get("p_value") is not None else None, effect_size=stats_raw.get("effect_size"), confidence_interval=stats_raw.get("confidence_interval"), nnt_nnh=stats_raw.get("nnt_nnh"), clinical_significance=stats_raw.get("clinical_significance"), outcome_numeric=stats_raw.get("outcome_numeric")),
+        appraisal=AppraisalData(evidence_strength=appraisal_raw.get("evidence_strength"), evidence_explanation=appraisal_raw.get("evidence_explanation"), bias_risk=appraisal_raw.get("bias_risk"), bias_score=appraisal_raw.get("bias_score"), limitations=appraisal_raw.get("limitations") or []),
         rewrites=RewritesData(patient=rewrites_raw.get("patient"), clinician=rewrites_raw.get("clinician"), student=rewrites_raw.get("student")),
-        key_claims=key_claims, jargon=jargon_items, cached=False,
+        key_claims=key_claims, jargon=jargon_items, grade=grade, text_offsets=text_offsets or None, cached=False,
     )
 
 
@@ -658,16 +716,18 @@ def get_clinical(study_id: int, session: Session = Depends(get_session), current
     if not m and not cached:
         raise HTTPException(status_code=404, detail="No clinical analysis found for this study. Run POST /ai/clinical first.")
 
-    pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw = _parse_clinical_cache(cached) if cached else ({}, {}, {}, [], [])
+    pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw, text_offsets, grade_raw = _parse_clinical_cache(cached) if cached else ({}, {}, {}, [], [], [], {})
     jargon_items = [JargonItem(term=j.get("term", ""), definition=j.get("definition", "")) for j in jargon_raw if isinstance(j, dict)]
+    grade = GRADEData(**grade_raw) if grade_raw else None
 
     return AIClinicalResponse(
         study_id=study_id,
         pico=PICOData(population=pico_raw.get("population"), intervention=pico_raw.get("intervention"), comparator=pico_raw.get("comparator"), outcome=pico_raw.get("outcome"), primary_outcome=pico_raw.get("primary_outcome")),
-        stats=StatisticalData(sample_size=stats_raw.get("sample_size"), p_value=stats_raw.get("p_value"), effect_size=stats_raw.get("effect_size"), confidence_interval=stats_raw.get("confidence_interval"), nnt_nnh=stats_raw.get("nnt_nnh"), clinical_significance=stats_raw.get("clinical_significance")),
-        appraisal=AppraisalData(evidence_strength=appraisal_raw.get("evidence_strength") or (m.evidence_strength if m else None), evidence_explanation=appraisal_raw.get("evidence_explanation"), bias_risk=appraisal_raw.get("bias_risk") or (m.risk_of_bias if m else None), limitations=appraisal_raw.get("limitations") or []),
+        stats=StatisticalData(sample_size=stats_raw.get("sample_size"), p_value=stats_raw.get("p_value"), effect_size=stats_raw.get("effect_size"), confidence_interval=stats_raw.get("confidence_interval"), nnt_nnh=stats_raw.get("nnt_nnh"), clinical_significance=stats_raw.get("clinical_significance"), outcome_numeric=stats_raw.get("outcome_numeric")),
+        appraisal=AppraisalData(evidence_strength=appraisal_raw.get("evidence_strength") or (m.evidence_strength if m else None), evidence_explanation=appraisal_raw.get("evidence_explanation"), bias_risk=appraisal_raw.get("bias_risk") or (m.risk_of_bias if m else None), bias_score=appraisal_raw.get("bias_score"), limitations=appraisal_raw.get("limitations") or []),
         rewrites=RewritesData(patient=cached.patient_summary if cached else None, clinician=cached.clinician_summary if cached else None, student=cached.student_summary if cached else None),
-        key_claims=key_claims, jargon=jargon_items, cached=True, prompt_version=cached.prompt_version if cached else None,
+        key_claims=key_claims, jargon=jargon_items, grade=grade, text_offsets=text_offsets or None,
+        cached=True, prompt_version=cached.prompt_version if cached else None,
     )
 
 
@@ -707,7 +767,7 @@ def get_shared_evidence(token: str, session: Session = Depends(get_session)):
             study_id = s.id
             break
 
-    pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw = _parse_clinical_cache(cached)
+    pico_raw, stats_raw, appraisal_raw, key_claims, jargon_raw, text_offsets, grade_raw = _parse_clinical_cache(cached)
     m = None
     if study_id:
         m = session.exec(select(StudyMetrics).where(StudyMetrics.study_id == study_id)).first()
@@ -718,8 +778,11 @@ def get_shared_evidence(token: str, session: Session = Depends(get_session)):
             "evidence_strength":    appraisal_raw.get("evidence_strength") or (m.evidence_strength if m else None),
             "evidence_explanation": appraisal_raw.get("evidence_explanation"),
             "bias_risk":            appraisal_raw.get("bias_risk") or (m.risk_of_bias if m else None),
+            "bias_score":           appraisal_raw.get("bias_score"),
             "limitations":          appraisal_raw.get("limitations") or [],
         },
+        "grade":      grade_raw or None,
+        "text_offsets": text_offsets or None,
         "rewrites":   {"patient": cached.patient_summary, "clinician": cached.clinician_summary, "student": cached.student_summary},
         "key_claims": key_claims,
         "jargon":     jargon_raw,

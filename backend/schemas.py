@@ -200,12 +200,21 @@ class StatisticalData(BaseModel):
     confidence_interval: Optional[str] = None
     nnt_nnh: Optional[str] = None
     clinical_significance: Optional[str] = None
+    outcome_numeric: Optional[float] = None      # Phase 4c: numeric outcome value
 
 class AppraisalData(BaseModel):
     evidence_strength: Optional[int] = None
     evidence_explanation: Optional[str] = None
     bias_risk: Optional[str] = None
+    bias_score: Optional[int] = None              # Phase 4c: 0–10 bias score
     limitations: Optional[List[str]] = None
+
+class GRADEData(BaseModel):                       # Phase 4c: GRADE evidence quality
+    imprecision: Optional[str] = None
+    inconsistency: Optional[str] = None
+    indirectness: Optional[str] = None
+    publication_bias: Optional[str] = None
+    overall: Optional[str] = None
 
 class RewritesData(BaseModel):
     patient: Optional[str] = None
@@ -224,6 +233,8 @@ class AIClinicalResponse(BaseModel):
     rewrites: RewritesData
     key_claims: Optional[List[str]] = None
     jargon: Optional[List[JargonItem]] = None
+    grade: Optional[GRADEData] = None            # Phase 4c
+    text_offsets: Optional[List[Dict]] = None    # Phase 4c: [{field, snippet, start_char, end_char}]
     cached: bool = False
     prompt_version: Optional[str] = None
 
@@ -439,8 +450,8 @@ class PRISMAData(BaseModel):
 class EvidenceDriftPoint(BaseModel):
     period: str
     paper_count: int
-    avg_effect_direction: Optional[str] = None
-    consensus_summary: Optional[str] = None
+    avg_outcome_value: Optional[float] = None     # Phase 4c
+    avg_bias_score: Optional[float] = None        # Phase 4c
     study_titles: List[str] = []
 
 class EvidenceDriftResponse(BaseModel):
@@ -448,6 +459,46 @@ class EvidenceDriftResponse(BaseModel):
     periods: List[EvidenceDriftPoint] = []
     drift_detected: bool = False
     drift_summary: Optional[str] = None
+
+
+# ── Phase 4c: Living Review Cumulative Stats ──────────────────────────────────
+
+class CumulativeStatPoint(BaseModel):
+    year: Optional[int]
+    title: str
+    source: str
+    outcome_value: Optional[float] = None
+    sample_size: Optional[int] = None
+    bias_score: Optional[int] = None
+    ci_lower: Optional[float] = None
+    ci_upper: Optional[float] = None
+    cumulative_n: int = 0
+    cumulative_effect: Optional[float] = None
+    has_data: bool = False
+
+class CumulativeStatsResponse(BaseModel):
+    review_id: int
+    points: List[CumulativeStatPoint] = []
+    total_included: int = 0
+    total_with_data: int = 0
+
+class NetworkNode(BaseModel):
+    id: str
+    label: str
+    year: Optional[int] = None
+    citation_count: Optional[int] = None
+    source: Optional[str] = None
+    doi: Optional[str] = None
+
+class NetworkEdge(BaseModel):
+    source: str
+    target: str
+    reason: str = "shared_author"
+
+class NetworkResponse(BaseModel):
+    review_id: int
+    nodes: List[NetworkNode] = []
+    edges: List[NetworkEdge] = []
 
 class PaperReminderCreate(BaseModel):
     study_id: int
