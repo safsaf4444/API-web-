@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Library — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     .libLayout {
       display: grid;
@@ -630,12 +631,37 @@
         <!-- Phase 4: header right — count + select/synthesise buttons -->
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <div class="libCount" id="countLabel"></div>
+          <button class="btn sm ghost" id="toggleAnalyticsBtn" title="View Library Analytics">
+            &#128202; Analytics
+          </button>
+          <button class="btn sm ghost" id="launchStatsCalcBtn" title="Launch Stat Calculator">
+            &#128200; Stats Calc
+          </button>
           <button class="btn sm" id="selectModeBtn" title="Select papers to synthesise together">
             &#9638; Select
           </button>
           <a class="btn sm primary" href="synthesis.html" title="Open synthesis workspace">
             &#10227; Synthesise
           </a>
+        </div>
+      </div>
+
+      <!-- FREE TIER ANALYTICS DASHBOARD -->
+      <div id="analyticsDashboard" class="libSideCard" style="display:none; margin-bottom: 16px;">
+        <div class="libTitle" style="font-size: 22px; margin-bottom: 20px;">Library <span class="libTitleAccent">Analytics</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div>
+            <div class="libSideTitle">Study Types Breakdown</div>
+            <canvas id="typeChart" style="max-height:200px;"></canvas>
+          </div>
+          <div>
+            <div class="libSideTitle">Publication Timeline</div>
+            <canvas id="yearChart" style="max-height:200px;"></canvas>
+          </div>
+        </div>
+        <div style="margin-top:20px;">
+          <div class="libSideTitle">Citation Impact & Overview</div>
+          <p style="font-size:12.5px;color:var(--muted);">Total papers: <strong id="statTotalPapers">0</strong>. Total citations tracked: <strong id="statTotalCitations">0</strong>.</p>
         </div>
       </div>
 
@@ -1207,7 +1233,13 @@ async function loadStudies() {
 
     buildSourceFilter(items);
     const filtered = applyFilters(items);
+    
+    // Store globally for analytics module
+    window._currentLibItems = items;
+    window._currentLibFiltered = filtered;
+    
     renderPapers(filtered, items.length);
+    if (analyticsVisible) renderAnalytics();
     saveState();
   } catch (e) {
     setStatus(`<span style="color:var(--bad);">${esc(e.message)}</span>`);
@@ -1329,6 +1361,96 @@ $id('yearTo').addEventListener('input',       () => { debLoad(); saveState(); })
     }
   }
 })();
+
+/* ── Free-Tier Analytics Dashboard ── */
+let analyticsVisible = false;
+let typeChartInstance = null;
+let yearChartInstance = null;
+
+$id('toggleAnalyticsBtn').onclick = () => {
+  analyticsVisible = !analyticsVisible;
+  const dash = $id('analyticsDashboard');
+  dash.style.display = analyticsVisible ? 'block' : 'none';
+  if (analyticsVisible) {
+    renderAnalytics();
+  }
+};
+
+function renderAnalytics() {
+  const items = window._currentLibFiltered || [];
+  
+  $id('statTotalPapers').textContent = items.length;
+  // Calculate total citations (mock 0 if not present, but use it if available)
+  const totalCites = items.reduce((sum, it) => sum + (it.citation_count || 0), 0);
+  $id('statTotalCitations').textContent = totalCites;
+
+  // Study types
+  const typeCounts = items.reduce((acc, it) => {
+    const t = it.study_type || 'Unknown';
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+
+  const typeLabels = Object.keys(typeCounts);
+  const typeData = Object.values(typeCounts);
+
+  if (typeChartInstance) typeChartInstance.destroy();
+  typeChartInstance = new Chart($id('typeChart'), {
+    type: 'doughnut',
+    data: {
+      labels: typeLabels,
+      datasets: [{
+        data: typeData,
+        backgroundColor: ['#2B3A55', '#C9A87C', '#3D7A4A', '#B84040', '#6A8CA3', '#E0D6C8']
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  // Year timeline
+  const yearCounts = items.reduce((acc, it) => {
+    const y = parseInt(it.year, 10);
+    if (!isNaN(y) && y > 1800) {
+      acc[y] = (acc[y] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  const yearLabels = Object.keys(yearCounts).sort();
+  const yearData = yearLabels.map(y => yearCounts[y]);
+
+  if (yearChartInstance) yearChartInstance.destroy();
+  yearChartInstance = new Chart($id('yearChart'), {
+    type: 'bar',
+    data: {
+      labels: yearLabels,
+      datasets: [{
+        label: 'Papers Published',
+        data: yearData,
+        backgroundColor: '#C9A87C'
+      }]
+    },
+    options: { 
+      responsive: true, 
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+/* ── Stage 2 Stats Calculator Widget Launch ── */
+$id('launchStatsCalcBtn').onclick = () => {
+  // If stat-calculator.js has defined the global openStatsCalculator function, call it.
+  if (typeof window.openStatsCalculator === 'function') {
+    window.openStatsCalculator();
+  } else {
+    showToast('Loading', 'Statistical calculator is not fully loaded. Check your browser console!', 'info');
+  }
+};
+
 </script>
+<script src="stats-calculator.js"></script>
 </body>
 </html>
