@@ -71,12 +71,17 @@ def _detect_study_type_from_abstract(abstract: str | None) -> str | None:
     return None
 
 
-def _compute_evidence_weight(study_type: str | None, year: int | None) -> tuple[float, bool]:
+def _compute_evidence_weight(study_type: str | None, year: int | str | None) -> tuple[float, bool]:
     base = EVIDENCE_WEIGHTS.get((study_type or "other").lower().replace(" ", "_"), 1.0)
     recency = False
-    if year and (datetime.now(timezone.utc).year - year) <= 5:
-        base *= 1.1
-        recency = True
+    if year:
+        try:
+            y = int(year)
+            if (datetime.now(timezone.utc).year - y) <= 5:
+                base *= 1.1
+                recency = True
+        except (ValueError, TypeError):
+            pass
     return round(base, 2), recency
 
 
@@ -948,7 +953,8 @@ def _build_synthesis_context(studies: list, clinical_data: dict) -> str:
         pico = cd.get("pico", {})
         # Use detected study type if stored value is null
         effective_type = study.study_type or _detect_study_type_from_abstract(study.abstract)
-        block = f"Paper {i}: {study.title}"
+        safe_title = study.title or "Untitled Study"
+        block = f"Paper {i}: {safe_title}"
         if study.year:        block += f" ({study.year})"
         if effective_type:    block += f" [{effective_type.replace('_', ' ').title()}]"
         block += "\n"
@@ -970,9 +976,10 @@ def _build_weighting(studies: list) -> list:
         # Use detected study type if stored value is null
         effective_type = s.study_type or _detect_study_type_from_abstract(s.abstract)
         score, recency = _compute_evidence_weight(effective_type, s.year)
+        safe_title = s.title or "Untitled Study"
         weights.append({
             "study_id":      s.id,
-            "study_title":   s.title[:60] + ("..." if len(s.title) > 60 else ""),
+            "study_title":   safe_title[:60] + ("..." if len(safe_title) > 60 else ""),
             "study_type":    effective_type,
             "year":          s.year,
             "base_score":    EVIDENCE_WEIGHTS.get((effective_type or "other").lower().replace(" ", "_"), 1.0),
