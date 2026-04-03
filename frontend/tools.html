@@ -292,7 +292,7 @@ document.getElementById('sheetSelect').addEventListener('change', async (e) => {
 });
 
 document.getElementById('newSheetBtn').onclick = async () => {
-  const name = prompt('Sheet name:', 'My Data');
+  const name = await promptModal({ title: 'New Sheet', message: 'Enter a name for the spreadsheet.', placeholder: 'e.g. My Data', okText: 'Create' });
   if (!name) return;
   try {
     const created = await fetchJson('/spreadsheet', {

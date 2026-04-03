@@ -1460,3 +1460,225 @@ mark.redlineHl {
 .trendingItem:last-child { border-bottom:none; }
 .communityPostRow { padding:12px 0; border-bottom:1px solid var(--line2); cursor:pointer; transition:all .12s; }
 .communityPostRow:last-child { border-bottom:none; }
+
+/* ══════════════════════════════════════════════════════════════
+   DARK MODE — applied via html[data-theme="dark"]
+   ════════════════════════════════════════════════════════════ */
+
+/* Smooth transitions for theme switching */
+*, *::before, *::after {
+  transition: background-color .2s ease, border-color .2s ease, color .15s ease, box-shadow .2s ease;
+}
+
+html[data-theme="dark"] {
+  /* ── Core palette ── */
+  --cream:        #E2EBF4;
+  --cream2:       #C8D8E8;
+  --cream3:       #162535;
+  --parchment:    #2A3D52;
+
+  --navy:         #E2EBF4;
+  --navy2:        #C8D8E8;
+  --navy3:        #A8C0D4;
+  --navy-mid:     #7A9CB8;
+
+  --coffee:       #7AB8D8;
+  --coffee2:      #5AA0C0;
+  --coffee-light: #3B8CB0;
+
+  --brass:        #38C4E0;
+  --brass2:       #28AACC;
+  --brass-light:  rgba(56,196,224,.18);
+
+  /* ── Semantic colours ── */
+  --bg:           #0A1622;
+  --surface:      #0E1D2E;
+  --surface2:     #122035;
+  --surface3:     #162840;
+  --text:         #E2EBF4;
+  --text2:        #C0D4E8;
+  --muted:        #7A9CB8;
+  --subtle:       #4E728A;
+  --line:         rgba(100,170,210,.12);
+  --line2:        rgba(100,170,210,.07);
+
+  --brand:        #E2EBF4;
+  --brand-mid:    #C8D8E8;
+  --accent:       #38C4E0;
+  --accent2:      #28AACC;
+  --accent-light: rgba(56,196,224,.15);
+
+  --good:         #38B06A;
+  --warn:         #D4A030;
+  --bad:          #D85050;
+
+  /* ── Sidebar ── */
+  --sidebar-w:       88px;
+  --sidebar-bg:      #060E1A;
+  --side-icon:       rgba(255,255,255,.38);
+  --side-icon-hover: rgba(255,255,255,.85);
+  --side-active:     #38C4E0;
+
+  /* ── Shadows ── */
+  --shadow-xs:     0 1px 3px rgba(0,0,0,.4);
+  --shadow-sm:     0 4px 12px rgba(0,0,0,.45), 0 2px 4px rgba(0,0,0,.3);
+  --shadow:        0 8px 28px rgba(0,0,0,.55), 0 3px 8px rgba(0,0,0,.35);
+  --shadow-lg:     0 20px 56px rgba(0,0,0,.65), 0 8px 16px rgba(0,0,0,.4);
+  --shadow-accent: 0 4px 20px rgba(56,196,224,.22);
+}
+
+/* ── Topbar dark ── */
+html[data-theme="dark"] .topbar {
+  background: rgba(10,22,34,.92);
+  border-bottom-color: rgba(100,170,210,.1);
+}
+
+/* ── Sidebar dark ── */
+html[data-theme="dark"] .sidebar {
+  background: var(--sidebar-bg);
+  border-right-color: rgba(255,255,255,.04);
+}
+
+html[data-theme="dark"] .sidebar::after {
+  background: linear-gradient(180deg, transparent, rgba(56,196,224,.18) 40%, rgba(56,196,224,.18) 60%, transparent);
+}
+
+/* ── Sidebar active state dark ── */
+html[data-theme="dark"] .sideBtn.active {
+  color: var(--brass);
+  background: rgba(56,196,224,.12);
+  border-color: rgba(56,196,224,.25);
+}
+
+html[data-theme="dark"] .sideBtn.active::before {
+  background: var(--brass);
+}
+
+/* ── BrandMark dark ── */
+html[data-theme="dark"] .brandMark {
+  background: linear-gradient(145deg, #0E1D2E, #122035);
+  border-color: rgba(56,196,224,.25);
+  color: var(--brass);
+}
+
+/* ── Inputs dark ── */
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] select:focus,
+html[data-theme="dark"] textarea:focus {
+  border-color: rgba(56,196,224,.5);
+  box-shadow: 0 0 0 3px rgba(56,196,224,.12);
+}
+
+/* ── Buttons dark ── */
+html[data-theme="dark"] button:hover,
+html[data-theme="dark"] .btn:hover {
+  border-color: rgba(56,196,224,.3);
+  background: var(--surface3);
+}
+
+html[data-theme="dark"] button.primary,
+html[data-theme="dark"] .btn.primary {
+  background: var(--brass);
+  color: #060E1A;
+  border-color: var(--brass2);
+  box-shadow: var(--shadow-sm), 0 2px 8px rgba(56,196,224,.2);
+}
+
+html[data-theme="dark"] button.primary:hover,
+html[data-theme="dark"] .btn.primary:hover {
+  background: var(--brass2);
+  border-color: #1898B8;
+}
+
+html[data-theme="dark"] button.ghost,
+html[data-theme="dark"] .btn.ghost {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] button.ghost:hover,
+html[data-theme="dark"] .btn.ghost:hover {
+  background: var(--surface3);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+/* ── TabPill dark ── */
+html[data-theme="dark"] .tabPill.active {
+  background: var(--brass);
+  border-color: var(--brass);
+  color: #060E1A;
+}
+
+/* ── Card accent dark ── */
+html[data-theme="dark"] .card--accent {
+  border-color: rgba(56,196,224,.2);
+  background: linear-gradient(135deg, var(--surface) 80%, rgba(56,196,224,.05));
+}
+
+/* ── Items hover dark ── */
+html[data-theme="dark"] .item:hover {
+  border-color: rgba(56,196,224,.25);
+}
+
+html[data-theme="dark"] .item.active {
+  border-color: rgba(56,196,224,.35);
+  background: linear-gradient(135deg, var(--surface) 85%, rgba(56,196,224,.06));
+  box-shadow: var(--shadow-sm), inset 3px 0 0 var(--brass);
+}
+
+/* ── Badges dark ── */
+html[data-theme="dark"] .badge        { border-color: rgba(200,216,232,.15); background: rgba(200,216,232,.07); color: var(--navy2); }
+html[data-theme="dark"] .badge.brass  { border-color: rgba(56,196,224,.3);   background: rgba(56,196,224,.1);   color: var(--brass); }
+html[data-theme="dark"] .badge.blue   { border-color: rgba(56,196,224,.2);   background: rgba(56,196,224,.07);  color: var(--navy3); }
+html[data-theme="dark"] .badge.green  { border-color: rgba(56,176,106,.2);   background: rgba(56,176,106,.08);  color: var(--good); }
+html[data-theme="dark"] .badge.warn   { border-color: rgba(212,160,48,.2);   background: rgba(212,160,48,.08);  color: var(--warn); }
+html[data-theme="dark"] .badge.red    { border-color: rgba(216,80,80,.2);    background: rgba(216,80,80,.08);   color: var(--bad); }
+
+/* ── Toast dark ── */
+html[data-theme="dark"] .toast::before { background: var(--brass); }
+
+/* ── Notebook dark sidebar ── */
+html[data-theme="dark"] .nbPageCard.active {
+  border-color: var(--brass);
+  background: linear-gradient(135deg, var(--surface), rgba(56,196,224,.06));
+}
+
+/* ── Community dark ── */
+html[data-theme="dark"] .upvoteBtn.upvoted { background: var(--brass); border-color: var(--brass); color: #060E1A; }
+html[data-theme="dark"] .sortTab.active    { background: var(--brass); color: #060E1A; }
+html[data-theme="dark"] .tagChip.active    { background: var(--brass); border-color: var(--brass); color: #060E1A; }
+
+/* ── PICOMSRA active dark ── */
+html[data-theme="dark"] .picoClickable:hover  { background: var(--surface3); }
+html[data-theme="dark"] .picoClickable.picoActive { background: rgba(56,196,224,.1); box-shadow: inset 0 0 0 2px var(--brass); }
+
+/* ── Paper-of-the-day dark (always stays dark-navy card) ── */
+html[data-theme="dark"] .potdCard {
+  background: linear-gradient(135deg, #0E2240 0%, #122848 100%);
+}
+
+/* ── Theme toggle button ── */
+.themeToggleBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  padding: 0;
+  box-shadow: none;
+  flex-shrink: 0;
+  transition: all .2s;
+}
+.themeToggleBtn:hover {
+  border-color: var(--brass);
+  color: var(--brass);
+  background: var(--surface);
+  transform: none;
+  box-shadow: none;
+}

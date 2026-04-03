@@ -88,6 +88,24 @@ if (window.__SEREN_APPJS_WIRED__) {
     return titles[currentPage()] || 'Seren';
   }
 
+  /* ── Theme helpers ───────────────────────────────────────── */
+  function _currentTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'light';
+  }
+  function _applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('seren_theme', theme); } catch {}
+  }
+  // Apply saved theme immediately (before render) to prevent flash
+  (function() {
+    try {
+      const saved = localStorage.getItem('seren_theme') || 'light';
+      document.documentElement.setAttribute('data-theme', saved);
+    } catch {}
+  })();
+  window._applyTheme = _applyTheme;
+  window._currentTheme = _currentTheme;
+
   function requireAuthOrRedirect(target = 'login.html') {
     if (getToken()) return true;
     try { sessionStorage.setItem('after_login', location.pathname.split('/').pop() || 'search.html'); } catch {}
@@ -253,12 +271,24 @@ if (window.__SEREN_APPJS_WIRED__) {
           ${icon('bell')}
           <b id="reminderCount">0</b>
         </div>
+        <button class="themeToggleBtn" id="themeToggleBtn" title="Toggle dark / light mode"></button>
         ${token
           ? `<button class="btn danger sm" id="logoutBtn">Sign out</button>`
           : `<a class="btn primary sm" href="login.html">Sign in</a>`
         }
       </div>
     `;
+
+    // Wire theme toggle after DOM is set
+    const themeBtn = document.getElementById('themeToggleBtn');
+    if (themeBtn) {
+      themeBtn.textContent = _currentTheme() === 'dark' ? '☀' : '☾';
+      themeBtn.onclick = () => {
+        const next = _currentTheme() === 'dark' ? 'light' : 'dark';
+        _applyTheme(next);
+        themeBtn.textContent = next === 'dark' ? '☀' : '☾';
+      };
+    }
 
     function doLogout(e) {
       if (e) e.preventDefault();

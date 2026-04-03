@@ -94,7 +94,7 @@
   document.getElementById("gapAnalyseBtn").onclick = async (e) => {
     e.target.textContent = "Analysing..."; e.target.disabled = true;
     try {
-      const res = await fetchJson('/library-gap-analysis', { method:'POST' });
+      const res = await fetchJson('/research/library-gap-analysis', { method:'POST' });
       const rv = document.getElementById("gapResult");
       rv.innerHTML = escapeHtml(res.gaps_analysis).replace(/\\n/g, "<br/>");
       rv.style.display = 'block';
