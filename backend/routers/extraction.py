@@ -279,7 +279,7 @@ async def bulk_extract(
 @router.get("/reviews/{review_id}/extractions/export")
 def export_extractions(
     review_id: int,
-    format: str = Query(default="csv", regex="^(csv|xlsx)$"),
+    format: str = Query(default="csv", pattern="^(csv|xlsx)$"),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
