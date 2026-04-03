@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Paper — Seren</title>
+  <title>Paper &mdash; Seren</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     #paperSplit {
@@ -326,25 +326,6 @@
       border-radius: var(--r-pill);
     }
 
-    /* PDF upload zone */
-    #pdfDropZone {
-      border: 2px dashed var(--line);
-      border-radius: var(--r-sm);
-      padding: 24px 16px;
-      text-align: center;
-      font-size: 13px;
-      color: var(--subtle);
-      cursor: pointer;
-      transition: border-color .15s, background .15s;
-    }
-    #pdfDropZone.dragover { border-color: var(--brass); background: rgba(201,168,124,.06); }
-    #pdfDropZone input[type=file] { display: none; }
-    #pdfResult { margin-top: 12px; font-size: 12.5px; color: var(--text2); line-height: 1.65; }
-    #pdfResult pre { white-space: pre-wrap; font-size: 11.5px; background: var(--surface2); padding: 10px 12px; border-radius: var(--r-sm); overflow-x: auto; max-height: 300px; overflow-y: auto; }
-
-    /* Figure explain area */
-    #figureExplainArea { margin-top: 12px; }
-    #figureExplainArea textarea { min-height: 70px; font-size: 12.5px; }
   </style>
 </head>
 
@@ -439,33 +420,6 @@
       <div class="hr"></div>
       <div id="fullTextBox">
         <span style="color:var(--subtle);font-style:italic;font-size:13px;">Not loaded.</span>
-      </div>
-    </div>
-
-    <!-- PDF Upload & Text Extraction -->
-    <div class="card" id="pdfUploadCard">
-      <div class="sectionLabel">PDF Upload &amp; Text Extraction</div>
-      <div class="hr"></div>
-      <div id="pdfDropZone">
-        <input type="file" id="pdfFileInput" accept=".pdf"/>
-        <div style="font-size:28px;margin-bottom:8px;opacity:.5;">📄</div>
-        <div><strong>Drop a PDF here</strong> or <span style="color:var(--brass);text-decoration:underline;cursor:pointer;" id="pdfBrowseLink">browse</span></div>
-        <div style="font-size:11.5px;margin-top:4px;">Extracts full text, figures metadata, and references · Max 50 MB</div>
-      </div>
-      <div id="pdfResult"></div>
-    </div>
-
-    <!-- Figure / Image Explainer -->
-    <div class="card" id="figureExplainCard">
-      <div class="sectionLabel">Figure / Image Explainer</div>
-      <div class="hr"></div>
-      <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:8px;">Describe a figure, chart, or graph and the AI will explain it in clinical context.</div>
-      <div id="figureExplainArea">
-        <textarea id="figureDescInput" placeholder="e.g. Kaplan-Meier survival curve with two groups, HR=0.72 (95% CI 0.55–0.94), p=0.014. X-axis: months 0–60. Y-axis: Overall survival 0–100%."></textarea>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button class="btn sm primary" id="figureExplainBtn">&#9881; Explain Figure</button>
-        </div>
-        <div id="figureExplainResult" style="display:none;margin-top:10px;font-size:13px;line-height:1.7;color:var(--text2);background:var(--cream3);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px;white-space:pre-wrap;"></div>
       </div>
     </div>
 
@@ -2325,6 +2279,7 @@ qs("closeBtn").onclick = () => {
         }, 800);
       });
     }
+
   }
 
   const enriched = await ensureAbstractAndPMC(p);
@@ -2618,96 +2573,6 @@ function attachTableExplainers(container) {
   };
 })();
 
-
-// ── PDF Upload & Text Extraction ─────────────────────────────────────────────
-(function() {
-  const zone      = document.getElementById('pdfDropZone');
-  const fileInput = document.getElementById('pdfFileInput');
-  const browse    = document.getElementById('pdfBrowseLink');
-  const result    = document.getElementById('pdfResult');
-  if (!zone) return;
-
-  browse.onclick = () => fileInput.click();
-  zone.onclick   = (e) => { if (e.target !== browse) fileInput.click(); };
-
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('dragover');
-    const f = e.dataTransfer.files[0];
-    if (f) handlePdfUpload(f);
-  });
-  fileInput.onchange = () => { if (fileInput.files[0]) handlePdfUpload(fileInput.files[0]); };
-
-  async function handlePdfUpload(file) {
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      showToast('Invalid file', 'Only PDF files are accepted.', 'error'); return;
-    }
-    result.innerHTML = '<div style="color:var(--subtle);font-size:12px;">Uploading and extracting…</div>';
-    const formData = new FormData();
-    formData.append('file', file);
-    const token = getToken();
-    try {
-      const resp = await fetch('/ai/upload-pdf', {
-        method: 'POST',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${resp.status}`);
-      }
-      const data = await resp.json();
-      result.innerHTML = `
-        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--subtle);">
-          <span>📄 <strong>${data.pages}</strong> pages</span>
-          <span>💬 <strong>${data.total_characters.toLocaleString()}</strong> chars</span>
-          <span>🖼 <strong>${data.figures_count}</strong> figures</span>
-          <span>📚 <strong>${data.references_count}</strong> references</span>
-        </div>
-        ${data.references.length ? `<details><summary style="font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;">References (${data.references.length})</summary><pre>${escHtml(data.references.join('\n'))}</pre></details>` : ''}
-        <details open><summary style="font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;margin-top:8px;">Full Text Preview</summary><pre>${escHtml(data.full_text.slice(0, 5000))}${data.full_text.length > 5000 ? '\n…' : ''}</pre></details>
-      `;
-    } catch(err) {
-      result.innerHTML = `<div style="color:var(--bad);font-size:12px;">${escHtml(err.message)}</div>`;
-    }
-    fileInput.value = '';
-  }
-
-  function escHtml(s) {
-    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-  }
-})();
-
-
-// ── Figure Explainer ─────────────────────────────────────────────────────────
-(function() {
-  const btn    = document.getElementById('figureExplainBtn');
-  const input  = document.getElementById('figureDescInput');
-  const result = document.getElementById('figureExplainResult');
-  if (!btn) return;
-
-  btn.onclick = async () => {
-    const desc = input.value.trim();
-    if (!desc) { showToast('Describe first', 'Enter a figure description to explain.', 'info'); return; }
-    await withBtnLoading(btn, async () => {
-      try {
-        const res = await fetchJson('/ai/explain-figure', {
-          method: 'POST',
-          body: {
-            description: desc,
-            study_id: savedStudy ? savedStudy.id : undefined,
-          },
-        });
-        result.textContent = res.explanation;
-        result.style.display = 'block';
-      } catch(err) {
-        showToast('Error', err.message, 'error');
-      }
-    });
-  };
-})();
 
 } // end init guard
 </script>

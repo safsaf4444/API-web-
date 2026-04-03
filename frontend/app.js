@@ -38,6 +38,9 @@ if (window.__SEREN_APPJS_WIRED__) {
       notebook:  `<svg ${base}><path d="M2 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H2"/><path d="M2 7h4"/><path d="M2 12h4"/><path d="M2 17h4"/><path d="M6 3v18"/></svg>`,
       community: `<svg ${base}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
       ai:        `<svg ${base}><path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 0 6h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1 0-6h1V6a4 4 0 0 1 4-4z"/><circle cx="12" cy="10" r="2"/></svg>`,
+      tools:     `<svg ${base}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+      research:  `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      write:     `<svg ${base}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>`,
       info:      `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`,
       paper:     `<svg ${base}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
       login:     `<svg ${base}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`,
@@ -57,6 +60,9 @@ if (window.__SEREN_APPJS_WIRED__) {
     if (p.includes('notebook'))  return 'notebook';
     if (p.includes('community')) return 'community';
     if (p.includes('ai'))        return 'ai';
+    if (p.includes('tools'))     return 'tools';
+    if (p.includes('research'))  return 'research';
+    if (p.includes('write'))     return 'write';
     if (p.includes('info'))      return 'info';
     if (p.includes('paper'))     return 'paper';
     if (p.includes('review'))    return 'review';
@@ -72,6 +78,9 @@ if (window.__SEREN_APPJS_WIRED__) {
       notebook:  'Notebook',
       community: 'Community',
       ai:        'AI Assistant',
+      tools:     'Workspace Tools',
+      research:  'Research Formulation',
+      write:     'Data Writing Suite',
       info:      'About',
       paper:     'Paper',
       review:    'Reviews',
@@ -186,11 +195,12 @@ if (window.__SEREN_APPJS_WIRED__) {
       { key: 'search',    href: 'search.html',    label: 'Search',     requiresLogin: false },
       { key: 'library',   href: 'library.html',   label: 'Library',    requiresLogin: true  },
       { key: 'synthesis', href: 'synthesis.html', label: 'Synthesise', requiresLogin: true  },
-      { key: 'notebook',  href: 'notebook.html',  label: 'Notebook',   requiresLogin: true  },
-      { key: 'community', href: 'community.html', label: 'Community',  requiresLogin: false },
+      { key: 'research',  href: 'research.html',  label: 'Formulation',requiresLogin: true  },
+      { key: 'write',     href: 'write.html',     label: 'Writing',    requiresLogin: true  },
       { key: 'review',    href: 'review.html',    label: 'Reviews',    requiresLogin: true  },
-      { key: 'ai',        href: 'ai.html',        label: 'AI',         requiresLogin: true  },
-      { key: 'info',      href: 'info.html',      label: 'About',      requiresLogin: false },
+      { key: 'notebook',  href: 'notebook.html',  label: 'Notebook',   requiresLogin: true  },
+      { key: 'tools',     href: 'tools.html',     label: 'Tools',      requiresLogin: true  },
+      { key: 'community', href: 'community.html', label: 'Community',  requiresLogin: false },
     ];
 
     side.innerHTML = `
