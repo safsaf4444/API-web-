@@ -26,6 +26,8 @@ from backend.routers.notebooks import router as notebooks_router
 from backend.routers.extraction import router as extraction_router
 from backend.routers.reviews import router as reviews_router
 from backend.routers.studies import router as studies_router
+from backend.routers.research import router as research_router
+from backend.routers.writing import router as writing_router
 
 logger = logging.getLogger("uvicorn")
 
@@ -116,8 +118,10 @@ app.include_router(health_router)
 app.include_router(ai_router)
 app.include_router(notebooks_router)   # Phase 4b
 app.include_router(community_router)   # Phase 4b
-app.include_router(reviews_router)     # Phase 4: Systematic Review Tooling
-app.include_router(extraction_router)  # Phase 4c: Data Extraction
+app.include_router(reviews_router)     # Phase 4
+app.include_router(extraction_router)  # Phase 4c
+app.include_router(research_router)    # Phase 5: Research Lifecycle
+app.include_router(writing_router)     # Phase 5: Writing and Reports
 
 # ── Static ────────────────────────────────────────────────────────────────────
 
@@ -144,10 +148,10 @@ async def serve_index():
 
 _API_PREFIXES = (
     "/auth/", "/studies/", "/folders/", "/comments/",
-    "/external/", "/metrics/", "/ai/", "/health",
+    "/external/", "/metrics/", "/ai/", "/health/",
     "/notebooks/", "/community/",
     "/reviews/", "/reminders/", "/extraction-templates/",
-    "/docs", "/redoc", "/openapi",
+    "/research/", "/docs", "/redoc", "/openapi",
 )
 
 

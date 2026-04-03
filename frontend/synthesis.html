@@ -231,7 +231,7 @@
     <!-- Literature Search -->
     <div class="card" style="margin-bottom:20px;">
       <div class="synthSectionTitle">Literature Search &amp; Synthesis</div>
-      <div class="synthSectionSub">Search for papers on any topic and synthesise them instantly. This searches <strong>fresh from the literature</strong> &#8212; independent of your library and the papers selected above.</div>
+      <div class="synthSectionSub"><strong>Subject Query searches fresh literature. Your library papers are not used here.</strong><br>Search for papers on any topic and synthesise them instantly. This searches fresh from the literature.</div>
       <div class="litSearchRow">
         <input id="subjectQueryInput" placeholder="e.g. beta-blockers heart failure, metformin PCOS, statins primary prevention" autocomplete="off"/>
         <button class="btn primary" id="runSubjectQueryBtn">Search &amp; Analyse</button>
@@ -243,12 +243,9 @@
           <option value="openalex">OpenAlex</option>
           <option value="crossref">Crossref</option>
         </select>
-        <label>Papers</label>
-        <select id="maxPapers">
-          <option value="2">2</option><option value="3">3</option><option value="4">4</option>
-          <option value="5" selected>5</option><option value="6">6</option><option value="7">7</option>
-          <option value="8">8</option><option value="9">9</option><option value="10">10</option>
-        </select>
+        <label>Papers to synthesise:</label>
+        <input type="range" id="maxPapers" min="5" max="20" value="10" step="1" oninput="document.getElementById('maxPapersVal').textContent=this.value" style="width:100px;">
+        <span id="maxPapersVal" style="font-weight:600;font-size:13px;">10</span>
       </div>
     </div>
 
@@ -550,7 +547,7 @@ document.getElementById('runSynthBtn').onclick = () => runAnalysis(false);
 async function runAnalysis(forceRerun) {
   if (selectedStudyIds.length < 2) return showToast('Select papers', 'Select at least 2 papers.', 'info');
   currentMode = 'cross_paper';
-  showLoading(['Preparing papers', 'Analysing evidence', 'Writing synthesis']);
+  showLoading(['Step 1: Fetching papers...', 'Step 2: Building context...', 'Step 3: Generating synthesis...']);
   try {
     const result = await fetchJson('/ai/synthesise', {
       method: 'POST',
@@ -574,7 +571,7 @@ document.getElementById('runSubjectQueryBtn').onclick = async () => {
   const source    = document.getElementById('subjectSource').value;
   const maxPapers = parseInt(document.getElementById('maxPapers').value, 10);
   currentMode = 'subject_query';
-  showLoading(['Searching literature', 'Retrieving papers', 'Synthesising evidence']);
+  showLoading(['Step 1: Fetching papers...', 'Step 2: Building context...', 'Step 3: Generating synthesis...']);
   try {
     const result = await fetchJson('/ai/subject-query', {
       method: 'POST',
@@ -598,7 +595,19 @@ function showLoading(steps) {
       return `<div class="synthLoadingStep ${cls}"><span class="stepDot"></span>${esc(s)}</div>`;
     }).join('');
   }
-  document.getElementById('synthResults').innerHTML = `<div class="card"><div class="synthLoadingWrap"><div class="synthSpinner"></div><div class="synthLoadingSteps">${renderSteps()}</div><div style="font-size:11.5px;color:var(--subtle);">This may take 15&#8211;30 seconds&#8230;</div></div></div>`;
+  
+  // If we already have papers selected, render them above the spinner
+  let overlayHtml = '';
+  if (currentMode === 'cross_paper' && selectedStudyIds.length) {
+    const listHtml = selectedStudyIds.map(id => {
+      const s = studiesData[id];
+      if (!s) return '';
+      return `<div class="paperUsedCard"><div class="paperUsedTitle">${esc(s.title)}</div></div>`;
+    }).join('');
+    overlayHtml = `<div style="margin-bottom:15px;"><div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Papers in Synthesis:</div><div class="papersUsedGrid">${listHtml}</div></div>`;
+  }
+  
+  document.getElementById('synthResults').innerHTML = `<div class="card">${overlayHtml}<div class="synthLoadingWrap"><div class="synthSpinner"></div><div class="synthLoadingSteps">${renderSteps()}</div><div style="font-size:11.5px;color:var(--subtle);">This may take 15&#8211;30 seconds&#8230;</div></div></div>`;
   _loadingInterval = setInterval(() => {
     if (activeStep < steps.length - 1) {
       activeStep++;

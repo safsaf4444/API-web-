@@ -77,6 +77,12 @@ class Study(SQLModel, table=True):
     extracted_bias_score:    Optional[int]            = Field(default=None)
     grade_criteria:          Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
 
+    # Phase 5: External Data Links
+    kaggle_url: Optional[str] = None
+    github_url: Optional[str] = None
+    osf_url:    Optional[str] = None
+    zenodo_url: Optional[str] = None
+
 
 class StudyExternalRef(SQLModel, table=True):
     __table_args__ = (
@@ -382,3 +388,37 @@ class ExtractionRecord(SQLModel, table=True):
     ai_extracted:   bool          = Field(default=False)
     created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ── Phase 5/6: Spreadsheets, Attachments & Research Lifecycle ──────────────
+
+class SpreadsheetData(SQLModel, table=True):
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    owner_username: str           = Field(index=True)
+    study_id:       Optional[int] = Field(default=None, foreign_key="study.id", index=True)
+    name:           str           = Field(default="Untitled Spreadsheet")
+    data_json:      Optional[str] = None # TEXT in DB
+    created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Attachment(SQLModel, table=True):
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    study_id:       int           = Field(foreign_key="study.id", index=True)
+    owner_username: str           = Field(index=True)
+    filename:       str
+    file_type:      str
+    content_base64: str           # storing files up to 4MB in base64
+    created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ResearchQuestion(SQLModel, table=True):
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    owner_username: str           = Field(index=True)
+    question_text:  str
+    pico_json:      Optional[Any] = Field(default=None, sa_column=Column(JSON))
+    finer_scores_json: Optional[Any] = Field(default=None, sa_column=Column(JSON))
+    hypothesis_null: Optional[str] = None
+    hypothesis_alt:  Optional[str] = None
+    objectives_json: Optional[Any] = Field(default=None, sa_column=Column(JSON))
+    novelty_score:   Optional[int] = Field(default=None)
+    novelty_notes:   Optional[str] = None
+    created_at:      datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at:      datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -292,6 +292,9 @@ def external_import(
         authors_str = ", ".join([a for a in payload.authors if a])
 
     study_type, tags = detect_study_type_and_tags(payload.title or "", payload.abstract)
+    if not study_type:
+        study_type = "Unknown"
+        
     tags_str = ", ".join(tags) if tags else None
 
     study = Study(
