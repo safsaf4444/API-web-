@@ -23,27 +23,27 @@ def upgrade() -> None:
     # ── ExtractionTemplate ────────────────────────────────────────────────────
     conn.execute(sa.text("""
         CREATE TABLE IF NOT EXISTS extractiontemplate (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             SERIAL PRIMARY KEY,
             owner_username TEXT    NOT NULL,
             name           TEXT    NOT NULL,
-            fields         JSON,
-            is_global      BOOLEAN NOT NULL DEFAULT 0,
-            created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            fields         JSONB,
+            is_global      BOOLEAN NOT NULL DEFAULT false,
+            created_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         )
     """))
 
     # ── ExtractionRecord ──────────────────────────────────────────────────────
     conn.execute(sa.text("""
         CREATE TABLE IF NOT EXISTS extractionrecord (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             SERIAL PRIMARY KEY,
             review_id      INTEGER NOT NULL REFERENCES systematicreview(id),
             screening_id   INTEGER NOT NULL REFERENCES reviewscreening(id),
             template_id    INTEGER REFERENCES extractiontemplate(id),
             owner_username TEXT    NOT NULL,
-            data           JSON,
-            ai_extracted   BOOLEAN NOT NULL DEFAULT 0,
-            created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            data           JSONB,
+            ai_extracted   BOOLEAN NOT NULL DEFAULT false,
+            created_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         )
     """))
 
