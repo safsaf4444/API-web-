@@ -85,14 +85,35 @@
     .synthResultMeta  { font-size:12px; color:var(--subtle); }
     .synthResultActions { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; }
 
-    .synthTabs { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:20px; }
-    .synthTab { padding:7px 13px; border-radius:var(--r-pill); border:1px solid var(--line); background:var(--surface2); color:var(--muted); font-weight:600; font-size:12px; cursor:pointer; transition:all .14s; white-space:nowrap; }
-    .synthTab:hover { border-color:rgba(201,168,124,.35); color:var(--text2); }
-    .synthTab.active { background:var(--navy); border-color:var(--navy); color:var(--cream); }
-    .synthTabCount { display:inline-flex; align-items:center; justify-content:center; background:rgba(26,34,51,.1); border-radius:99px; font-size:9px; font-weight:700; padding:1px 5px; margin-left:4px; }
-    .synthTab.active .synthTabCount { background:rgba(245,240,232,.2); }
-    .synthPane { display:none; }
-    .synthPane.active { display:block; }
+    /* Vertical Folder-Tab Accordion */
+    .folderAccordion { display:flex; flex-direction:column; border:1px solid var(--line); border-radius:var(--r); overflow:hidden; margin-bottom:20px; }
+    .folderTab { border-bottom:1px solid var(--line); }
+    .folderTab:last-child { border-bottom:none; }
+    .folderTabHeader {
+      display:flex; align-items:center; gap:10px; padding:13px 18px;
+      cursor:pointer; background:var(--surface); transition:background .14s;
+      user-select:none; border-left:3px solid transparent;
+    }
+    .folderTabHeader:hover { background:var(--surface2); border-left-color:rgba(201,168,124,.4); }
+    .folderTab.open > .folderTabHeader {
+      background:var(--navy); color:var(--cream);
+      border-left-color:var(--brass);
+    }
+    .folderTabIcon { font-size:15px; flex-shrink:0; opacity:.8; }
+    .folderTab.open > .folderTabHeader .folderTabIcon { opacity:1; }
+    .folderTabLabel { font-size:13px; font-weight:700; flex:1; letter-spacing:-0.01em; color:var(--navy); }
+    .folderTab.open > .folderTabHeader .folderTabLabel { color:var(--cream); }
+    .folderTabCount {
+      font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px;
+      background:rgba(36,48,68,.1); color:var(--subtle); border:1px solid var(--line);
+    }
+    .folderTab.open > .folderTabHeader .folderTabCount { background:rgba(245,240,232,.15); color:rgba(245,240,232,.75); border-color:rgba(245,240,232,.2); }
+    .folderTabBadge { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:1px 6px; border-radius:99px; }
+    .folderTabBadge.cached { background:rgba(61,122,74,.1); color:var(--good); border:1px solid rgba(61,122,74,.2); }
+    .folderTabChevron { font-size:10px; color:var(--subtle); transition:transform .2s; flex-shrink:0; }
+    .folderTab.open > .folderTabHeader .folderTabChevron { transform:rotate(180deg); color:rgba(245,240,232,.6); }
+    .folderTabBody { display:none; padding:20px; background:var(--surface); border-top:1px solid var(--line); }
+    .folderTab.open > .folderTabBody { display:block; }
 
     .conclusionBox { background:var(--navy); border-radius:var(--r); padding:20px 24px; color:var(--cream); line-height:1.75; font-size:14px; margin-bottom:16px; }
     .conclusionLabel { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:rgba(245,240,232,.5); margin-bottom:8px; }
@@ -171,6 +192,15 @@
     .synthLoadingStep.active .stepDot { background:var(--brass); }
     .synthLoadingStep.done   .stepDot { background:var(--good); }
     .synthEmpty { text-align:center; padding:26px 20px; color:var(--subtle); font-size:13px; font-style:italic; }
+
+    /* PRISMA flow (inline in accordion) */
+    .prismaFlow { display:flex; flex-direction:column; align-items:center; gap:0; }
+    .prismaBox { font-size:13px; text-align:center; padding:12px 18px; border-radius:var(--r-sm); border:2px solid var(--line); background:var(--surface2); min-width:180px; }
+    .prismaBox .prismaNum { font-size:28px; font-weight:700; color:var(--navy); font-family:var(--font-display); }
+    .prismaBox .prismaLbl { font-size:11px; color:var(--subtle); margin-top:2px; text-transform:uppercase; letter-spacing:.05em; }
+    .prismaArrow { font-size:20px; color:var(--line); line-height:1; padding:4px 0; }
+    .prismaRow { display:flex; align-items:center; gap:20px; justify-content:center; }
+    .prismaSide { font-size:12px; color:var(--bad); font-weight:600; white-space:nowrap; background:rgba(184,64,64,.06); border:1px solid rgba(184,64,64,.15); border-radius:var(--r-sm); padding:6px 12px; }
   </style>
 </head>
 <body>
@@ -660,33 +690,34 @@ function renderResults(data, mode, query) {
     </div>
   </div>`;
 
-  // Tabs — Papers and Ask tabs always present
-  html += `<div class="synthTabs">
-    <div class="synthTab active" data-tab="overview">Overview</div>
-    <div class="synthTab" data-tab="consensus">Consensus<span class="synthTabCount">${consensus.length}</span></div>
-    <div class="synthTab" data-tab="contradictions">Contradictions<span class="synthTabCount">${contradictions.length}</span></div>
-    <div class="synthTab" data-tab="gaps">Evidence Gaps<span class="synthTabCount">${gaps.length}</span></div>
-    <div class="synthTab" data-tab="steelman">Steel-man</div>
-    ${weighting.length ? '<div class="synthTab" data-tab="weighting">Weighting</div>' : ''}
-    <div class="synthTab" data-tab="citations">Citation</div>
-    <div class="synthTab" data-tab="papers">Papers Used<span class="synthTabCount">${allPapers.length}</span></div>
-    <div class="synthTab" data-tab="ask">Ask AI</div>
-  </div>`;
+  // ── Build accordion content ────────────────────────────────────────────────
+  function _accordionTab(id, icon, label, countBadge, bodyHtml, openByDefault) {
+    const countHtml = countBadge != null ? `<span class="folderTabCount">${countBadge}</span>` : '';
+    return `
+    <div class="folderTab${openByDefault ? ' open' : ''}" data-tab="${id}">
+      <div class="folderTabHeader">
+        <span class="folderTabIcon">${icon}</span>
+        <span class="folderTabLabel">${label}</span>
+        ${countHtml}
+        <span class="folderTabChevron">&#9660;</span>
+      </div>
+      <div class="folderTabBody">${bodyHtml}</div>
+    </div>`;
+  }
 
-  // Overview
-  html += '<div class="synthPane active" data-pane="overview">';
-  if (data.weighted_conclusion) html += `<div class="conclusionBox"><div class="conclusionLabel">Weighted Conclusion</div>${esc(data.weighted_conclusion)}</div>`;
+  // Overview body
+  let overviewBody = '';
+  if (data.weighted_conclusion) overviewBody += `<div class="conclusionBox"><div class="conclusionLabel">Weighted Conclusion</div>${esc(data.weighted_conclusion)}</div>`;
   if (data.synthesis_narrative) {
     const paras = data.synthesis_narrative.split(/\n\n+/).filter(Boolean);
-    html += `<div class="card narrativeCard">${paras.map(p=>`<p>${esc(p)}</p>`).join('')}</div>`;
+    overviewBody += `<div class="narrativeCard">${paras.map(p=>`<p>${esc(p)}</p>`).join('')}</div>`;
   }
-  if (data.comparative_methodology) html += `<div class="card"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px;">Comparative Methodology</div><div style="font-size:13px;color:var(--text2);line-height:1.7;">${esc(data.comparative_methodology)}</div></div>`;
-  if (!data.weighted_conclusion && !data.synthesis_narrative) html += '<div class="synthEmpty">No overview generated.</div>';
-  html += '</div>';
+  if (data.comparative_methodology) overviewBody += `<div style="margin-top:14px;padding:14px 16px;background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px;">Comparative Methodology</div><div style="font-size:13px;color:var(--text2);line-height:1.7;">${esc(data.comparative_methodology)}</div></div>`;
+  if (!overviewBody) overviewBody = '<div class="synthEmpty">No overview generated.</div>';
 
-  // Consensus
-  html += '<div class="synthPane" data-pane="consensus">';
-  if (!consensus.length) html += '<div class="synthEmpty">No clear consensus points identified.</div>';
+  // Consensus body
+  let consensusBody = '';
+  if (!consensus.length) consensusBody = '<div class="synthEmpty">No clear consensus points identified.</div>';
   else consensus.forEach(c => {
     const sc = c.strength==='strong'?'strong':c.strength==='weak'?'weak':'moderate';
     let confBadge = '';
@@ -695,39 +726,98 @@ function renderResults(data, mode, query) {
       const confTitle = c.confidence_reasoning ? ` title="${esc(c.confidence_reasoning)}"` : '';
       confBadge = `<span class="confBadge ${cc}"${confTitle}>${c.confidence_pct}% confidence</span>`;
     }
-    html += `<div class="consensusItem"><div class="consensusFinding">${esc(c.finding)}${confBadge}</div><div class="consensusMeta">${c.strength?`<span class="strengthBadge ${sc}">${esc(c.strength)}</span>`:''} ${(c.supporting_studies||[]).map(s=>`<span class="badge coffee" style="font-size:10px;">${esc(s)}</span>`).join('')}</div></div>`;
+    consensusBody += `<div class="consensusItem"><div class="consensusFinding">${esc(c.finding)}${confBadge}</div><div class="consensusMeta">${c.strength?`<span class="strengthBadge ${sc}">${esc(c.strength)}</span>`:''} ${(c.supporting_studies||[]).map(s=>`<span class="badge coffee" style="font-size:10px;">${esc(s)}</span>`).join('')}</div></div>`;
   });
-  html += '</div>';
 
-  // Contradictions
-  html += '<div class="synthPane" data-pane="contradictions">';
-  if (!contradictions.length) html += '<div class="synthEmpty">No major contradictions identified &#8212; studies are broadly aligned.</div>';
+  // Contradictions body
+  let contradictionsBody = '';
+  if (!contradictions.length) contradictionsBody = '<div class="synthEmpty">No major contradictions identified — studies are broadly aligned.</div>';
   else contradictions.forEach(c => {
-    html += `<div class="contradictionItem"><div class="contradictionIssue">&#8596; ${esc(c.issue)}</div><div class="contradictionSides"><div class="sideBox"><div class="sideLabel">Side A</div><div class="sideStudies">${(c.side_a_studies||[]).map(s=>esc(s)).join(', ')}</div><div class="sidePosition">${esc(c.side_a_position)}</div></div><div class="sideBox"><div class="sideLabel">Side B</div><div class="sideStudies">${(c.side_b_studies||[]).map(s=>esc(s)).join(', ')}</div><div class="sidePosition">${esc(c.side_b_position)}</div></div></div>${c.likely_explanation?`<div class="contradictionExplan">${esc(c.likely_explanation)}</div>`:''}</div>`;
+    contradictionsBody += `<div class="contradictionItem"><div class="contradictionIssue">&#8596; ${esc(c.issue)}</div><div class="contradictionSides"><div class="sideBox"><div class="sideLabel">Side A</div><div class="sideStudies">${(c.side_a_studies||[]).map(s=>esc(s)).join(', ')}</div><div class="sidePosition">${esc(c.side_a_position)}</div></div><div class="sideBox"><div class="sideLabel">Side B</div><div class="sideStudies">${(c.side_b_studies||[]).map(s=>esc(s)).join(', ')}</div><div class="sidePosition">${esc(c.side_b_position)}</div></div></div>${c.likely_explanation?`<div class="contradictionExplan">${esc(c.likely_explanation)}</div>`:''}</div>`;
   });
-  html += '</div>';
 
-  // Gaps
-  html += '<div class="synthPane" data-pane="gaps">';
-  if (!gaps.length) html += '<div class="synthEmpty">No specific evidence gaps identified.</div>';
-  else html += '<ul class="gapList">' + gaps.map(g=>`<li class="gapItem"><span class="gapIcon">&#9675;</span><span>${esc(g)}</span></li>`).join('') + '</ul>';
-  html += '</div>';
+  // Gaps body
+  const gapsBody = !gaps.length
+    ? '<div class="synthEmpty">No specific evidence gaps identified.</div>'
+    : '<ul class="gapList">' + gaps.map(g=>`<li class="gapItem"><span class="gapIcon">&#9675;</span><span>${esc(g)}</span></li>`).join('') + '</ul>';
 
-  // Steel-man
-  html += '<div class="synthPane" data-pane="steelman">';
-  if (data.steel_man) html += `<div class="steelManLabel">Strongest counter-argument to the weighted conclusion</div><div class="steelManBox">${esc(data.steel_man)}</div>`;
-  else html += '<div class="synthEmpty">No counter-argument generated.</div>';
-  html += '</div>';
+  // Steel-man body
+  const steelManBody = data.steel_man
+    ? `<div class="steelManLabel">Strongest counter-argument to the weighted conclusion</div><div class="steelManBox">${esc(data.steel_man)}</div>`
+    : '<div class="synthEmpty">No counter-argument generated.</div>';
 
-  // Weighting
-  if (weighting.length) {
-    html += `<div class="synthPane" data-pane="weighting"><div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Meta-analyses carry the most weight. Papers within 5 years get a 10% recency bonus.</div><table class="weightTable"><thead><tr><th>Paper</th><th>Type</th><th>Year</th><th>Score</th><th>Weight %</th></tr></thead><tbody>${weighting.map(w=>`<tr><td style="max-width:220px;">${esc(w.study_title)}</td><td>${esc(w.study_type||'&#8212;')}</td><td>${w.year||'&#8212;'}${w.recency_bonus?' <span class="badge green" style="font-size:9px;padding:1px 5px;">&#9733;</span>':''}</td><td><strong>${w.final_score}</strong></td><td><div style="display:flex;align-items:center;gap:6px;"><div class="weightBarTrack" style="width:50px;"><div class="weightBarFill" style="width:${w.weight_pct}%"></div></div><span style="font-size:11px;color:var(--subtle);">${w.weight_pct}%</span></div></td></tr>`).join('')}</tbody></table></div>`;
-  }
+  // PRISMA flow body
+  const identified = mode === 'cross_paper' ? (data.paper_count || allPapers.length) : (data.papers_found || allPapers.length);
+  const included   = allPapers.length;
+  const excluded   = Math.max(0, identified - included);
+  const prismaBody = `
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+      PRISMA 2020 flow derived from this ${mode==='cross_paper'?'cross-paper analysis':'literature search'}.
+    </div>
+    <div class="prismaFlow">
+      <div class="prismaBox"><div class="prismaNum">${identified}</div><div class="prismaLbl">Records Identified</div></div>
+      <div class="prismaArrow">&#8595;</div>
+      <div class="prismaRow">
+        <div class="prismaBox"><div class="prismaNum">${identified}</div><div class="prismaLbl">Screened</div></div>
+        <div class="prismaSide">&#8722; 0 excluded at screen</div>
+      </div>
+      <div class="prismaArrow">&#8595;</div>
+      <div class="prismaRow">
+        <div class="prismaBox"><div class="prismaNum">${included}</div><div class="prismaLbl">Full-text Assessed</div></div>
+        ${excluded>0?`<div class="prismaSide">&#8722; ${excluded} excluded</div>`:''}
+      </div>
+      <div class="prismaArrow">&#8595;</div>
+      <div class="prismaBox" style="border-color:var(--good);background:rgba(61,122,74,.06);">
+        <div class="prismaNum" style="color:var(--good);">${included}</div>
+        <div class="prismaLbl" style="color:var(--good);">Included in Synthesis</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--subtle);margin-top:14px;font-style:italic;line-height:1.6;">
+      For a full PRISMA flow with manual screening, use the Systematic Reviews tool (Reviews section).
+    </div>`;
 
-  // Citations (cross-paper)
-  if (mode === 'cross_paper') {
-    html += `<div class="synthPane" data-pane="citations">
-      <div class="citationFormatRow">
+  // Risk of Bias heatmap body
+  const ROB_DOMAINS = ['Selection', 'Performance', 'Detection', 'Attrition', 'Reporting'];
+  const ROB_RISK_MAP = {
+    rct:               ['low','low','low','low','low'],
+    systematic_review: ['low','low','low','low','low'],
+    meta_analysis:     ['low','low','low','low','low'],
+    cohort:            ['moderate','moderate','low','moderate','low'],
+    case_control:      ['high','moderate','moderate','moderate','low'],
+    cross_sectional:   ['high','moderate','high','low','low'],
+    case_report:       ['high','high','high','high','moderate'],
+    review:            ['moderate','moderate','moderate','moderate','moderate'],
+    editorial:         ['high','high','high','high','high'],
+    other:             ['moderate','moderate','moderate','moderate','moderate'],
+  };
+  const riskColor = r => r==='low'?'var(--good)':r==='moderate'?'var(--warn)':'var(--bad)';
+  const riskBg    = r => r==='low'?'rgba(61,122,74,.12)':r==='moderate'?'rgba(196,134,42,.12)':'rgba(184,64,64,.1)';
+
+  let robBody = `<div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Risk estimates are derived from study design; not a formal appraisal. Use the Reviews tool for detailed RoB assessment.</div>
+    <div style="overflow-x:auto;">
+    <table class="weightTable" style="min-width:520px;">
+      <thead><tr><th>Paper</th>${ROB_DOMAINS.map(d=>`<th style="text-align:center;">${d}</th>`).join('')}</tr></thead>
+      <tbody>`;
+  allPapers.forEach(p => {
+    const st   = p.study_type || detectStudyType(p.abstract) || 'other';
+    const risks = ROB_RISK_MAP[st] || ROB_RISK_MAP.other;
+    robBody += `<tr><td style="max-width:200px;font-size:12px;">${esc(p.title?.slice(0,60)||'Unknown')}${(p.title?.length||0)>60?'…':''}</td>${risks.map(r=>`<td style="text-align:center;"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:${riskBg(r)};color:${riskColor(r)};border:1px solid ${riskColor(r)}40;">${r}</span></td>`).join('')}</tr>`;
+  });
+  robBody += `</tbody></table></div>
+    <div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap;font-size:11px;color:var(--subtle);">
+      <span><span style="color:var(--good);font-weight:700;">&#9679;</span> Low risk</span>
+      <span><span style="color:var(--warn);font-weight:700;">&#9679;</span> Moderate risk</span>
+      <span><span style="color:var(--bad);font-weight:700;">&#9679;</span> High risk</span>
+    </div>`;
+
+  // Evidence weighting body
+  const weightingBody = weighting.length
+    ? `<div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Meta-analyses carry the most weight. Papers within 5 years get a 10% recency bonus.</div><table class="weightTable"><thead><tr><th>Paper</th><th>Type</th><th>Year</th><th>Score</th><th>Weight %</th></tr></thead><tbody>${weighting.map(w=>`<tr><td style="max-width:220px;">${esc(w.study_title)}</td><td>${esc(w.study_type||'—')}</td><td>${w.year||'—'}${w.recency_bonus?' <span class="badge green" style="font-size:9px;padding:1px 5px;">★</span>':''}</td><td><strong>${w.final_score}</strong></td><td><div style="display:flex;align-items:center;gap:6px;"><div class="weightBarTrack" style="width:50px;"><div class="weightBarFill" style="width:${w.weight_pct}%"></div></div><span style="font-size:11px;color:var(--subtle);">${w.weight_pct}%</span></div></td></tr>`).join('')}</tbody></table>`
+    : '<div class="synthEmpty">No weighting data available.</div>';
+
+  // Citations body (cross-paper)
+  const citationsBody = mode === 'cross_paper'
+    ? `<div class="citationFormatRow">
         <label>Format</label>
         <select id="citationFormat">
           <option value="harvard" selected>Harvard</option>
@@ -745,15 +835,12 @@ function renderResults(data, mode, query) {
         <button class="btn sm ghost" id="copyAllCitationsBtn">Copy all</button>
         <button class="btn sm ghost" id="exportAllCitationsBtn">Download</button>
       </div>
-      <div class="citationList" id="citationList">
-        <div class="synthEmpty">Choose a format and click Generate.</div>
-      </div>
-      <div style="font-size:11px;color:var(--subtle);margin-top:12px;font-style:italic;line-height:1.6;">Citations are generated from stored metadata. Verify accuracy before submission.</div>
-    </div>`;
-  }
+      <div class="citationList" id="citationList"><div class="synthEmpty">Choose a format and click Generate.</div></div>
+      <div style="font-size:11px;color:var(--subtle);margin-top:12px;font-style:italic;line-height:1.6;">Citations are generated from stored metadata. Verify accuracy before submission.</div>`
+    : '<div class="synthEmpty">Citation generation is available for cross-paper library analyses.</div>';
 
-  // Papers Used — ALWAYS present for both modes
-  html += `<div class="synthPane" data-pane="papers">
+  // Papers used body
+  const papersBody = `
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">
       ${mode==='cross_paper' ? 'Papers selected from your library and used in this analysis.' : 'Papers retrieved from the literature and used in this synthesis.'}
     </div>
@@ -764,11 +851,10 @@ function renderResults(data, mode, query) {
         ${p.doi?`<br><a href="https://doi.org/${esc(p.doi)}" target="_blank" style="color:var(--brass2);font-size:10.5px;">DOI &#8599;</a>`:''}
       </div>
     </div>`).join('')}</div>`
-    : '<div class="synthEmpty">No paper metadata available.</div>'}
-  </div>`;
+    : '<div class="synthEmpty">No paper metadata available.</div>'}`;
 
-  // Ask AI tab — free-form AI Q&A in results context
-  html += `<div class="synthPane" data-pane="ask">
+  // Ask AI body
+  const askBody = `
     <div class="askAnythingBox">
       <div class="askAnythingHead">Ask AI</div>
       <div class="askAnythingSub">Ask anything about this topic. AI will answer from the analysed papers where possible, then from general medical knowledge. Sources are clearly labelled.</div>
@@ -777,25 +863,45 @@ function renderResults(data, mode, query) {
         <button class="btn primary sm" id="runAskAnythingBtn">Ask</button>
       </div>
       <div id="askAnythingResult"></div>
-    </div>
-  </div>`;
+    </div>`;
+
+  // Assemble accordion
+  html += '<div class="folderAccordion">';
+  html += _accordionTab('overview',        '📊', 'Overview',           null,              overviewBody,      true);
+  html += _accordionTab('consensus',       '✅', 'Consensus Points',   consensus.length,  consensusBody,     false);
+  html += _accordionTab('contradictions',  '⚖️', 'Contradictions',     contradictions.length, contradictionsBody, false);
+  html += _accordionTab('gaps',            '🔍', 'Evidence Gaps',      gaps.length,       gapsBody,          false);
+  html += _accordionTab('steelman',        '🧠', 'Steel-man Argument', null,              steelManBody,      false);
+  html += _accordionTab('prisma',          '📋', 'PRISMA Flow',        null,              prismaBody,        false);
+  html += _accordionTab('rob',             '🔬', 'Risk of Bias',       allPapers.length,  robBody,           false);
+  if (weighting.length) html += _accordionTab('weighting', '⚖', 'Evidence Weighting', null, weightingBody, false);
+  html += _accordionTab('citations',       '📄', 'Citations',          null,              citationsBody,     false);
+  html += _accordionTab('papers',          '📚', 'Papers Used',        allPapers.length,  papersBody,        false);
+  html += _accordionTab('ask',             '💬', 'Ask AI',             null,              askBody,           false);
+  html += '</div>';
 
   html += '</div>';
   document.getElementById('synthResults').innerHTML = html;
+
+  // Cache current result for this session
+  window.__SYNTH_CACHE__ = window.__SYNTH_CACHE__ || {};
+  const _cacheKey = mode === 'cross_paper'
+    ? `cross_${[...selectedStudyIds].sort().join(',')}`
+    : `subject_${query}`;
+  window.__SYNTH_CACHE__[_cacheKey] = { data, mode, query, ts: Date.now() };
 
   // Store current data/mode/query for Ask AI context
   const _currentData  = data;
   const _currentMode  = mode;
   const _currentQuery = query;
 
-  // Wire tabs
-  document.querySelectorAll('.synthTab').forEach(tab => {
-    tab.onclick = () => {
-      document.querySelectorAll('.synthTab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.synthPane').forEach(p => p.classList.remove('active'));
-      tab.classList.add('active');
-      const pane = document.querySelector(`[data-pane="${tab.dataset.tab}"]`);
-      if (pane) pane.classList.add('active');
+  // Wire accordion — one open at a time
+  document.querySelectorAll('.folderTabHeader').forEach(header => {
+    header.onclick = () => {
+      const tab = header.closest('.folderTab');
+      const wasOpen = tab.classList.contains('open');
+      document.querySelectorAll('.folderTab').forEach(t => t.classList.remove('open'));
+      if (!wasOpen) tab.classList.add('open');
     };
   });
 
@@ -803,15 +909,15 @@ function renderResults(data, mode, query) {
   const rerunBtn = document.getElementById('rerunBtn');
   if (rerunBtn) rerunBtn.onclick = () => runAnalysis(true);
 
-  // Jump to citations
+  // Jump to citations — open citations tab in accordion
   const jumpCiteBtn = document.getElementById('jumpCitationsBtn');
   if (jumpCiteBtn) jumpCiteBtn.onclick = () => {
-    document.querySelectorAll('.synthTab').forEach(t=>t.classList.remove('active'));
-    document.querySelectorAll('.synthPane').forEach(p=>p.classList.remove('active'));
-    const t = document.querySelector('[data-tab="citations"]');
-    const p = document.querySelector('[data-pane="citations"]');
-    if (t) t.classList.add('active');
-    if (p) p.classList.add('active');
+    const citTab = document.querySelector('.folderTab[data-tab="citations"]');
+    if (citTab) {
+      document.querySelectorAll('.folderTab').forEach(t => t.classList.remove('open'));
+      citTab.classList.add('open');
+      citTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   // Citations generator

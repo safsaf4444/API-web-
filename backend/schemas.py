@@ -71,11 +71,50 @@ class StudyRead(BaseModel):
     comment_count: int = 0
     citation_count: Optional[int] = None
     is_retracted: bool = False
+    kaggle_url: Optional[str] = None
+    github_url: Optional[str] = None
+    osf_url: Optional[str] = None
+    zenodo_url: Optional[str] = None
 
 class StudyPatch(BaseModel):
     notes: Optional[str] = None
     folder_id: Optional[int] = None
     reading_status: Optional[str] = None
+    kaggle_url: Optional[str] = None
+    github_url: Optional[str] = None
+    osf_url: Optional[str] = None
+    zenodo_url: Optional[str] = None
+
+# ── Spreadsheet & Data ────────────────────────────────────────────────────────
+
+class SpreadsheetCreate(BaseModel):
+    study_id: Optional[int] = None
+    name: str = "Untitled Spreadsheet"
+    data_json: Optional[str] = None
+
+class SpreadsheetPatch(BaseModel):
+    name: Optional[str] = None
+    data_json: Optional[str] = None
+
+class SpreadsheetRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    owner_username: str
+    study_id: Optional[int] = None
+    name: str
+    data_json: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class AttachmentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    study_id: int
+    owner_username: str
+    filename: str
+    file_type: str
+    created_at: datetime
+    # Omitting content_base64 from List read views to save payload limits
 
 
 # ── Comments (paper threads) ──────────────────────────────────────────────────
@@ -865,6 +904,15 @@ class ExplainFigureRequest(BaseModel):
     description: str = Field(min_length=5, max_length=2000)
 
 class ExplainFigureResponse(BaseModel):
+    explanation: str
+    study_id: Optional[int] = None
+
+class ExplainFigureImageRequest(BaseModel):
+    image_b64: str = Field(description="Data URL: data:image/<type>;base64,<data>")
+    description: Optional[str] = Field(default=None, max_length=2000)
+    study_id: Optional[int] = None
+
+class ExplainFigureImageResponse(BaseModel):
     explanation: str
     study_id: Optional[int] = None
 

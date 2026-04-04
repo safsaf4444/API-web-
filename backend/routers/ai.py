@@ -30,10 +30,11 @@ from backend.schemas import (
     ExplainSelectionRequest, ExplainSelectionResponse,
     ExplainTableRequest, ExplainTableResponse,
     ExplainFigureRequest, ExplainFigureResponse,
+    ExplainFigureImageRequest, ExplainFigureImageResponse,
     GRADEData, JargonItem, PICOData, RewritesData, StatisticalData, WeightingItem,
     SynthesisListItem,
 )
-from backend.services.ai_engine import run as engine_run
+from backend.services.ai_engine import run as engine_run, run_vision as engine_run_vision
 from backend.services.ai_service import strip_html
 from backend.services.metrics_service import increment_ai_runs, write_clinical_data
 
@@ -1425,6 +1426,36 @@ async def explain_figure(
     )
 
 
+@router.post("/ai/explain-figure-image", response_model=ExplainFigureImageResponse)
+async def explain_figure_image(
+    payload: ExplainFigureImageRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Explain a figure from a base64-encoded image using a vision-capable model."""
+    if not payload.image_b64.startswith("data:image/"):
+        raise HTTPException(status_code=400, detail="image_b64 must be a valid image data URL (data:image/...;base64,...)")
+
+    byok = _get_byok_keys(current_user)
+
+    system = (
+        "You are a scientific figure interpretation expert specialising in biomedical and clinical research. "
+        "Analyse the uploaded image and explain: "
+        "1) What the figure shows (axes, labels, chart type), "
+        "2) Key trends, patterns, or data points, "
+        "3) Any statistical measures (p-values, CIs, ORs, HRs), "
+        "4) Clinical or scientific significance of the findings. "
+        "Be thorough yet accessible to medical professionals. Format with clear numbered sections."
+    )
+    user_msg = payload.description or "Please analyse and explain this scientific figure."
+
+    result = await engine_run_vision(system, user_msg, payload.image_b64, **byok)
+    return ExplainFigureImageResponse(
+        explanation=result.text if hasattr(result, "text") else str(result),
+        study_id=payload.study_id,
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Phase 4c: Contradiction Resolver
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1603,3 +1634,93 @@ async def ai_health():
     from backend.services.ai_engine import health_check
     checks = await health_check()
     return {"status": "ok", "router": "ai", "providers": checks}
+
+# ── Phase 5: Advanced AI Endpoints ───────────────────────────────────────────
+
+import httpx
+from pydantic import BaseModel
+
+class AbstractPayload(BaseModel):
+    text: str
+
+@router.get("/ai/journal-recommend")
+async def journal_recommend(abstract: str):
+    import urllib.parse
+    import xml.etree.ElementTree as ET
+    
+    url = f"https://jane.biosemantics.org/suggestions.php?text={urllib.parse.quote(abstract)}"
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url, timeout=15.0)
+    
+    if not resp.is_success:
+        raise HTTPException(status_code=502, detail="Failed to reach JANE API")
+        
+    try:
+        root = ET.fromstring(resp.text)
+        results = []
+        for journal in root.findall(".//Journal")[:5]:
+            jname = journal.findtext("Title") or ""
+            score = float(journal.findtext("Count") or 0.0)
+            issn = journal.findtext("ISSN") or ""
+            results.append({"name": jname, "score": score, "issn": issn})
+        return {"journals": results}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail="Failed to parse JANE response")
+
+async def _synthesis_sub_prompt(synthesis_id: int, prompt_text: str, session: Session, current_user: User):
+    """Generic wrapper for synthesis subset prompts."""
+    rec = session.get(SynthesisResult, synthesis_id)
+    if not rec or rec.owner_username != current_user.username:
+        raise HTTPException(404, "Synthesis not found")
+        
+    studies = []
+    try:
+        for sid in json.loads(rec.study_ids or "[]"):
+            if st := session.get(Study, sid): studies.append(st)
+    except: pass
+    
+    ctx = _build_synthesis_context(studies, {})
+    user_msg = f"{prompt_text}\n\nPapers:\n{ctx}"
+    byok = _get_byok_keys(current_user)
+    
+    result = await engine_run("You are a systematic review expert.", user_msg, **byok)
+    return {"text": result.text, "synthesis_id": synthesis_id}
+
+@router.post("/ai/synthesis/{synthesis_id}/outlier-detection")
+async def ai_synthesis_outliers(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return await _synthesis_sub_prompt(synthesis_id, "Identify any papers that have effect sizes or conclusions devitating significantly from the consensus set. Explain why.", session, current_user)
+
+@router.post("/ai/synthesis/{synthesis_id}/confound-identifier")
+async def ai_synthesis_confounds(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return await _synthesis_sub_prompt(synthesis_id, "Identify uncontrolled confounders present across these papers that threaten validity.", session, current_user)
+
+@router.post("/ai/synthesis/{synthesis_id}/sensitivity-analysis")
+async def ai_synthesis_sensitivity(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return await _synthesis_sub_prompt(synthesis_id, "Re-analyse the synthesis but explicitly exclude or heavily discount any papers with weak, poor, or low evidence strength.", session, current_user)
+
+@router.post("/ai/synthesis/{synthesis_id}/narrative-synthesis")
+async def ai_synthesis_narrative(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return await _synthesis_sub_prompt(synthesis_id, "Provide a deeply structured narrative synthesis exploring heterogenous evidence points across these papers.", session, current_user)
+
+@router.post("/ai/synthesis/{synthesis_id}/thematic-analysis")
+async def ai_synthesis_thematic(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return await _synthesis_sub_prompt(synthesis_id, "Perform thematic analysis. Extract themes, sub-themes and supporting quotes/evidence. Return as pure valid JSON array of objects [{theme, sub_themes:[], evidence:[]}].", session, current_user)
+
+@router.post("/ai/synthesis/{synthesis_id}/evidence-sufficiency")
+async def ai_synthesis_sufficiency(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return await _synthesis_sub_prompt(synthesis_id, "Rate the collective evidence base as Sufficient, Insufficient, or Preliminary. Explain your specific grading.", session, current_user)
+
+@router.post("/ai/synthesis/{synthesis_id}/research-questions")
+async def ai_synthesis_research_qs(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    return await _synthesis_sub_prompt(synthesis_id, "Based on the evidence gaps in these papers, generate 5 highly specific future research questions.", session, current_user)
+
+@router.post("/ai/paper/{study_id}/secondary-data")
+async def ai_paper_secondary_data(study_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    study = session.get(Study, study_id)
+    if not study or study.owner_username != current_user.username:
+        raise HTTPException(404, "Study not found")
+        
+    user_msg = f"Flag any heavily buried findings, secondary outcomes, or supplementary data hints based on this abstract.\n\nAbstract: {study.abstract}"
+    byok = _get_byok_keys(current_user)
+    result = await engine_run("You are a clinical data sleuth.", user_msg, **byok)
+    return {"text": result.text, "study_id": study.id}

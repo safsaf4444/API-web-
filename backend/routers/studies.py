@@ -138,6 +138,11 @@ def patch_study(
     if "reading_status" in fields_set and payload.reading_status is not None:
         study.reading_status = payload.reading_status
 
+    if "kaggle_url" in fields_set: study.kaggle_url = payload.kaggle_url
+    if "github_url" in fields_set: study.github_url = payload.github_url
+    if "osf_url" in fields_set:    study.osf_url    = payload.osf_url
+    if "zenodo_url" in fields_set: study.zenodo_url = payload.zenodo_url
+
     session.add(study)
     session.commit()
     session.refresh(study)
@@ -177,3 +182,218 @@ def delete_study(
     session.delete(study)
     session.commit()
     return {"status": "deleted", "study_id": study_id}
+
+# ── Phase 5: Spreadsheets (FortuneSheet) ──────────────────────────────────────
+
+from backend.models import SpreadsheetData, Attachment
+from backend.schemas import SpreadsheetRead, SpreadsheetCreate, SpreadsheetPatch, AttachmentRead
+import base64
+from fastapi import UploadFile, File
+
+@router.post("/spreadsheet", response_model=SpreadsheetRead)
+def create_spreadsheet(
+    payload: SpreadsheetCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if payload.study_id:
+        study = session.get(Study, payload.study_id)
+        if not study or study.owner_username != current_user.username:
+            raise HTTPException(status_code=403, detail="Not allowed to attach to this study")
+            
+    doc = SpreadsheetData(
+        owner_username=current_user.username,
+        study_id=payload.study_id,
+        name=payload.name,
+        data_json=payload.data_json
+    )
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+    return doc
+
+@router.get("/spreadsheet/{sheet_id}", response_model=SpreadsheetRead)
+def get_spreadsheet(sheet_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    doc = session.get(SpreadsheetData, sheet_id)
+    if not doc or doc.owner_username != current_user.username:
+        raise HTTPException(status_code=404, detail="Spreadsheet not found")
+    return doc
+
+@router.get("/spreadsheets", response_model=List[SpreadsheetRead])
+def list_spreadsheets(
+    study_id: Optional[int] = None,
+    global_: bool = Query(False, alias="global"),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(SpreadsheetData).where(SpreadsheetData.owner_username == current_user.username)
+    if global_:
+        stmt = stmt.where(SpreadsheetData.study_id == None)  # noqa: E711
+    elif study_id:
+        stmt = stmt.where(SpreadsheetData.study_id == study_id)
+    return session.exec(stmt).all()
+
+@router.patch("/spreadsheet/{sheet_id}", response_model=SpreadsheetRead)
+def update_spreadsheet(
+    sheet_id: int,
+    payload: SpreadsheetPatch,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    doc = session.get(SpreadsheetData, sheet_id)
+    if not doc or doc.owner_username != current_user.username:
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    if payload.name is not None: doc.name = payload.name
+    if payload.data_json is not None: doc.data_json = payload.data_json
+    
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+    return doc
+
+@router.delete("/spreadsheet/{sheet_id}")
+def delete_spreadsheet(sheet_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    doc = session.get(SpreadsheetData, sheet_id)
+    if doc and doc.owner_username == current_user.username:
+        session.delete(doc)
+        session.commit()
+    return {"status": "deleted"}
+
+# ── Phase 5: File Attachments & PyMuPDF ───────────────────────────────────────
+import fitz # PyMuPDF
+import re
+
+@router.post("/studies/{study_id}/attachments", response_model=AttachmentRead)
+async def upload_attachment(
+    study_id: int,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    study = session.get(Study, study_id)
+    if not study or study.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    contents = await file.read()
+    if len(contents) > 4 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large. Max 4MB.")
+
+    att = Attachment(
+        study_id=study_id,
+        owner_username=current_user.username,
+        filename=file.filename,
+        file_type=file.content_type,
+        content_base64=base64.b64encode(contents).decode('utf-8')
+    )
+    session.add(att)
+    session.commit()
+    session.refresh(att)
+    return att
+
+@router.get("/studies/{study_id}/attachments", response_model=List[AttachmentRead])
+def list_attachments(study_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    stmt = select(Attachment).where(
+        (Attachment.study_id == study_id) & 
+        (Attachment.owner_username == current_user.username)
+    )
+    return session.exec(stmt).all()
+
+@router.delete("/attachments/{att_id}")
+def delete_attachment(att_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    att = session.get(Attachment, att_id)
+    if att and att.owner_username == current_user.username:
+        session.delete(att)
+        session.commit()
+    return {"status": "deleted"}
+
+@router.post("/studies/import-pdf")
+async def import_pdf(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    """Extract first 2 pages, look for DOI, return candidate data."""
+    contents = await file.read()
+    if len(contents) > 6 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large for auto-import.")
+        
+    try:
+        doc = fitz.open(stream=contents, filetype="pdf")
+        text = ""
+        for page_num in range(min(2, doc.page_count)):
+            text += doc.load_page(page_num).get_text()
+            
+        # Try finding a DOI via regex
+        doi_match = re.search(r'10\.\d{4,9}/[-._;()/:A-Z0-9]+', text, re.IGNORECASE)
+        candidate_doi = doi_match.group(0) if doi_match else None
+        
+        # Extrapolate title fallback
+        title_fallback = text.split("\n")[0].strip() if text else file.filename
+        
+        return {
+            "candidate_doi": candidate_doi,
+            "extracted_title": title_fallback,
+            "text_snippet": text[:500]
+        }
+    except Exception as e:
+        logger.error(f"PDF extract failed: {e}")
+        raise HTTPException(status_code=400, detail="Failed to parse PDF.")
+
+@router.get("/studies/export/xlsx")
+def export_xlsx(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    from starlette.responses import StreamingResponse
+    import io
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font
+    
+    studies = session.exec(select(Study).where(Study.owner_username == current_user.username)).all()
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Evidence Table"
+    
+    headers = [
+        "Title", "Authors", "Year", "Journal", "DOI", "Study Type", 
+        "Evidence Strength", "Bias Risk", "Source", "Tags",
+        "Kaggle URL", "OSF URL", "GitHub URL", "Zenodo URL"
+    ]
+    
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+        
+    green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+    
+    for row_idx, s in enumerate(studies, start=2):
+        from backend.models import StudyMetrics
+        metrics = session.exec(select(StudyMetrics).where(StudyMetrics.study_id == s.id)).first()
+        
+        strength = metrics.evidence_strength if metrics else ""
+        bias = metrics.risk_of_bias if metrics else ""
+        
+        row = [
+            s.title, s.authors or "", s.year or "", s.venue or "", 
+            s.doi or "", s.study_type or "", strength, bias, 
+            s.source, s.tags or "",
+            s.kaggle_url or "", s.osf_url or "", s.github_url or "", s.zenodo_url or ""
+        ]
+        
+        ws.append(row)
+        
+        # Hyperlink DOI
+        if s.doi:
+            ws.cell(row=row_idx, column=5).hyperlink = f"https://doi.org/{s.doi}"
+            
+        # Conditional formatting
+        if str(bias).lower() == "high":
+            ws.cell(row=row_idx, column=8).fill = red_fill
+        if strength and isinstance(strength, int) and strength >= 4:
+            ws.cell(row=row_idx, column=7).fill = green_fill
+
+    mem = io.BytesIO()
+    wb.save(mem)
+    mem.seek(0)
+    
+    return StreamingResponse(
+        mem, 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+        headers={"Content-Disposition": "attachment; filename=evidence_table.xlsx"}
+    )

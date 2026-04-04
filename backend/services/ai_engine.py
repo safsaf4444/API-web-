@@ -175,6 +175,118 @@ async def _call_anthropic(api_key: str, system: str, user: str, model: str = "cl
         raise HTTPException(status_code=500, detail="Anthropic response parse error")
 
 
+async def _call_gemini_vision(api_key: str, system: str, user_text: str, image_b64_url: str, model: str = "gemini-1.5-flash") -> str:
+    """Call Gemini with an image (data URL) and text prompt."""
+    try:
+        header, b64_data = image_b64_url.split(",", 1)
+        mime_type = header.split(":")[1].split(";")[0]  # e.g. "image/png"
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image data URL. Expected: data:<mime>;base64,<data>")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    payload = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"text": f"{system}\n\n{user_text}"},
+                {"inline_data": {"mime_type": mime_type, "data": b64_data}},
+            ],
+        }],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1500},
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(url, json=payload, params={"key": api_key})
+
+    if r.status_code == 429:
+        raise HTTPException(status_code=429, detail="Gemini rate limit hit. Try again soon.")
+    if r.status_code in (401, 403):
+        raise HTTPException(status_code=401, detail="Gemini API key rejected.")
+    if r.status_code >= 400:
+        raise HTTPException(status_code=400, detail=f"Gemini vision error {r.status_code}: {r.text[:300]}")
+
+    data = r.json()
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception:
+        raise HTTPException(status_code=500, detail="Gemini vision response parse error")
+
+
+async def _call_openai_vision(api_key: str, system: str, user_text: str, image_b64_url: str) -> str:
+    """Call OpenAI gpt-4o with an image (data URL) and text prompt."""
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {
+        "model": "gpt-4o",
+        "temperature": 0.3,
+        "max_tokens": 1500,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": [
+                {"type": "text", "text": user_text},
+                {"type": "image_url", "image_url": {"url": image_b64_url, "detail": "high"}},
+            ]},
+        ],
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(url, headers=headers, json=payload)
+
+    if r.status_code == 429:
+        raise HTTPException(status_code=429, detail="OpenAI rate limit hit. Try again soon.")
+    if r.status_code == 401:
+        raise HTTPException(status_code=401, detail="OpenAI key rejected. Check your key in AI settings.")
+    if r.status_code >= 400:
+        raise HTTPException(status_code=400, detail=f"OpenAI vision error {r.status_code}: {r.text[:300]}")
+
+    data = r.json()
+    try:
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception:
+        raise HTTPException(status_code=500, detail="OpenAI vision response parse error")
+
+
+async def run_vision(
+    system: str,
+    user: str,
+    image_b64_url: str,
+    *,
+    openai_key:  Optional[str] = None,
+    gemini_key:  Optional[str] = None,
+    **_kwargs,  # absorb unused BYOK keys
+) -> AIResponse:
+    """
+    Vision-capable AI router. Prefers Gemini (multimodal natively),
+    falls back to OpenAI gpt-4o, then free-tier Gemini Flash.
+    """
+    # BYOK Gemini Pro first
+    if gemini_key:
+        text = await _call_gemini_vision(gemini_key, system, user, image_b64_url, model="gemini-1.5-pro")
+        return AIResponse(text, Provider.GEMINI_PRO, "gemini-1.5-pro")
+
+    # Free-tier Gemini Flash
+    free_gemini = os.getenv("GEMINI_API_KEY", "").strip()
+    if free_gemini:
+        try:
+            text = await _call_gemini_vision(free_gemini, system, user, image_b64_url)
+            return AIResponse(text, Provider.GEMINI_FREE, "gemini-1.5-flash")
+        except HTTPException as e:
+            if e.status_code not in (429, 503, 400, 401, 403):
+                raise
+            # fall through to OpenAI
+
+    # BYOK OpenAI gpt-4o as fallback
+    if openai_key:
+        text = await _call_openai_vision(openai_key, system, user, image_b64_url)
+        return AIResponse(text, Provider.OPENAI, "gpt-4o")
+
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "Image analysis requires a vision-capable AI provider. "
+            "Set GEMINI_API_KEY in your .env for free-tier vision, or add a Gemini/OpenAI BYOK key in AI settings."
+        ),
+    )
+
+
 async def _call_ollama(system: str, user: str, model: str = "llama3") -> str:
     url = "http://localhost:11434/api/generate"
     payload = {

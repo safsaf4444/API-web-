@@ -79,11 +79,11 @@ if (window.__SEREN_APPJS_WIRED__) {
       community: 'Community',
       ai:        'AI Assistant',
       tools:     'Workspace Tools',
-      research:  'Research Formulation',
-      write:     'Data Writing Suite',
+      research:  'Formulation',
+      write:     'Writing Suite',
       info:      'About',
       paper:     'Paper',
-      review:    'Reviews',
+      review:    'Systematic Reviews',
     };
     return titles[currentPage()] || 'Seren';
   }
@@ -209,16 +209,16 @@ if (window.__SEREN_APPJS_WIRED__) {
     const top  = document.getElementById('topbar');
     if (!side || !top) return;
 
+    // 7 research-lifecycle pillars + Community
     const navLinks = [
-      { key: 'search',    href: 'search.html',    label: 'Search',     requiresLogin: false },
-      { key: 'library',   href: 'library.html',   label: 'Library',    requiresLogin: true  },
-      { key: 'synthesis', href: 'synthesis.html', label: 'Synthesise', requiresLogin: true  },
-      { key: 'research',  href: 'research.html',  label: 'Formulation',requiresLogin: true  },
-      { key: 'write',     href: 'write.html',     label: 'Writing',    requiresLogin: true  },
-      { key: 'review',    href: 'review.html',    label: 'Reviews',    requiresLogin: true  },
-      { key: 'notebook',  href: 'notebook.html',  label: 'Notebook',   requiresLogin: true  },
-      { key: 'tools',     href: 'tools.html',     label: 'Tools',      requiresLogin: true  },
-      { key: 'community', href: 'community.html', label: 'Community',  requiresLogin: false },
+      { key: 'search',    href: 'search.html',    label: 'Search',      requiresLogin: false },
+      { key: 'library',   href: 'library.html',   label: 'Library',     requiresLogin: true  },
+      { key: 'synthesis', href: 'synthesis.html', label: 'Synthesis',   requiresLogin: true  },
+      { key: 'research',  href: 'research.html',  label: 'Formulation', requiresLogin: true  },
+      { key: 'write',     href: 'write.html',     label: 'Writing',     requiresLogin: true  },
+      { key: 'notebook',  href: 'notebook.html',  label: 'Notebook',    requiresLogin: true  },
+      { key: 'tools',     href: 'tools.html',     label: 'Tools',       requiresLogin: true  },
+      { key: 'community', href: 'community.html', label: 'Community',   requiresLogin: false },
     ];
 
     side.innerHTML = `
