@@ -209,11 +209,11 @@ if (window.__SEREN_APPJS_WIRED__) {
     const top  = document.getElementById('topbar');
     if (!side || !top) return;
 
-    // 7 research-lifecycle pillars + Community
     const navLinks = [
       { key: 'search',    href: 'search.html',    label: 'Search',      requiresLogin: false },
       { key: 'library',   href: 'library.html',   label: 'Library',     requiresLogin: true  },
       { key: 'synthesis', href: 'synthesis.html', label: 'Synthesis',   requiresLogin: true  },
+      { key: 'review',    href: 'review.html',    label: 'Reviews',     requiresLogin: true  },
       { key: 'research',  href: 'research.html',  label: 'Formulation', requiresLogin: true  },
       { key: 'write',     href: 'write.html',     label: 'Writing',     requiresLogin: true  },
       { key: 'notebook',  href: 'notebook.html',  label: 'Notebook',    requiresLogin: true  },
