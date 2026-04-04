@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -260,9 +261,7 @@ def delete_spreadsheet(sheet_id: int, session: Session = Depends(get_session), c
         session.commit()
     return {"status": "deleted"}
 
-# ── Phase 5: File Attachments & PyMuPDF ───────────────────────────────────────
-import fitz # PyMuPDF
-import re
+# ── Phase 5: File Attachments & PDF Import ────────────────────────────────────
 
 @router.post("/studies/{study_id}/attachments", response_model=AttachmentRead)
 async def upload_attachment(
@@ -313,25 +312,29 @@ async def import_pdf(file: UploadFile = File(...), current_user: User = Depends(
     contents = await file.read()
     if len(contents) > 6 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large for auto-import.")
-        
+
+    try:
+        import fitz  # PyMuPDF — lazy import so missing package doesn't crash startup
+    except ImportError:
+        raise HTTPException(status_code=503, detail="PDF parsing library not available on this deployment.")
+
     try:
         doc = fitz.open(stream=contents, filetype="pdf")
         text = ""
         for page_num in range(min(2, doc.page_count)):
             text += doc.load_page(page_num).get_text()
-            
-        # Try finding a DOI via regex
+
         doi_match = re.search(r'10\.\d{4,9}/[-._;()/:A-Z0-9]+', text, re.IGNORECASE)
         candidate_doi = doi_match.group(0) if doi_match else None
-        
-        # Extrapolate title fallback
         title_fallback = text.split("\n")[0].strip() if text else file.filename
-        
+
         return {
             "candidate_doi": candidate_doi,
             "extracted_title": title_fallback,
             "text_snippet": text[:500]
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"PDF extract failed: {e}")
         raise HTTPException(status_code=400, detail="Failed to parse PDF.")
