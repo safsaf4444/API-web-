@@ -1,0 +1,271 @@
+/* ============================================================
+   trust.css — Trust & Validity UI components
+   Badges, evidence basis pills, limitation banners,
+   provenance drawer, verification controls.
+   ============================================================ */
+
+/* ── CSS variables (inherit from existing theme) ──────────── */
+:root {
+  --trust-green:   #16a34a;
+  --trust-yellow:  #ca8a04;
+  --trust-red:     #dc2626;
+  --trust-blue:    #2563eb;
+  --trust-grey:    #6b7280;
+  --trust-bg:      rgba(255,255,255,0.95);
+  --trust-border:  #e5e7eb;
+  --trust-radius:  6px;
+  --trust-shadow:  0 4px 16px rgba(0,0,0,0.12);
+}
+
+/* ── Trust score badge ───────────────────────────────────── */
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.trust-badge:hover { opacity: 0.8; }
+
+.trust-badge--high   { background: #dcfce7; color: var(--trust-green); border: 1px solid #bbf7d0; }
+.trust-badge--medium { background: #fef9c3; color: var(--trust-yellow); border: 1px solid #fde68a; }
+.trust-badge--low    { background: #fee2e2; color: var(--trust-red);    border: 1px solid #fecaca; }
+.trust-badge--none   { background: #f3f4f6; color: var(--trust-grey);   border: 1px solid #e5e7eb; }
+
+.trust-badge__icon { font-size: 12px; }
+
+/* ── Evidence basis pill ─────────────────────────────────── */
+.evidence-basis-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  opacity: 0.85;
+}
+.evidence-basis-badge--rct              { color: var(--trust-green);  background: #f0fdf4; }
+.evidence-basis-badge--systematic_review{ color: #7c3aed;             background: #f5f3ff; }
+.evidence-basis-badge--cohort           { color: var(--trust-blue);   background: #eff6ff; }
+.evidence-basis-badge--case_control     { color: #0891b2;             background: #ecfeff; }
+.evidence-basis-badge--expert_opinion   { color: var(--trust-yellow); background: #fefce8; }
+.evidence-basis-badge--unknown          { color: var(--trust-grey);   background: #f9fafb; }
+
+/* ── Flagged / limitation banner ─────────────────────────── */
+.trust-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--trust-radius);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 8px 0;
+  border: 1px solid transparent;
+}
+.trust-banner--warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+.trust-banner--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #7f1d1d;
+}
+.trust-banner--info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e3a8a;
+}
+.trust-banner__icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.trust-banner__body { flex: 1; }
+.trust-banner__title { font-weight: 600; margin-bottom: 2px; }
+.trust-banner__dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1;
+}
+.trust-banner__dismiss:hover { opacity: 1; }
+
+/* ── Provenance drawer (slide-in panel) ──────────────────── */
+.provenance-drawer {
+  position: fixed;
+  top: 0;
+  right: -420px;
+  width: 420px;
+  max-width: 95vw;
+  height: 100vh;
+  background: var(--trust-bg);
+  border-left: 1px solid var(--trust-border);
+  box-shadow: var(--trust-shadow);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.provenance-drawer.open { right: 0; }
+
+.provenance-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--trust-border);
+  flex-shrink: 0;
+}
+.provenance-drawer__title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+.provenance-drawer__close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--trust-grey);
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.provenance-drawer__close:hover { background: #f3f4f6; color: #111; }
+
+.provenance-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+/* drawer sections */
+.prov-section { margin-bottom: 20px; }
+.prov-section__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--trust-grey);
+  margin-bottom: 8px;
+}
+
+/* run meta grid */
+.prov-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+.prov-meta__key   { color: var(--trust-grey); font-weight: 500; }
+.prov-meta__value { font-family: monospace; font-size: 11px; word-break: break-all; }
+
+/* evidence spans */
+.prov-span {
+  border: 1px solid var(--trust-border);
+  border-radius: var(--trust-radius);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.prov-span__claim  { font-weight: 600; margin-bottom: 4px; }
+.prov-span__source { color: var(--trust-grey); font-style: italic; }
+.prov-span__meta   { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+
+/* claims */
+.prov-claim {
+  border: 1px solid var(--trust-border);
+  border-radius: var(--trust-radius);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.prov-claim__text     { font-weight: 500; margin-bottom: 6px; }
+.prov-claim__controls { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+
+.verify-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+.verify-btn--approve { background: #dcfce7; color: var(--trust-green); border-color: #bbf7d0; }
+.verify-btn--approve:hover { background: var(--trust-green); color: white; }
+.verify-btn--reject  { background: #fee2e2; color: var(--trust-red);   border-color: #fecaca; }
+.verify-btn--reject:hover  { background: var(--trust-red);   color: white; }
+
+/* audit trail */
+.prov-audit-entry {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  font-size: 11px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.prov-audit-entry:last-child { border-bottom: none; }
+.prov-audit-entry__event  { font-weight: 600; font-family: monospace; }
+.prov-audit-entry__detail { color: var(--trust-grey); }
+.prov-audit-entry__time   { color: var(--trust-grey); white-space: nowrap; font-size: 10px; }
+
+/* overlay backdrop */
+.provenance-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 1099;
+  display: none;
+}
+.provenance-overlay.open { display: block; }
+
+/* ── Alert notification dot ──────────────────────────────── */
+.trust-alert-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--trust-red);
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: trust-pulse 2s ease-in-out infinite;
+}
+@keyframes trust-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ── Dark mode support ───────────────────────────────────── */
+.dark .provenance-drawer,
+[data-theme="dark"] .provenance-drawer {
+  --trust-bg:     #1f2937;
+  --trust-border: #374151;
+  background: var(--trust-bg);
+  border-left-color: var(--trust-border);
+}
+.dark .trust-banner--warning,
+[data-theme="dark"] .trust-banner--warning {
+  background: rgba(234,179,8,0.12);
+  border-color: rgba(234,179,8,0.3);
+  color: #fde68a;
+}
+.dark .trust-banner--error,
+[data-theme="dark"] .trust-banner--error {
+  background: rgba(220,38,38,0.12);
+  border-color: rgba(220,38,38,0.3);
+  color: #fca5a5;
+}

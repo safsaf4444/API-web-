@@ -1,0 +1,27 @@
+[
+  {
+    "input_text": "Extract the PICO elements from the following abstract:\n\nA randomized controlled trial enrolled 120 adults with type 2 diabetes (HbA1c 7.5-10%). Participants received either metformin 1000 mg twice daily (n=60) or placebo (n=60) for 24 weeks. The primary outcome was reduction in HbA1c at 24 weeks. Metformin reduced HbA1c by 1.2% compared to 0.1% in placebo (p<0.001). Secondary outcomes included fasting glucose and body weight.",
+    "expected_output": "Population: adults with type 2 diabetes (HbA1c 7.5-10%); Intervention: metformin 1000 mg twice daily; Comparison: placebo; Outcome: reduction in HbA1c at 24 weeks",
+    "metadata": {"source": "synthetic", "task_type": "pico_extraction"}
+  },
+  {
+    "input_text": "Extract the PICO elements from the following abstract:\n\nThis systematic review examined the effect of exercise interventions in patients with chronic heart failure (NYHA class II-III). Aerobic exercise training (3-5 sessions/week, 30 min each) was compared to usual care. Primary outcome was 6-minute walk distance. Meta-analysis of 18 RCTs (n=2180) showed significant improvement in exercise capacity (SMD 0.46, 95% CI 0.33-0.59).",
+    "expected_output": "Population: patients with chronic heart failure (NYHA class II-III); Intervention: aerobic exercise training (3-5 sessions/week, 30 min each); Comparison: usual care; Outcome: 6-minute walk distance and exercise capacity",
+    "metadata": {"source": "synthetic", "task_type": "pico_extraction"}
+  },
+  {
+    "input_text": "Extract the PICO elements from the following abstract:\n\nPostmenopausal women with osteoporosis (T-score ≤-2.5) were randomized to alendronate 70 mg weekly (n=150) or calcium plus vitamin D supplementation (n=150) for 2 years. Primary outcome was change in lumbar spine bone mineral density (BMD). Alendronate significantly increased BMD by 5.4% vs 0.8% with supplements (p<0.001).",
+    "expected_output": "Population: postmenopausal women with osteoporosis (T-score ≤-2.5); Intervention: alendronate 70 mg weekly; Comparison: calcium plus vitamin D supplementation; Outcome: change in lumbar spine bone mineral density",
+    "metadata": {"source": "synthetic", "task_type": "pico_extraction"}
+  },
+  {
+    "input_text": "Extract the PICO elements from the following abstract:\n\nChildren aged 5-12 years with mild-to-moderate persistent asthma were enrolled. Inhaled fluticasone propionate (100 mcg twice daily) was compared to montelukast (5 mg daily) over 12 months. The primary endpoint was the rate of asthma exacerbations requiring oral corticosteroids. Fluticasone reduced exacerbation rate by 34% compared to montelukast (IRR 0.66, p=0.02).",
+    "expected_output": "Population: children aged 5-12 years with mild-to-moderate persistent asthma; Intervention: inhaled fluticasone propionate 100 mcg twice daily; Comparison: montelukast 5 mg daily; Outcome: rate of asthma exacerbations requiring oral corticosteroids",
+    "metadata": {"source": "synthetic", "task_type": "pico_extraction"}
+  },
+  {
+    "input_text": "Extract the PICO elements from the following abstract:\n\nAdults with major depressive disorder (DSM-5 criteria, PHQ-9 ≥10) were treated with cognitive behavioural therapy (CBT, 12 weekly sessions) versus antidepressant medication (sertraline 50-200 mg/day) for 16 weeks. Response (≥50% PHQ-9 reduction) was assessed at 16 weeks. Response rates were 58% (CBT) versus 61% (sertraline), with no significant difference (OR 0.89, 95% CI 0.62-1.29).",
+    "expected_output": "Population: adults with major depressive disorder (PHQ-9 ≥10); Intervention: cognitive behavioural therapy (12 weekly sessions); Comparison: sertraline 50-200 mg/day; Outcome: response rate (≥50% PHQ-9 reduction) at 16 weeks",
+    "metadata": {"source": "synthetic", "task_type": "pico_extraction"}
+  }
+]

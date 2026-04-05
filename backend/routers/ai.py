@@ -41,6 +41,56 @@ from backend.services.metrics_service import increment_ai_runs, write_clinical_d
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["ai"])
 
+
+# ── Phase 6: Trust & Validity — non-blocking post-call recording ──────────────
+
+def _record_trust(
+    session,
+    owner_username: str,
+    endpoint: str,
+    result,
+    *,
+    study_id=None,
+    review_id=None,
+    latency_ms=None,
+    evidence_basis: str = "unknown",
+) -> int | None:
+    """
+    Fire-and-forget AIRun recording after a successful engine call.
+    Never raises — trust failures must not crash the endpoint.
+    Returns ai_run_id or None.
+    """
+    try:
+        from backend.core.feature_flags import FLAG_AUDIT_LOG, flag_enabled
+        if not flag_enabled(session, FLAG_AUDIT_LOG):
+            return None
+
+        from backend.services import trust_service
+        provider = getattr(result, "provider", None)
+        model    = getattr(result, "model",    None)
+        provider_str = provider.value if hasattr(provider, "value") else str(provider or "unknown")
+        model_str    = str(model or "unknown")
+
+        run = trust_service.create_ai_run(
+            session,
+            owner_username=owner_username,
+            endpoint=endpoint,
+            provider=provider_str,
+            model=model_str,
+            study_id=study_id,
+            review_id=review_id,
+        )
+        trust_service.complete_ai_run(
+            session,
+            run,
+            latency_ms=latency_ms,
+            evidence_basis=evidence_basis,
+        )
+        return run.id
+    except Exception as exc:
+        logger.debug("_record_trust failed (non-fatal): %s", exc)
+        return None
+
 # ── Evidence weighting ────────────────────────────────────────────────────────
 
 EVIDENCE_WEIGHTS = {
@@ -381,6 +431,8 @@ async def ai_summarize(payload: AISummarizeRequest, session: Session = Depends(g
     session.add(rec)
     session.commit()
     _wire_ai_runs(session, current_user.username, payload.doi, payload.pmid)
+    study_id = getattr(payload, "study_id", None)
+    _record_trust(session, current_user.username, "summarise", result, study_id=study_id)
     return AISummarizeResponse(text=result.text)
 
 
@@ -694,6 +746,10 @@ async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get
         increment_ai_runs(session, payload.study_id, current_user.username)
     except Exception:
         pass
+
+    # Phase 6: Trust recording
+    evidence_basis = (appraisal_raw.get("evidence_strength") or "unknown").lower().replace(" ", "_")
+    _record_trust(session, current_user.username, "clinical", result, study_id=payload.study_id, evidence_basis=evidence_basis)
 
     grade = GRADEData(**grade_raw) if grade_raw else None
     jargon_items = [JargonItem(term=j.get("term", ""), definition=j.get("definition", "")) for j in jargon_raw if isinstance(j, dict)]
@@ -1109,6 +1165,7 @@ async def ai_synthesise(payload: AISynthesisRequest, session: Session = Depends(
         session.add(rec)
         session.commit()
         session.refresh(rec)
+        _record_trust(session, current_user.username, "synthesise", result, evidence_basis="systematic_review")
         return _build_synthesis_response(rec, payload.study_ids, cached=False)
     except Exception as e:
         logger.warning("SynthesisResult cache write failed (non-fatal): %s", e)

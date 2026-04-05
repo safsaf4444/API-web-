@@ -28,6 +28,8 @@ from backend.routers.reviews import router as reviews_router
 from backend.routers.studies import router as studies_router
 from backend.routers.research import router as research_router
 from backend.routers.writing import router as writing_router
+from backend.routers.trust import router as trust_router         # Phase 6
+from backend.routers.eval_router import router as eval_router   # Phase 6
 
 logger = logging.getLogger("uvicorn")
 
@@ -122,6 +124,8 @@ app.include_router(reviews_router)     # Phase 4
 app.include_router(extraction_router)  # Phase 4c
 app.include_router(research_router)    # Phase 5: Research Lifecycle
 app.include_router(writing_router)     # Phase 5: Writing and Reports
+app.include_router(trust_router)       # Phase 6: Trust & Validity
+app.include_router(eval_router)        # Phase 6: Benchmark Eval
 
 # ── Static ────────────────────────────────────────────────────────────────────
 
@@ -151,7 +155,8 @@ _API_PREFIXES = (
     "/external/", "/metrics/", "/ai/", "/health/",
     "/notebooks/", "/community/",
     "/reviews/", "/reminders/", "/extraction-templates/",
-    "/research/", "/docs", "/redoc", "/openapi",
+    "/research/", "/trust/", "/eval/",
+    "/docs", "/redoc", "/openapi",
 )
 
 

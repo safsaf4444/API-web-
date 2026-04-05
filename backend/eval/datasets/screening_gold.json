@@ -1,0 +1,32 @@
+[
+  {
+    "input_text": "Title: Effect of metformin on HbA1c in type 2 diabetes: a randomized controlled trial\nAbstract: We randomized 240 patients with type 2 diabetes to metformin or placebo for 24 weeks. HbA1c decreased significantly in the metformin group (p<0.001). No serious adverse events were reported.\nInclusion criteria: RCT, type 2 diabetes, pharmacological intervention, HbA1c outcome",
+    "expected_output": "include",
+    "metadata": {"source": "synthetic", "task_type": "screening"}
+  },
+  {
+    "input_text": "Title: Social media use and depression in adolescents: a cross-sectional study\nAbstract: We surveyed 500 adolescents about social media use and depressive symptoms using the PHQ-9. Increased social media use correlated with higher PHQ-9 scores (r=0.32, p<0.001).\nInclusion criteria: RCT, type 2 diabetes, pharmacological intervention, HbA1c outcome",
+    "expected_output": "exclude",
+    "metadata": {"source": "synthetic", "task_type": "screening"}
+  },
+  {
+    "input_text": "Title: Intensive insulin therapy versus conventional therapy in type 1 diabetes: 10-year follow-up of DCCT\nAbstract: Long-term follow-up of the Diabetes Control and Complications Trial demonstrated sustained reduction in microvascular complications with intensive insulin therapy.\nInclusion criteria: RCT, diabetes (type 1 or 2), insulin therapy, microvascular outcomes",
+    "expected_output": "include",
+    "metadata": {"source": "synthetic", "task_type": "screening"}
+  },
+  {
+    "input_text": "Title: Air pollution and respiratory outcomes in urban children: a cohort study\nAbstract: A 5-year prospective cohort of 1200 children in urban environments found associations between PM2.5 exposure and reduced FEV1 growth.\nInclusion criteria: RCT, type 2 diabetes, pharmacological intervention, HbA1c outcome",
+    "expected_output": "exclude",
+    "metadata": {"source": "synthetic", "task_type": "screening"}
+  },
+  {
+    "input_text": "Title: Empagliflozin and cardiovascular outcomes in type 2 diabetes\nAbstract: In this RCT, 7020 patients with type 2 diabetes and high cardiovascular risk were randomized to empagliflozin or placebo. The primary endpoint was 3-point MACE. Empagliflozin significantly reduced cardiovascular death (HR 0.62, 95% CI 0.49-0.77).\nInclusion criteria: RCT, type 2 diabetes, pharmacological intervention, cardiovascular outcomes",
+    "expected_output": "include",
+    "metadata": {"source": "synthetic", "task_type": "screening"}
+  },
+  {
+    "input_text": "Title: Mindfulness meditation for chronic pain: a qualitative study\nAbstract: Thematic analysis of interviews with 20 chronic pain patients who completed an 8-week MBSR programme revealed four major themes around pain acceptance and coping.\nInclusion criteria: RCT, type 2 diabetes, pharmacological intervention, HbA1c outcome",
+    "expected_output": "exclude",
+    "metadata": {"source": "synthetic", "task_type": "screening"}
+  }
+]

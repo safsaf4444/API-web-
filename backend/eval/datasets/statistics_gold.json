@@ -1,0 +1,22 @@
+[
+  {
+    "input_text": "Extract the key statistical results from the following text:\n\nMetformin reduced HbA1c by 1.2% (95% CI 0.9-1.5%) compared to 0.1% (95% CI -0.1 to 0.3%) with placebo. The between-group difference was 1.1% (95% CI 0.7-1.5%, p<0.001). Number needed to treat (NNT) for HbA1c <7.0% was 4 (95% CI 3-6).",
+    "expected_output": "HbA1c reduction metformin: 1.2% (95% CI 0.9-1.5%); placebo: 0.1%; difference: 1.1% (p<0.001); NNT: 4",
+    "metadata": {"source": "synthetic", "task_type": "statistics"}
+  },
+  {
+    "input_text": "Extract the key statistical results from the following text:\n\nThe 5-year survival rate was 72% in the surgical group versus 58% in the medical management group (HR 0.61, 95% CI 0.48-0.78, p<0.0001). Absolute risk reduction was 14% and NNT was 7.",
+    "expected_output": "5-year survival: surgery 72% vs medical 58%; HR 0.61 (95% CI 0.48-0.78, p<0.0001); ARR 14%; NNT 7",
+    "metadata": {"source": "synthetic", "task_type": "statistics"}
+  },
+  {
+    "input_text": "Extract the key statistical results from the following text:\n\nMeta-analysis of 12 trials (n=4856) found a pooled OR of 0.72 (95% CI 0.61-0.85, p<0.001) for the primary outcome. Heterogeneity was moderate (I²=42%). Funnel plot analysis did not suggest publication bias.",
+    "expected_output": "Pooled OR: 0.72 (95% CI 0.61-0.85, p<0.001); n=4856 (12 trials); I²=42%; no publication bias",
+    "metadata": {"source": "synthetic", "task_type": "statistics"}
+  },
+  {
+    "input_text": "Extract the key statistical results from the following text:\n\nLogistic regression showed age (OR 1.04 per year, 95% CI 1.02-1.06), hypertension (OR 2.3, 95% CI 1.6-3.3), and smoking (OR 1.8, 95% CI 1.2-2.7) were independently associated with the outcome. The model had an AUC of 0.78.",
+    "expected_output": "Age OR 1.04/year (95% CI 1.02-1.06); hypertension OR 2.3 (1.6-3.3); smoking OR 1.8 (1.2-2.7); AUC 0.78",
+    "metadata": {"source": "synthetic", "task_type": "statistics"}
+  }
+]

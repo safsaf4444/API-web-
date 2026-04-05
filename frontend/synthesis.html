@@ -201,7 +201,10 @@
     .prismaArrow { font-size:20px; color:var(--line); line-height:1; padding:4px 0; }
     .prismaRow { display:flex; align-items:center; gap:20px; justify-content:center; }
     .prismaSide { font-size:12px; color:var(--bad); font-weight:600; white-space:nowrap; background:rgba(184,64,64,.06); border:1px solid rgba(184,64,64,.15); border-radius:var(--r-sm); padding:6px 12px; }
+    /* Trust strip in synthesis header */
+    .synthTrustStrip { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px; }
   </style>
+  <link rel="stylesheet" href="trust.css">
 </head>
 <body>
 <main>
@@ -883,6 +886,9 @@ function renderResults(data, mode, query) {
   html += '</div>';
   document.getElementById('synthResults').innerHTML = html;
 
+  // Phase 6: inject trust badges into synthesis header
+  if (window.__injectSynthTrust) window.__injectSynthTrust(data);
+
   // Cache current result for this session
   window.__SYNTH_CACHE__ = window.__SYNTH_CACHE__ || {};
   const _cacheKey = mode === 'cross_paper'
@@ -1118,6 +1124,72 @@ function formatCitationJS(paper, fmt) {
 }
 
 init();
+</script>
+<script src="trust.js" defer></script>
+<script>
+/* ── Trust UI init (synthesis.html) ──────────────────────────────── */
+(function() {
+  let _synthDrawer = null;
+  function getDrawer() {
+    if (!_synthDrawer && window.TrustUI) _synthDrawer = new TrustUI.ProvenanceDrawer();
+    return _synthDrawer;
+  }
+
+  /**
+   * Render trust strip for a synthesis result.
+   * Injected into the .synthResultHeader after renderResults() builds the DOM.
+   * data = raw API response from /ai/synthesise or /ai/subject-query.
+   */
+  window.__injectSynthTrust = function(data) {
+    if (!window.TrustUI) return;
+
+    const actionsEl = document.querySelector('.synthResultActions');
+    if (!actionsEl) return;
+
+    // Remove previous strip if re-running
+    document.querySelector('.synthTrustStrip')?.remove();
+
+    const trustData = {
+      ai_run_id:          data.ai_run_id          || null,
+      trust_score:        data.trust_score         || null,
+      confidence_ceiling: data.confidence_ceiling  || null,
+      flagged:            data.flagged             || false,
+      flag_reason:        data.flag_reason         || null,
+      evidence_basis:     'systematic_review',   // synthesis always aggregates
+      claim_count:        (data.consensus_points || []).length + (data.contradictions || []).length,
+      provider:           data.provider || null,
+      model:              data.model_used || null,
+    };
+
+    const strip = document.createElement('div');
+    strip.className = 'synthTrustStrip';
+
+    // Evidence basis pill
+    strip.appendChild(TrustUI.renderEvidenceBasisBadge('systematic_review'));
+
+    // Confidence badge
+    if (trustData.ai_run_id) {
+      strip.appendChild(
+        TrustUI.renderTrustBadge(trustData, () => getDrawer()?.open(trustData.ai_run_id))
+      );
+    } else {
+      strip.appendChild(TrustUI.renderTrustBadge(trustData));
+    }
+
+    // Insert strip below the meta line (before actions)
+    const headerEl = actionsEl.closest('.synthResultHeader');
+    const metaEl   = headerEl?.querySelector('.synthResultMeta');
+    if (metaEl) metaEl.after(strip);
+    else headerEl?.insertBefore(strip, actionsEl);
+
+    // Limitation banner if flagged
+    const banner = TrustUI.renderLimitationBanner(trustData);
+    if (banner) {
+      const wrap = document.querySelector('.synthResultWrap');
+      if (wrap) wrap.insertBefore(banner, wrap.querySelector('.folderAccordion') || wrap.firstChild);
+    }
+  };
+})();
 </script>
 </body>
 </html>

@@ -422,3 +422,22 @@ class ResearchQuestion(SQLModel, table=True):
     novelty_notes:   Optional[str] = None
     created_at:      datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at:      datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ── Phase 6: Trust & Validity System ─────────────────────────────────────────
+# Import all trust models so Alembic picks them up in autogenerate
+from backend.models_trust import (  # noqa: E402, F401
+    AIRun,
+    PromptVersion,
+    EvidenceSpan,
+    Claim,
+    VerificationRecord,
+    AuditLog,
+    BenchmarkDataset,
+    BenchmarkItem,
+    EvalRun,
+    EvalMetric,
+    TrustAlert,
+    FeatureFlag,
+    UserRole,
+)

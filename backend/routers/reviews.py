@@ -44,7 +44,18 @@ router = APIRouter(tags=["reviews"])
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _audit(review: SystematicReview, action: str, details: str = "") -> None:
+def _audit(
+    review: SystematicReview,
+    action: str,
+    details: str = "",
+    session=None,
+    actor: str = "system",
+) -> None:
+    """
+    Write to both the legacy JSON blob (backward-compat) and the new
+    append-only AuditLog table (Phase 6).  The session param is optional —
+    if omitted only the JSON blob is written (old call-sites that don't pass it).
+    """
     log = review.audit_log or []
     if not isinstance(log, list):
         log = []
@@ -55,6 +66,20 @@ def _audit(review: SystematicReview, action: str, details: str = "") -> None:
     })
     review.audit_log = log
     review.updated_at = datetime.now(timezone.utc)
+
+    # Phase 6: also write to the structured audit table
+    if session is not None:
+        try:
+            from backend.services import audit_service
+            audit_service.log(
+                session,
+                event=f"review.{action}",
+                actor=actor,
+                review_id=review.id,
+                detail=details[:500] if details else None,
+            )
+        except Exception as _exc:
+            pass  # non-fatal
 
 
 def _get_byok_keys(user: User) -> dict:

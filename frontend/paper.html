@@ -327,6 +327,7 @@
     }
 
   </style>
+  <link rel="stylesheet" href="trust.css">
 </head>
 
 <body>
@@ -1820,6 +1821,9 @@ function renderEvidencePanel(data, study) {
             },
           });
           renderEvidencePanel(result, study);
+          // Phase 6: inject trust badges into the evidence panel
+          const evidenceContainer = document.getElementById('evidencePanel') || document.querySelector('.evidencePanel');
+          if (window.__injectTrustUI && evidenceContainer) window.__injectTrustUI(result, evidenceContainer);
           showToast("Analysis complete", "Clinical intelligence updated.", "success");
         } catch(err) {
           showToast("Analysis failed", err.message, "error");
@@ -2575,6 +2579,82 @@ function attachTableExplainers(container) {
 
 
 } // end init guard
+</script>
+<script src="trust.js" defer></script>
+<script>
+/* ── Trust UI init (paper.html) ───────────────────────────────────── */
+(function initTrustUI() {
+  // Wait for trust.js to load
+  document.currentScript.closest('body').addEventListener('DOMContentLoaded', setupTrust, { once: true });
+  if (document.readyState !== 'loading') setupTrust();
+
+  let _drawer = null;
+  function getDrawer() {
+    if (!_drawer && window.TrustUI) _drawer = new TrustUI.ProvenanceDrawer();
+    return _drawer;
+  }
+
+  function setupTrust() {
+    if (!window.TrustUI) return;
+
+    // Alert dot on any nav item labelled "Trust" if present
+    const trustNav = document.querySelector('[data-nav="trust"], .nav-trust');
+    if (trustNav) TrustUI.initTrustAlertDot(trustNav);
+  }
+
+  /**
+   * Inject trust badges + limitation banner after a clinical AI response.
+   * Called from the clinical fetch handler with the raw API result.
+   * Expects result to contain: ai_run_id, trust_score, evidence_basis, flagged, flag_reason
+   */
+  window.__injectTrustUI = function(result, containerEl) {
+    if (!window.TrustUI || !containerEl) return;
+
+    const trustData = {
+      ai_run_id:          result.ai_run_id          || null,
+      trust_score:        result.trust_score         || null,
+      confidence_ceiling: result.confidence_ceiling  || null,
+      flagged:            result.flagged             || false,
+      flag_reason:        result.flag_reason         || null,
+      evidence_basis:     (result.appraisal && result.appraisal.evidence_strength)
+                            ? _strengthToBasis(result.appraisal.evidence_strength)
+                            : 'unknown',
+      claim_count:        (result.key_claims || []).length,
+      provider:           result.provider || null,
+      model:              result.model_used || null,
+    };
+
+    // Remove any previous trust strip
+    containerEl.querySelector('.trust-strip')?.remove();
+
+    const strip = document.createElement('div');
+    strip.className = 'trust-strip';
+    strip.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+
+    // Evidence basis pill
+    strip.appendChild(TrustUI.renderEvidenceBasisBadge(trustData.evidence_basis));
+
+    // Confidence badge — opens provenance drawer on click
+    if (trustData.ai_run_id) {
+      strip.appendChild(TrustUI.renderTrustBadge(trustData, () => getDrawer()?.open(trustData.ai_run_id)));
+    }
+
+    containerEl.insertBefore(strip, containerEl.firstChild);
+
+    // Limitation banner (only if flagged)
+    const banner = TrustUI.renderLimitationBanner(trustData);
+    if (banner) containerEl.insertBefore(banner, strip.nextSibling);
+  };
+
+  function _strengthToBasis(strength) {
+    const s = String(strength);
+    if (s >= '4') return 'rct';
+    if (s >= '3') return 'cohort';
+    if (s >= '2') return 'case_control';
+    if (s >= '1') return 'expert_opinion';
+    return 'unknown';
+  }
+})();
 </script>
 </body>
 </html>
