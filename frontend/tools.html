@@ -3,485 +3,364 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Workspace — Seren</title>
+  <title>Workspace & Tools — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fortune-sheet@latest/dist/fortune-sheet.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/fortune-sheet@latest/dist/fortune-sheet.umd.js"></script>
   <style>
-    .toolTabs {
-      display: flex;
-      gap: 0;
-      border-bottom: 1px solid var(--line);
-      margin-bottom: 0;
-      flex-shrink: 0;
+    .toolsLayout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 350px;
+      gap: 20px;
+      align-items: start;
     }
-    .toolTab {
-      padding: 10px 20px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--subtle);
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      user-select: none;
-      transition: color .15s, border-color .15s;
-    }
-    .toolTab:hover { color: var(--navy); }
-    .toolTab.active { color: var(--navy); border-bottom-color: var(--brass); }
-
-    .toolPane { display: none; padding: 20px; }
-    .toolPane.active { display: flex; flex-direction: column; }
-
-    /* Spreadsheet tab takes remaining height */
-    #paneSheet {
-      height: calc(100vh - 120px);
-      padding: 0;
-    }
-    #sheetToolbar {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--line);
-      background: var(--surface);
-      flex-shrink: 0;
-    }
-    #sheetListWrap { font-size: 12px; color: var(--subtle); }
-    #fortuneContainer { flex: 1; position: relative; min-height: 0; }
-
-    /* PDF tab */
+    @media (max-width: 900px) { .toolsLayout { grid-template-columns: 1fr; } }
+    
+    .cardArea { display: flex; flex-direction: column; gap: 20px; }
+    
+    /* PDF Drop zone */
     #pdfDropZone {
       border: 2px dashed var(--line);
       border-radius: var(--r-sm);
-      padding: 36px 20px;
+      padding: 32px 16px;
       text-align: center;
-      font-size: 13px;
+      font-size: 13.5px;
       color: var(--subtle);
       cursor: pointer;
       transition: border-color .15s, background .15s;
-      margin-bottom: 16px;
     }
     #pdfDropZone.dragover { border-color: var(--brass); background: rgba(201,168,124,.06); }
     #pdfDropZone input[type=file] { display: none; }
-    #pdfResult { font-size: 13px; color: var(--text2); line-height: 1.65; }
-    #pdfResult pre { white-space: pre-wrap; font-size: 11.5px; background: var(--surface2); padding: 10px 12px; border-radius: var(--r-sm); overflow-x: auto; max-height: 400px; overflow-y: auto; }
+    #pdfResult { margin-top: 12px; font-size: 13px; color: var(--text2); line-height: 1.65; }
+    #pdfResult pre { white-space: pre-wrap; font-size: 11.5px; background: var(--surface2); padding: 12px; border-radius: var(--r-sm); overflow-x: auto; max-height: 400px; overflow-y: auto; border: 1px solid var(--line); }
 
-    /* Chat */
-    #chatMessages {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding: 16px;
-      background: var(--surface2);
-      border: 1px solid var(--line);
-      border-radius: var(--r-sm);
-      margin-bottom: 12px;
-      min-height: 300px;
+    /* Figure Explain Input */
+    #figureExplainArea textarea { min-height: 80px; font-size: 13px; font-family: inherit; resize: vertical; margin-bottom: 8px;}
+    
+    .imgUploadBtn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: var(--r-pill); border: 1px solid var(--line);
+      background: var(--surface); color: var(--subtle); font-size: 16px; cursor: pointer; transition: 0.15s;
     }
-    .chatMsg { display: flex; flex-direction: column; gap: 2px; max-width: 82%; }
-    .chatMsg.user { align-self: flex-end; align-items: flex-end; }
-    .chatMsg.assistant { align-self: flex-start; }
-    .chatBubble {
-      padding: 10px 14px;
-      border-radius: 14px;
-      font-size: 13.5px;
-      line-height: 1.6;
-      white-space: pre-wrap;
+    .imgUploadBtn:hover { background: var(--surface2); color: var(--navy); border-color: var(--brass); }
+    
+    /* General AI Query */
+    .aiResponseBox {
+      background: var(--surface2); border: 1px solid var(--line); border-radius: var(--r-sm);
+      padding: 16px; font-size: 13.5px; line-height: 1.7; color: var(--text2); margin-top: 12px;
+      white-space: pre-wrap; word-break: break-word; display: none;
     }
-    .chatMsg.user .chatBubble { background: var(--navy); color: #fff; border-bottom-right-radius: 4px; }
-    .chatMsg.assistant .chatBubble { background: var(--surface); border: 1px solid var(--line); color: var(--text); border-bottom-left-radius: 4px; }
-    .chatMeta { font-size: 10px; color: var(--subtle); }
 
-    .chatInputRow { display: flex; gap: 8px; }
-    .chatInputRow textarea { flex: 1; resize: none; font-size: 13px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); line-height: 1.5; }
   </style>
 </head>
 <body>
 
-<main>
-  <div style="padding:24px 20px 0;">
-    <h1 style="font-family:var(--font-display);font-size:22px;color:var(--navy);letter-spacing:-0.03em;margin-bottom:4px;">Workspace</h1>
-    <p style="color:var(--muted);font-size:13.5px;margin-bottom:20px;line-height:1.6;">General-purpose tools: spreadsheets, PDF extraction, figure analysis, and AI chat.</p>
-  </div>
+<main class="container" style="max-width:1100px; padding-top:40px;">
+  <h1 style="font-family:var(--font-display);font-size:26px;color:var(--navy);letter-spacing:-0.03em;">Workspace Tools</h1>
+  <p style="color:var(--muted);font-size:14.5px;max-width:600px;line-height:1.6;margin-bottom:30px;">
+    General tools for data extraction, figure interpretation, querying, and manual spreadsheeting that operate independently of any specific paper in your library.
+  </p>
 
-  <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);margin:0 20px 20px;overflow:hidden;display:flex;flex-direction:column;">
-    <div class="toolTabs">
-      <div class="toolTab active" data-tab="sheet">&#128202; Spreadsheet</div>
-      <div class="toolTab" data-tab="pdf">&#128196; PDF Extract</div>
-      <div class="toolTab" data-tab="figure">&#128444; Figure Explainer</div>
-      <div class="toolTab" data-tab="chat">&#129302; AI Assist</div>
-    </div>
-
-    <!-- ── Spreadsheet ── -->
-    <div class="toolPane active" id="paneSheet">
-      <div id="sheetToolbar">
-        <select id="sheetSelect" style="font-size:12.5px;padding:5px 10px;border:1px solid var(--line);border-radius:var(--r-sm);max-width:220px;"></select>
-        <button class="btn sm primary" id="newSheetBtn">+ New Sheet</button>
-        <button class="btn sm ghost" id="deleteSheetBtn" style="color:var(--bad);">Delete</button>
-        <span id="sheetSaveStatus" style="font-size:11.5px;color:var(--subtle);margin-left:8px;"></span>
-        <div style="flex:1;"></div>
-        <span style="font-size:11.5px;color:var(--subtle);">Auto-saves every 3s</span>
+  <div class="toolsLayout">
+    
+    <!-- LEFT COLUMN -->
+    <div class="cardArea">
+      
+      <!-- General AI query -->
+      <div class="card">
+         <div class="sectionLabel">General AI Assistant</div>
+         <div class="hr"></div>
+         <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+            Ask the AI general questions, query it about external knowledge, or request help with methodology design. 
+         </div>
+         <div style="display:flex; gap:8px;">
+            <input type="text" id="aiGeneralInput" placeholder="e.g. Compare the Cox proportional hazards model vs Kaplan-Meier..." style="flex:1; font-size:13px; padding:10px 14px; border-radius:var(--r-sm); border:1px solid var(--line);" />
+            <button class="btn primary" id="aiGeneralBtn">Ask AI</button>
+         </div>
+         <div id="aiGeneralResult" class="aiResponseBox"></div>
       </div>
-      <div id="fortuneContainer"></div>
-    </div>
 
-    <!-- ── PDF Extract ── -->
-    <div class="toolPane" id="panePdf" style="max-width:780px;">
-      <div style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:16px;">Upload a PDF to extract full text, figure metadata, and references. Max 50 MB.</div>
-      <div id="pdfDropZone">
-        <input type="file" id="pdfFileInput" accept=".pdf"/>
-        <div style="font-size:32px;margin-bottom:10px;opacity:.4;">&#128196;</div>
-        <div><strong>Drop a PDF here</strong> or <span style="color:var(--brass);text-decoration:underline;cursor:pointer;" id="pdfBrowseLink">browse</span></div>
-        <div style="font-size:11.5px;margin-top:6px;">Extracts full text, figures metadata, and references</div>
+      <!-- PDF Upload & Text Extraction -->
+      <div class="card" id="pdfUploadCard">
+        <div class="sectionLabel">PDF Extraction Suite</div>
+        <div class="hr"></div>
+        <div id="pdfDropZone">
+          <input type="file" id="pdfFileInput" accept=".pdf"/>
+          <div style="font-size:32px;margin-bottom:10px;opacity:.5;">📄</div>
+          <div style="font-size:15px; color:var(--navy);"><strong>Drop a PDF here</strong> or <span style="color:var(--brass);text-decoration:underline;cursor:pointer;" id="pdfBrowseLink">browse</span></div>
+          <div style="font-size:12px;margin-top:6px;">Extracts full text, figures metadata, and references · Max 50 MB</div>
+        </div>
+        <div id="pdfResult"></div>
       </div>
-      <div id="pdfResult"></div>
-    </div>
-
-    <!-- ── Figure Explainer ── -->
-    <div class="toolPane" id="paneFigure" style="max-width:700px;">
-      <div style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:16px;">Describe a figure, chart, or graph and the AI will explain it in clinical context.</div>
-      <textarea id="figureDescInput" rows="5" placeholder="e.g. Kaplan-Meier survival curve with two groups, HR=0.72 (95% CI 0.55–0.94), p=0.014. X-axis: months 0–60. Y-axis: Overall survival 0–100%." style="width:100%;font-size:13px;padding:10px;border:1px solid var(--line);border-radius:var(--r-sm);margin-bottom:10px;resize:vertical;"></textarea>
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <button class="btn primary" id="figureExplainBtn">&#9881; Explain Figure</button>
-        <button class="btn ghost" id="figureClearBtn">Clear</button>
-      </div>
-      <div id="figureExplainResult" style="display:none;font-size:13.5px;line-height:1.7;color:var(--text2);background:var(--cream3);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 16px;white-space:pre-wrap;"></div>
-    </div>
-
-    <!-- ── AI Assist ── -->
-    <div class="toolPane" id="paneChat" style="height:calc(100vh - 160px);">
-      <div id="chatMessages">
-        <div class="chatMsg assistant">
-          <div class="chatBubble">Hi! I'm your Workspace AI Assistant. Ask me anything — about your research, a concept, methodology, statistics, or just brainstorm ideas.</div>
-          <div class="chatMeta">Seren AI</div>
+      
+      <!-- Figure / Image Explainer -->
+      <div class="card" id="figureExplainCard">
+        <div class="sectionLabel">Figure &amp; Image Explainer</div>
+        <div class="hr"></div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:12px;">Upload a screenshot of a figure or describe it by text. The AI will explain its clinical and statistical context.</div>
+        <div id="figureExplainArea">
+          <textarea id="figureDescInput" placeholder="e.g. Kaplan-Meier survival curve with two groups, HR=0.72 (95% CI 0.55–0.94), p=0.014..."></textarea>
+          
+          <div style="display:flex; gap:10px; align-items:center;">
+             <input type="file" id="figureImageInput" accept="image/*" style="display:none;" />
+             <button class="imgUploadBtn" id="figureImgBtn" title="Upload screenshot">📷</button>
+             <span id="figureImgName" style="font-size:11px; color:var(--brass); font-weight:600;"></span>
+             <div style="flex:1;"></div>
+             <button class="btn primary" id="figureExplainBtn">&#9881; Explain Figure</button>
+          </div>
+          
+          <div id="figureExplainResult" class="aiResponseBox"></div>
         </div>
       </div>
-      <div class="chatInputRow">
-        <textarea id="chatInput" rows="3" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)"></textarea>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <button class="btn primary" id="chatSendBtn" style="height:48px;">Send</button>
-          <button class="btn ghost sm" id="chatClearBtn">Clear</button>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="cardArea">
+      <!-- Data Sources & Spreadsheets -->
+      <div class="card" id="dataSourcesCard">
+        <div class="sectionLabel">Embedded Spreadsheet</div>
+        <div class="hr"></div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+           Launch a full spreadsheet editor to curate data manually. Extracted PICO data from your papers can be imported directly into rows.
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+           <button class="btn primary" style="width:100%; justify-content:center;" id="openSpreadsheetBtn">&#128202; Open FortuneSheet</button>
+        </div>
+        <div class="hr" style="margin:16px 0;"></div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Dataset Link Tracking</div>
+        <div style="display:flex;gap:8px;flex-direction:column;">
+          <input type="text" id="kaggleUrlInput" placeholder="Kaggle URL" style="font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);" />
+          <input type="text" id="osfUrlInput" placeholder="OSF URL" style="font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);" />
+          <input type="text" id="githubUrlInput" placeholder="GitHub URL" style="font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);" />
+          <input type="text" id="zenodoUrlInput" placeholder="Zenodo URL" style="font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);" />
         </div>
       </div>
     </div>
-
+    
   </div>
 </main>
+
+<!-- Spreadsheet Modal -->
+<div id="spreadsheetOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;width:95vw;height:95vh;border-radius:var(--r-md);display:flex;flex-direction:column;overflow:hidden;position:relative;">
+     <div style="display:flex;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface);">
+       <strong style="font-family:var(--font-display); font-size:16px; color:var(--navy);">Global Spreadsheet (Auto-saving)</strong>
+       <div style="display:flex;gap:10px;">
+          <!-- removed sheetImportAiBtn since that was strictly for single paper context -->
+          <button class="btn sm ghost" id="sheetCloseBtn">&#10005; Close Spreadsheet</button>
+       </div>
+     </div>
+     <div id="spreadsheet-container" style="flex:1;position:relative;"></div>
+  </div>
+</div>
 
 <script src="api.js"></script>
 <script src="app.js"></script>
 <script>
-if (!window.__SEREN_TOOLS_INIT__) {
-window.__SEREN_TOOLS_INIT__ = true;
+  // Auth gating
+  window.onload = () => { requireAuthOrRedirect(); };
 
-requireAuthOrRedirect();
+  function escHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
 
-/* ── Tab switching ───────────────────────────────────────── */
-let sheetInitialised = false;
+  // ── General AI Query ───────────────────────────────────────────────────────
+  (function() {
+     const input = document.getElementById('aiGeneralInput');
+     const btn = document.getElementById('aiGeneralBtn');
+     const resultBox = document.getElementById('aiGeneralResult');
 
-document.querySelectorAll('.toolTab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.toolTab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.toolPane').forEach(p => p.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById('pane' + cap(tab.dataset.tab)).classList.add('active');
-    if (tab.dataset.tab === 'sheet' && !sheetInitialised) {
-      initSpreadsheet();
+     btn.onclick = async () => {
+       const q = input.value.trim();
+       if (!q) return;
+       await withBtnLoading(btn, async () => {
+         try {
+           resultBox.style.display = 'block';
+           resultBox.innerHTML = '<span style="color:var(--subtle);">Thinking...</span>';
+           const res = await fetchJson('/ai/ask', {
+             method: 'POST', body: { question: q }
+           });
+           resultBox.innerHTML = escHtml(res.answer).replace(/\n/g, '<br/>');
+           input.value = '';
+         } catch(e) {
+           resultBox.innerHTML = `<span style="color:var(--bad);">${escHtml(e.message)}</span>`;
+         }
+       });
+     };
+     input.addEventListener('keydown', e => { if(e.key === 'Enter') btn.click(); });
+  })();
+
+  // ── PDF Extraction ─────────────────────────────────────────────────────────
+  (function() {
+    const zone = document.getElementById('pdfDropZone');
+    const fileInput = document.getElementById('pdfFileInput');
+    const browse = document.getElementById('pdfBrowseLink');
+    const result = document.getElementById('pdfResult');
+    if (!zone) return;
+
+    browse.onclick = () => fileInput.click();
+    zone.onclick = (e) => { if (e.target !== browse) fileInput.click(); };
+
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) handlePdfUpload(e.dataTransfer.files[0]);
+    });
+    fileInput.onchange = () => { if (fileInput.files[0]) handlePdfUpload(fileInput.files[0]); };
+
+    async function handlePdfUpload(file) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        showToast('Invalid file', 'Only PDF files are accepted.', 'error'); return;
+      }
+      result.innerHTML = '<div style="color:var(--subtle);font-size:13px;padding:12px;text-align:center;">↻ Uploading and extracting... Please hold...</div>';
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const resp = await fetch('/ai/upload-pdf', {
+          method: 'POST',
+          headers: getToken() ? { 'Authorization': `Bearer ${getToken()}` } : {},
+          body: formData,
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        result.innerHTML = `
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--subtle);background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 12px;align-items:center;justify-content:center;">
+            <span style="color:var(--navy);">📄 <strong>${data.pages}</strong> pages</span>
+            <span style="color:var(--navy);">💬 <strong>${data.total_characters.toLocaleString()}</strong> chars</span>
+            <span style="color:var(--navy);">🖼 <strong>${data.figures_count}</strong> figures</span>
+            <span style="color:var(--navy);">📚 <strong>${data.references_count}</strong> refs</span>
+          </div>
+          ${data.references.length ? `<details style="margin-bottom:8px;"><summary style="font-size:13px;cursor:pointer;color:var(--navy);font-weight:600;">References (${data.references.length})</summary><pre>${escHtml(data.references.join('\n'))}</pre></details>` : ''}
+          <details open><summary style="font-size:13px;cursor:pointer;color:var(--navy);font-weight:600;">Full Text Preview</summary><pre>${escHtml(data.full_text.slice(0, 10000))}${data.full_text.length > 10000 ? '\n… (truncated)' : ''}</pre></details>
+        `;
+      } catch(err) {
+        result.innerHTML = `<div style="color:var(--bad);font-size:13px;padding:12px;">${escHtml(err.message)}</div>`;
+      }
+      fileInput.value = '';
     }
-  });
-});
+  })();
 
-function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  // ── Figure Explainer V2 ────────────────────────────────────────────────────
+  (function() {
+    const btn = document.getElementById('figureExplainBtn');
+    const input = document.getElementById('figureDescInput');
+    const result = document.getElementById('figureExplainResult');
+    const imgInput = document.getElementById('figureImageInput');
+    const imgBtn = document.getElementById('figureImgBtn');
+    const imgName = document.getElementById('figureImgName');
+    
+    let base64Image = null;
 
-/* ── Spreadsheet ──────────────────────────────────────────── */
-let sheetInst    = null;
-let activeSheetId = null;
-let dirty        = false;
-let saveTimer    = null;
-let allSheets    = [];
+    imgBtn.onclick = () => imgInput.click();
+    imgInput.onchange = () => {
+       const file = imgInput.files[0];
+       if(!file) { base64Image = null; imgName.textContent = ''; return; }
+       if(!file.type.startsWith('image/')){ showToast("Error", "Please select an image", "error"); return; }
+       
+       imgName.textContent = file.name;
+       const reader = new FileReader();
+       reader.onload = (e) => { base64Image = e.target.result; }; // 'data:image/png;base64,...'
+       reader.readAsDataURL(file);
+    };
 
-async function loadSheetList() {
-  try {
-    allSheets = await fetchJson('/spreadsheets');
-    const sel = document.getElementById('sheetSelect');
-    if (allSheets.length === 0) {
-      sel.innerHTML = '<option value="">No sheets yet — click + New Sheet</option>';
-      activeSheetId = null;
+    btn.onclick = async () => {
+      const desc = input.value.trim();
+      if (!desc && !base64Image) { showToast('Empty', 'Enter a description or upload an image.', 'info'); return; }
+      
+      await withBtnLoading(btn, async () => {
+        try {
+          result.style.display = 'block';
+          result.innerHTML = '<span style="color:var(--subtle);">Analysing figure...</span>';
+          
+          let endpoint = '/ai/explain-figure';
+          let payload = { description: desc || "Please explain this image." };
+          
+          if(base64Image) {
+             endpoint = '/ai/explain-figure-image';
+             payload.image_b64 = base64Image;
+          }
+
+          const res = await fetchJson(endpoint, {
+            method: 'POST', body: payload
+          });
+          
+          let html = escHtml(res.explanation).replace(/\n/g, '<br/>');
+          if (base64Image) {
+             html = `<div style="margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:12px;"><img src="${base64Image}" style="max-width:100%; max-height:200px; border-radius:var(--r-sm); border:1px solid var(--line);" /></div>` + html;
+          }
+          result.innerHTML = html;
+        } catch(err) {
+          result.innerHTML = `<span style="color:var(--bad);">${escHtml(err.message)}</span>`;
+        }
+      });
+    };
+  })();
+
+  // ── Standalone FortuneSheet ────────────────────────────────────────────────
+  (function() {
+    const openBtn = document.getElementById('openSpreadsheetBtn');
+    const overlay = document.getElementById('spreadsheetOverlay');
+    const closeBtn = document.getElementById('sheetCloseBtn');
+    
+    let sheetInst = null;
+    let activeSheetId = null; // Since it's global, we might assign a fixed Study ID 0 or general ID
+    let dirty = false;
+    let saveTimer = null;
+
+    async function loadGlobalSheet() {
+      // Find a spreadsheet with NO study_id attached (study_id = null)
+      const all = await fetchJson('/spreadsheets?global=1');
+      if(all && all.length > 0) return all[0];
       return null;
     }
-    sel.innerHTML = allSheets.map(s => `<option value="${s.id}">${escHtml(s.name || 'Sheet')}</option>`).join('');
-    // Restore previously selected sheet or default to first
-    const stored = sessionStorage.getItem('_tools_sheet_id');
-    const found  = stored ? allSheets.find(s => s.id === parseInt(stored)) : null;
-    const target = found || allSheets[0];
-    sel.value = target.id;
-    return target;
-  } catch(e) { return null; }
-}
 
-async function mountSheet(docObj) {
-  const container = document.getElementById('fortuneContainer');
-  container.innerHTML = '';
-
-  if (sheetInst) { sheetInst = null; }
-
-  const data = (docObj && docObj.data_json) ? JSON.parse(docObj.data_json) : [{ name: 'Sheet1', celldata: [] }];
-  activeSheetId = docObj ? docObj.id : null;
-  dirty = false;
-
-  // Lazy-load FortuneSheet CSS + JS from CDN if not already loaded
-  if (!window.fortuneSheet) {
-    await loadScript('https://cdn.jsdelivr.net/npm/fortune-sheet@latest/dist/fortune-sheet.umd.js');
-    loadLink('https://cdn.jsdelivr.net/npm/fortune-sheet@latest/dist/fortune-sheet.min.css');
-    // Give browser a frame to process the stylesheet
-    await new Promise(r => requestAnimationFrame(r));
-  }
-
-  sheetInst = window.fortuneSheet.create({
-    container: 'fortuneContainer',
-    title: docObj ? (docObj.name || 'Sheet') : 'Sheet',
-    data,
-    onChange: () => {
-      dirty = true;
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(saveCurrentSheet, 3000);
+    async function saveToServer() {
+      if (!dirty || !sheetInst) return;
+      const dataJson = JSON.stringify(sheetInst.getAllSheets());
+      try {
+        if(activeSheetId) {
+          await fetchJson('/spreadsheet/' + activeSheetId, { method: 'PATCH', body: { data_json: dataJson } });
+        } else {
+          const created = await fetchJson('/spreadsheet', { method:'POST', body: { name:'Global Hub', data_json: dataJson } });
+          activeSheetId = created.id;
+        }
+        dirty = false;
+      } catch(err) { console.error("Save failed", err); }
     }
-  });
-  sheetInitialised = true;
-}
 
-async function saveCurrentSheet() {
-  if (!dirty || !sheetInst) return;
-  const dataJson = JSON.stringify(sheetInst.getAllSheets());
-  try {
-    if (activeSheetId) {
-      await fetchJson('/spreadsheet/' + activeSheetId, { method: 'PATCH', body: { data_json: dataJson } });
-    }
-    dirty = false;
-    document.getElementById('sheetSaveStatus').textContent = 'Saved ✓';
-    setTimeout(() => { document.getElementById('sheetSaveStatus').textContent = ''; }, 2000);
-  } catch(err) {
-    document.getElementById('sheetSaveStatus').textContent = 'Save failed';
-  }
-}
+    openBtn.onclick = async () => {
+      overlay.style.display = 'flex';
+      openBtn.textContent = 'Loading...';
+      let existingData = null;
+      try {
+        const dbDoc = await loadGlobalSheet();
+        activeSheetId = dbDoc ? dbDoc.id : null;
+        if(dbDoc && dbDoc.data_json) existingData = JSON.parse(dbDoc.data_json);
+      } catch(e) {}
+      
+      openBtn.textContent = '📊 Open FortuneSheet';
+      if (sheetInst) { document.getElementById('spreadsheet-container').innerHTML = ''; sheetInst = null; }
 
-async function initSpreadsheet() {
-  document.getElementById('sheetSaveStatus').textContent = 'Loading…';
-  const sheet = await loadSheetList();
-  if (sheet) {
-    // Load full doc
-    try {
-      const doc = await fetchJson('/spreadsheet/' + sheet.id);
-      await mountSheet(doc);
-    } catch(e) { await mountSheet(null); }
-  } else {
-    await mountSheet(null);
-  }
-  document.getElementById('sheetSaveStatus').textContent = '';
-}
+      sheetInst = window.fortuneSheet.create({
+        container: 'spreadsheet-container',
+        title: 'Global Data Hub',
+        data: existingData || [{ name: "Sheet1", celldata: [] }],
+        onChange: (data) => {
+          dirty = true;
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(saveToServer, 2000);
+        }
+      });
+    };
 
-document.getElementById('sheetSelect').addEventListener('change', async (e) => {
-  await saveCurrentSheet();
-  const id = parseInt(e.target.value);
-  if (!id) return;
-  sessionStorage.setItem('_tools_sheet_id', id);
-  try {
-    const doc = await fetchJson('/spreadsheet/' + id);
-    await mountSheet(doc);
-  } catch(err) { showToast('Error', err.message, 'error'); }
-});
-
-document.getElementById('newSheetBtn').onclick = async () => {
-  const name = await promptModal({ title: 'New Sheet', message: 'Enter a name for the spreadsheet.', placeholder: 'e.g. My Data', okText: 'Create' });
-  if (!name) return;
-  try {
-    const created = await fetchJson('/spreadsheet', {
-      method: 'POST',
-      body: { name, data_json: JSON.stringify([{ name: 'Sheet1', celldata: [] }]) }
-    });
-    allSheets.push(created);
-    const sel = document.getElementById('sheetSelect');
-    sel.innerHTML += `<option value="${created.id}">${escHtml(created.name)}</option>`;
-    sel.value = created.id;
-    activeSheetId = created.id;
-    await mountSheet(created);
-    sessionStorage.setItem('_tools_sheet_id', created.id);
-  } catch(err) { showToast('Error', err.message, 'error'); }
-};
-
-document.getElementById('deleteSheetBtn').onclick = async () => {
-  if (!activeSheetId) return;
-  if (!confirm('Delete this sheet? This cannot be undone.')) return;
-  try {
-    await fetchJson('/spreadsheet/' + activeSheetId, { method: 'DELETE' });
-    await initSpreadsheet();
-  } catch(err) { showToast('Error', err.message, 'error'); }
-};
-
-// Auto-save before leaving page
-window.addEventListener('beforeunload', () => { if (dirty) saveCurrentSheet(); });
-
-// Init sheet on first load since it's the default visible tab
-initSpreadsheet();
-
-
-/* ── PDF Extract ──────────────────────────────────────────── */
-const pdfZone     = document.getElementById('pdfDropZone');
-const pdfInput    = document.getElementById('pdfFileInput');
-const pdfBrowse   = document.getElementById('pdfBrowseLink');
-const pdfResult   = document.getElementById('pdfResult');
-
-pdfBrowse.onclick = () => pdfInput.click();
-pdfZone.onclick   = (e) => { if (e.target !== pdfBrowse) pdfInput.click(); };
-pdfZone.addEventListener('dragover',  e => { e.preventDefault(); pdfZone.classList.add('dragover'); });
-pdfZone.addEventListener('dragleave', () => pdfZone.classList.remove('dragover'));
-pdfZone.addEventListener('drop', e => {
-  e.preventDefault();
-  pdfZone.classList.remove('dragover');
-  const f = e.dataTransfer.files[0];
-  if (f) handlePdfUpload(f);
-});
-pdfInput.onchange = () => { if (pdfInput.files[0]) handlePdfUpload(pdfInput.files[0]); };
-
-async function handlePdfUpload(file) {
-  if (!file.name.toLowerCase().endsWith('.pdf')) {
-    showToast('Invalid file', 'Only PDF files are accepted.', 'error'); return;
-  }
-  pdfResult.innerHTML = '<div style="color:var(--subtle);font-size:12px;">Uploading and extracting…</div>';
-  const formData = new FormData();
-  formData.append('file', file);
-  const token = getToken();
-  try {
-    const resp = await fetch('/ai/upload-pdf', {
-      method: 'POST',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      body: formData,
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.detail || `HTTP ${resp.status}`);
-    }
-    const data = await resp.json();
-    pdfResult.innerHTML = `
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:12.5px;color:var(--subtle);">
-        <span>&#128196; <strong>${data.pages}</strong> pages</span>
-        <span>&#128172; <strong>${data.total_characters.toLocaleString()}</strong> chars</span>
-        <span>&#128444; <strong>${data.figures_count}</strong> figures</span>
-        <span>&#128218; <strong>${data.references_count}</strong> references</span>
-      </div>
-      ${data.references.length ? `<details><summary style="font-size:12.5px;cursor:pointer;color:var(--navy);font-weight:600;">References (${data.references.length})</summary><pre>${escHtml(data.references.join('\n'))}</pre></details>` : ''}
-      <details open><summary style="font-size:12.5px;cursor:pointer;color:var(--navy);font-weight:600;margin-top:10px;">Full Text Preview</summary><pre>${escHtml(data.full_text.slice(0, 8000))}${data.full_text.length > 8000 ? '\n…(truncated)' : ''}</pre></details>
-    `;
-  } catch(err) {
-    pdfResult.innerHTML = `<div style="color:var(--bad);font-size:13px;">${escHtml(err.message)}</div>`;
-  }
-  pdfInput.value = '';
-}
-
-
-/* ── Figure Explainer ──────────────────────────────────────── */
-document.getElementById('figureExplainBtn').onclick = async (e) => {
-  const desc   = document.getElementById('figureDescInput').value.trim();
-  const result = document.getElementById('figureExplainResult');
-  if (!desc) { showToast('Describe first', 'Enter a figure description to explain.', 'info'); return; }
-  await withBtnLoading(e.target, async () => {
-    try {
-      const res = await fetchJson('/ai/explain-figure', { method: 'POST', body: { description: desc } });
-      result.textContent = res.explanation;
-      result.style.display = 'block';
-    } catch(err) { showToast('Error', err.message, 'error'); }
-  });
-};
-
-document.getElementById('figureClearBtn').onclick = () => {
-  document.getElementById('figureDescInput').value = '';
-  const r = document.getElementById('figureExplainResult');
-  r.style.display = 'none';
-  r.textContent = '';
-};
-
-
-/* ── AI Assist Chat ───────────────────────────────────────── */
-const chatMessages = document.getElementById('chatMessages');
-const chatInput    = document.getElementById('chatInput');
-let chatHistory    = []; // [{role,content}]
-
-function appendMsg(role, content) {
-  const wrap = document.createElement('div');
-  wrap.className = 'chatMsg ' + role;
-  wrap.innerHTML = `
-    <div class="chatBubble">${escHtml(content)}</div>
-    <div class="chatMeta">${role === 'user' ? 'You' : 'Seren AI'}</div>
-  `;
-  chatMessages.appendChild(wrap);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-async function sendChat() {
-  const q = chatInput.value.trim();
-  if (!q) return;
-  chatInput.value = '';
-  appendMsg('user', q);
-  chatHistory.push({ role: 'user', content: q });
-
-  const thinkEl = document.createElement('div');
-  thinkEl.className = 'chatMsg assistant';
-  thinkEl.innerHTML = '<div class="chatBubble" style="color:var(--subtle);font-style:italic;">Thinking…</div>';
-  chatMessages.appendChild(thinkEl);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-
-  try {
-    const res = await fetchJson('/ai/ask', {
-      method: 'POST',
-      body: {
-        question: q,
-        title: 'Workspace AI Assist',
-        context: chatHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n')
-      }
-    });
-    const answer = res.answer || res.text || JSON.stringify(res);
-    chatMessages.removeChild(thinkEl);
-    appendMsg('assistant', answer);
-    chatHistory.push({ role: 'assistant', content: answer });
-  } catch(err) {
-    thinkEl.querySelector('.chatBubble').textContent = 'Error: ' + err.message;
-    thinkEl.querySelector('.chatBubble').style.color = 'var(--bad)';
-    thinkEl.querySelector('.chatBubble').style.fontStyle = 'normal';
-  }
-}
-
-document.getElementById('chatSendBtn').onclick = sendChat;
-document.getElementById('chatClearBtn').onclick = () => {
-  chatHistory = [];
-  chatMessages.innerHTML = '<div class="chatMsg assistant"><div class="chatBubble">Conversation cleared. Ask me anything!</div><div class="chatMeta">Seren AI</div></div>';
-};
-chatInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
-});
-
-
-/* ── Utilities ────────────────────────────────────────────── */
-function escHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-}
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-    const s = document.createElement('script');
-    s.src = src; s.onload = resolve; s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
-
-function loadLink(href) {
-  if (document.querySelector(`link[href="${href}"]`)) return;
-  const l = document.createElement('link');
-  l.rel = 'stylesheet'; l.href = href;
-  document.head.appendChild(l);
-}
-
-} // end init guard
+    closeBtn.onclick = () => { saveToServer(); overlay.style.display = 'none'; };
+  })();
 </script>
 </body>
 </html>

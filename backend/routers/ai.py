@@ -1234,7 +1234,11 @@ def get_synthesis(synthesis_id: int, session: Session = Depends(get_session), cu
     rec = session.get(SynthesisResult, synthesis_id)
     if not rec: raise HTTPException(status_code=404, detail="Synthesis not found.")
     if rec.owner_username != current_user.username: raise HTTPException(status_code=403, detail="Not allowed.")
-    study_ids = json.loads(rec.study_ids or "[]")
+    # study_ids may be a list of ints (cross_paper) or a list of paper dicts
+    # (subject_query). AISynthesisResponse.study_ids is List[int], so filter
+    # to only integers — subject_query syntheses legitimately have no library IDs.
+    raw_ids = json.loads(rec.study_ids or "[]")
+    study_ids = [s for s in raw_ids if isinstance(s, int)]
     return _build_synthesis_response(rec, study_ids, cached=True)
 
 
@@ -1733,8 +1737,10 @@ async def _synthesis_sub_prompt(synthesis_id: int, prompt_text: str, session: Se
     studies = []
     try:
         for sid in json.loads(rec.study_ids or "[]"):
-            if st := session.get(Study, sid): studies.append(st)
-    except: pass
+            if isinstance(sid, int):  # subject_query stores paper dicts, not IDs
+                if st := session.get(Study, sid): studies.append(st)
+    except Exception:
+        pass
     
     ctx = _build_synthesis_context(studies, {})
     user_msg = f"{prompt_text}\n\nPapers:\n{ctx}"
