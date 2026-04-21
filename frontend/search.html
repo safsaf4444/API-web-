@@ -190,6 +190,10 @@
               <option value="semantic_scholar">Semantic Scholar</option>
               <option value="openalex">OpenAlex</option>
               <option value="crossref">Crossref</option>
+              <option value="pubmed">PubMed (NCBI)</option>
+              <option value="core">CORE</option>
+              <option value="clinicaltrials">ClinicalTrials.gov</option>
+              <option value="preprints">Preprints (bioRxiv/medRxiv)</option>
             </select>
           </div>
           <div>
@@ -307,7 +311,16 @@ let __LAST_ITEMS__ = [];
 let __LAST_HIT_COUNT__ = null;
 let __REQ_SEQ__ = 0;
 
-const SOURCE_LABELS = { europepmc:'Europe PMC', semantic_scholar:'Semantic Scholar', openalex:'OpenAlex', crossref:'Crossref' };
+const SOURCE_LABELS = {
+  europepmc:'Europe PMC',
+  semantic_scholar:'Semantic Scholar',
+  openalex:'OpenAlex',
+  crossref:'Crossref',
+  pubmed:'PubMed (NCBI)',
+  core:'CORE',
+  clinicaltrials:'ClinicalTrials.gov',
+  preprints:'Preprints (bioRxiv/medRxiv)',
+};
 const STUDY_TYPE_LABELS = { rct:'RCT', meta_analysis:'Meta-analysis', systematic_review:'Systematic Review', observational:'Observational', cohort:'Cohort', case_control:'Case-Control', case_report:'Case Report', review:'Review', editorial:'Editorial', other:'Other' };
 const LANGUAGE_LABELS = { eng:'English', fre:'French', spa:'Spanish', ger:'German' };
 

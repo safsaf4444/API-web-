@@ -46,6 +46,7 @@ if (window.__SEREN_APPJS_WIRED__) {
       login:     `<svg ${base}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`,
       logout:    `<svg ${base}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
       review:    `<svg ${base}><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12l2 2 4-4"/></svg>`,
+      analytics: `<svg ${base}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
       bell:      `<svg ${base}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
     };
     return icons[name] || `<svg ${base}><circle cx="12" cy="12" r="3"/></svg>`;
@@ -66,6 +67,7 @@ if (window.__SEREN_APPJS_WIRED__) {
     if (p.includes('info'))      return 'info';
     if (p.includes('paper'))     return 'paper';
     if (p.includes('review'))    return 'review';
+    if (p.includes('analytics')) return 'analytics';
     if (p.includes('login'))     return 'login';
     return 'search';
   }
@@ -84,6 +86,7 @@ if (window.__SEREN_APPJS_WIRED__) {
       info:      'About',
       paper:     'Paper',
       review:    'Systematic Reviews',
+      analytics: 'Analytics',
     };
     return titles[currentPage()] || 'Seren';
   }
@@ -217,8 +220,9 @@ if (window.__SEREN_APPJS_WIRED__) {
       { key: 'research',  href: 'research.html',  label: 'Formulation', requiresLogin: true  },
       { key: 'write',     href: 'write.html',     label: 'Writing',     requiresLogin: true  },
       { key: 'notebook',  href: 'notebook.html',  label: 'Notebook',    requiresLogin: true  },
-      { key: 'tools',     href: 'tools.html',     label: 'Tools',       requiresLogin: true  },
-      { key: 'community', href: 'community.html', label: 'Community',   requiresLogin: false },
+      { key: 'tools',      href: 'tools.html',      label: 'Tools',      requiresLogin: true  },
+      { key: 'analytics', href: 'analytics.html', label: 'Analytics',   requiresLogin: true  },
+      { key: 'community', href: 'community.html',  label: 'Community',  requiresLogin: false },
     ];
 
     side.innerHTML = `

@@ -75,6 +75,9 @@ class StudyRead(BaseModel):
     github_url: Optional[str] = None
     osf_url: Optional[str] = None
     zenodo_url: Optional[str] = None
+    publication_type: Optional[str] = None
+    full_text_url: Optional[str] = None
+    is_predatory_journal: bool = False
 
 class StudyPatch(BaseModel):
     notes: Optional[str] = None
@@ -84,6 +87,9 @@ class StudyPatch(BaseModel):
     github_url: Optional[str] = None
     osf_url: Optional[str] = None
     zenodo_url: Optional[str] = None
+    publication_type: Optional[str] = None
+    full_text_url: Optional[str] = None
+    is_predatory_journal: Optional[bool] = None
 
 # ── Spreadsheet & Data ────────────────────────────────────────────────────────
 
@@ -157,6 +163,7 @@ class ExternalPaperOut(BaseModel):
     pmcid: Optional[str] = None
     citation_count: Optional[int] = None
     is_retracted: bool = False
+    publication_type: Optional[str] = None
 
 class ExternalImportRequest(BaseModel):
     source: str
@@ -172,6 +179,8 @@ class ExternalImportRequest(BaseModel):
     pmcid: Optional[str] = None
     citation_count: Optional[int] = None
     is_retracted: bool = False
+    publication_type: Optional[str] = None
+    full_text_url: Optional[str] = None
 
 class FullTextResponse(BaseModel):
     available: bool

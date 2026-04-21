@@ -67,7 +67,7 @@ def export_bibtex(
 ):
     studies = _get_studies(session, user.username, folder_id)
     if not studies:
-        raise HTTPException(404, "No papers found.")
+        raise HTTPException(400, "Your library has no papers to export yet.")
     content = _to_bibtex(studies)
     return StreamingResponse(
         iter([content]),
@@ -113,7 +113,7 @@ def export_ris(
 ):
     studies = _get_studies(session, user.username, folder_id)
     if not studies:
-        raise HTTPException(404, "No papers found.")
+        raise HTTPException(400, "Your library has no papers to export yet.")
     content = _to_ris(studies)
     return StreamingResponse(
         iter([content]),
@@ -132,7 +132,7 @@ def export_csv(
 ):
     studies = _get_studies(session, user.username, folder_id)
     if not studies:
-        raise HTTPException(404, "No papers found.")
+        raise HTTPException(400, "Your library has no papers to export yet.")
 
     ids = [s.id for s in studies if s.id]
     metrics_map = {}
@@ -144,8 +144,9 @@ def export_csv(
     writer = csv.writer(buf)
     writer.writerow([
         "id", "title", "authors", "year", "journal", "doi", "pmid", "pmcid",
-        "study_type", "evidence_strength", "sample_size", "risk_of_bias",
-        "is_retracted", "reading_status", "tags", "notes", "abstract",
+        "study_type", "publication_type", "evidence_strength", "sample_size", "risk_of_bias",
+        "is_retracted", "is_predatory_journal", "full_text_url",
+        "reading_status", "tags", "notes", "abstract",
         "kaggle_url", "github_url", "osf_url", "url",
     ])
     for s in studies:
@@ -154,10 +155,15 @@ def export_csv(
             s.id, s.title, s.authors or "", s.year or "",
             s.venue or "", s.doi or "", s.pmid or "", s.pmcid or "",
             s.study_type or "",
+            getattr(s, "publication_type", "") or "",
             m.evidence_strength if m else "",
             m.sample_size if m else "",
             m.risk_of_bias if m else "",
-            s.is_retracted, s.reading_status, s.tags or "",
+            s.is_retracted,
+            getattr(s, "is_predatory_journal", False),
+            getattr(s, "full_text_url", "") or "",
+            s.reading_status,
+            s.tags or "",
             (s.notes or "").replace("\n", " "),
             (s.abstract or "")[:500].replace("\n", " "),
             s.kaggle_url or "", s.github_url or "", s.osf_url or "", s.url or "",
@@ -188,7 +194,7 @@ def export_xlsx(
 
     studies = _get_studies(session, user.username, folder_id)
     if not studies:
-        raise HTTPException(404, "No papers found.")
+        raise HTTPException(400, "Your library has no papers to export yet.")
 
     ids = [s.id for s in studies if s.id]
     metrics_map = {}
@@ -201,11 +207,12 @@ def export_xlsx(
     ws.title = "Evidence Table"
 
     headers = [
-        "Title", "Authors", "Year", "Journal", "Study Type",
+        "Title", "Authors", "Year", "Journal", "Study Type", "Publication Type",
         "Population", "Intervention", "Comparator", "Outcome",
         "Sample Size", "Effect Size", "P-Value",
         "Evidence Strength (0–5)", "Risk of Bias",
         "DOI", "PMID", "Tags", "Notes",
+        "Open Access URL", "Predatory Journal",
     ]
 
     hdr_fill = PatternFill(start_color="243044", end_color="243044", fill_type="solid")
@@ -227,36 +234,50 @@ def export_xlsx(
         ws.cell(row=row_idx, column=3, value=s.year or "")
         ws.cell(row=row_idx, column=4, value=s.venue or "")
         ws.cell(row=row_idx, column=5, value=s.study_type or "")
-        ws.cell(row=row_idx, column=6, value=pico.get("population") or "")
-        ws.cell(row=row_idx, column=7, value=pico.get("intervention") or "")
-        ws.cell(row=row_idx, column=8, value=pico.get("comparator") or "")
-        ws.cell(row=row_idx, column=9, value=pico.get("outcome") or "")
-        ws.cell(row=row_idx, column=10, value=m.sample_size if m else "")
-        ws.cell(row=row_idx, column=11, value=stats.get("effect_size") or "")
-        ws.cell(row=row_idx, column=12, value=stats.get("p_value") or "")
-        ws.cell(row=row_idx, column=13, value=m.evidence_strength if m else "")
-        ws.cell(row=row_idx, column=14, value=m.risk_of_bias if m else "")
+        ws.cell(row=row_idx, column=6, value=getattr(s, "publication_type", "") or "")
+        ws.cell(row=row_idx, column=7, value=pico.get("population") or "")
+        ws.cell(row=row_idx, column=8, value=pico.get("intervention") or "")
+        ws.cell(row=row_idx, column=9, value=pico.get("comparator") or "")
+        ws.cell(row=row_idx, column=10, value=pico.get("outcome") or "")
+        ws.cell(row=row_idx, column=11, value=m.sample_size if m else "")
+        ws.cell(row=row_idx, column=12, value=stats.get("effect_size") or "")
+        ws.cell(row=row_idx, column=13, value=stats.get("p_value") or "")
+        ws.cell(row=row_idx, column=14, value=m.evidence_strength if m else "")
+        ws.cell(row=row_idx, column=15, value=m.risk_of_bias if m else "")
         if s.doi:
-            cell = ws.cell(row=row_idx, column=15)
+            cell = ws.cell(row=row_idx, column=16)
             cell.value = s.doi
             cell.hyperlink = f"https://doi.org/{s.doi}"
             cell.font = Font(color="0563C1", underline="single")
         else:
-            ws.cell(row=row_idx, column=15, value="")
-        ws.cell(row=row_idx, column=16, value=s.pmid or "")
-        ws.cell(row=row_idx, column=17, value=s.tags or "")
-        ws.cell(row=row_idx, column=18, value=(s.notes or "")[:500])
+            ws.cell(row=row_idx, column=16, value="")
+        ws.cell(row=row_idx, column=17, value=s.pmid or "")
+        ws.cell(row=row_idx, column=18, value=s.tags or "")
+        ws.cell(row=row_idx, column=19, value=(s.notes or "")[:500])
+        oa_url = getattr(s, "full_text_url", "") or ""
+        if oa_url:
+            cell = ws.cell(row=row_idx, column=20)
+            cell.value = oa_url
+            cell.hyperlink = oa_url
+            cell.font = Font(color="1B5E20", underline="single")
+        else:
+            ws.cell(row=row_idx, column=20, value="")
+        ws.cell(row=row_idx, column=21, value="Yes" if getattr(s, "is_predatory_journal", False) else "")
 
         # Colour-code evidence strength
         es = m.evidence_strength if m else None
         if es is not None:
-            cell = ws.cell(row=row_idx, column=13)
+            cell = ws.cell(row=row_idx, column=14)
             if es >= 4:
                 cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
             elif es >= 2:
                 cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
             else:
                 cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+
+        # Flag predatory journals in red
+        if getattr(s, "is_predatory_journal", False):
+            ws.cell(row=row_idx, column=21).fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
     ws.freeze_panes = "A2"
 
@@ -289,7 +310,7 @@ def export_docx(
     doc = docx.Document()
 
     # Title
-    title_para = doc.add_heading("Seren — Evidence Report", 0)
+    doc.add_heading("Seren — Evidence Report", 0)
     doc.add_paragraph(f"Generated: {datetime.now().strftime('%d %B %Y')}")
     doc.add_paragraph()
 
@@ -312,7 +333,7 @@ def export_docx(
     studies = _get_studies(session, user.username, folder_id)
     if not studies:
         if not synthesis_id:
-            raise HTTPException(404, "No papers found.")
+            raise HTTPException(400, "Your library has no papers to export yet.")
 
     if studies:
         ids = [s.id for s in studies if s.id]
@@ -338,6 +359,15 @@ def export_docx(
                 p.runs[0].font.color.rgb = RGBColor(0x60, 0x60, 0x60)
             if s.doi:
                 doc.add_paragraph(f"DOI: {s.doi}")
+            pub_type = getattr(s, "publication_type", None)
+            if pub_type:
+                doc.add_paragraph(f"Publication type: {pub_type}")
+            oa_url = getattr(s, "full_text_url", None)
+            if oa_url:
+                doc.add_paragraph(f"Full text: {oa_url}")
+            if getattr(s, "is_predatory_journal", False):
+                p = doc.add_paragraph("⚠ POTENTIAL PREDATORY JOURNAL — verify before citing")
+                p.runs[0].font.color.rgb = RGBColor(0xE6, 0x51, 0x00)
             if s.abstract:
                 doc.add_heading("Abstract", 3)
                 doc.add_paragraph(s.abstract[:800])
@@ -380,7 +410,7 @@ def export_annotated_bibliography(
 
     studies = _get_studies(session, user.username, folder_id)
     if not studies:
-        raise HTTPException(404, "No papers found.")
+        raise HTTPException(400, "Your library has no papers to export yet.")
 
     doc = docx.Document()
     doc.add_heading("Annotated Bibliography", 0)

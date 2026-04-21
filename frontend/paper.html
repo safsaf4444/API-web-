@@ -351,6 +351,18 @@
       <div class="paperTitle" id="title">Loading…</div>
       <div id="meta"></div>
 
+      <!-- Phase 5b: publication type, open-access, and full-text badges -->
+      <div id="paper-meta-badges" style="display:none; margin:8px 0; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span id="pub-type-badge" class="badge" style="display:none; background:var(--brass-light,#f5e6c8); color:var(--brass2,#7a5c1e); padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600;"></span>
+        <span id="oa-badge" style="display:none; background:#2e7d32; color:#fff; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600;">🔓 Open Access</span>
+        <a id="fulltext-link" href="#" target="_blank" rel="noopener" style="display:none; background:#1b5e20; color:#fff; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600; text-decoration:none;">📄 View Full Text →</a>
+      </div>
+
+      <!-- Phase 5b: predatory journal warning -->
+      <div id="predatory-warning" style="display:none; background:#e65100; color:#fff; padding:10px 14px; border-radius:6px; margin:8px 0; font-weight:600; font-size:0.9rem;">
+        ⚠ PREDATORY JOURNAL — This paper is from a journal flagged as predatory. Treat its findings with significant caution.
+      </div>
+
       <div class="readingStatusRow" id="readingStatusRow" style="display:none;">
         <span class="readingStatusLabel">Status</span>
         <span class="statusChip" data-status="unread"  data-rs="unread">○ Unread</span>
@@ -778,10 +790,10 @@ function renderPaper(p) {
   // Dynamic page title
   if (p.title) document.title = `${(p.title).slice(0,80)}${p.title.length>80?'…':''} — Seren`;
 
-  // Retraction banner
-  const banner = qs("retractionBanner");
-  if (banner) {
-    banner.style.display = p.is_retracted ? "flex" : "none";
+  // Retraction banner — only show when actually retracted
+  const retractionBanner = document.getElementById("retractionBanner");
+  if (retractionBanner) {
+    retractionBanner.style.display = p.is_retracted ? "block" : "none";
   }
 
   const studyType = detectStudyTypePaper(p);
@@ -794,16 +806,17 @@ function renderPaper(p) {
     ? `<span class="citationBadge">📚 ${escapeHtml(String(p.citation_count))} citations</span>`
     : "";
 
+  const isOAFull = isOA || !!p.full_text_url;
   const badges = [
-    p.year    ? `<span class="badge blue">${escapeHtml(String(p.year))}</span>` : "",
-    p.venue   ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.venue)}</span>` : "",
-    srcLabel  ? `<span class="badge coffee">${escapeHtml(srcLabel)}</span>` : "",
-    typeLabel ? `<span class="badge green">${escapeHtml(typeLabel)}</span>` : "",
-    isOA      ? `<span class="badge sage">Open Access</span>` : "",
+    p.year      ? `<span class="badge blue">${escapeHtml(String(p.year))}</span>` : "",
+    p.venue     ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.venue)}</span>` : "",
+    srcLabel    ? `<span class="badge coffee">${escapeHtml(srcLabel)}</span>` : "",
+    typeLabel   ? `<span class="badge green">${escapeHtml(typeLabel)}</span>` : "",
+    isOAFull    ? `<span class="badge sage">Open Access</span>` : "",
     citationBadge,
-    p.doi     ? `<span class="badge" style="font-family:monospace;font-size:10.5px;">DOI: ${escapeHtml(p.doi)}</span>` : "",
-    p.pmid    ? `<span class="badge" style="font-size:10.5px;">PMID: ${escapeHtml(p.pmid)}</span>` : "",
-    p.pmcid   ? `<span class="badge" style="font-size:10.5px;">PMC: ${escapeHtml(p.pmcid)}</span>` : "",
+    p.doi   ? `<span class="badge" style="font-family:monospace;font-size:10.5px;">DOI: ${escapeHtml(p.doi)}</span>` : "",
+    p.pmid  ? `<span class="badge" style="font-size:10.5px;">PMID: ${escapeHtml(p.pmid)}</span>` : "",
+    p.pmcid ? `<span class="badge" style="font-size:10.5px;">PMC: ${escapeHtml(p.pmcid)}</span>` : "",
   ].filter(Boolean).join("");
 
   qs("meta").innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;">${badges}</div>`;
@@ -820,9 +833,45 @@ function renderPaper(p) {
   qs("openFullBtn").disabled = !prov;
   qs("openFullBtn").onclick  = () => { if (prov) window.open(prov, "_blank"); };
 
-  qs("fullTextHint").innerHTML = canOA
-    ? `Open Access full text available (PMCID detected). Load it inline below.`
-    : `No PMCID detected — will try to find one via Europe PMC.`;
+  if (p.full_text_url) {
+    qs("fullTextHint").innerHTML = `Open Access full text available. <a href="${escapeHtml(p.full_text_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--sage);">Read full text &#x2197;</a>`;
+  } else {
+    qs("fullTextHint").innerHTML = canOA
+      ? `Open Access full text available (PMCID detected). Load it inline below.`
+      : `No PMCID detected — will try to find one via Europe PMC.`;
+  }
+
+  // Phase 5b: publication_type badge, full_text_url link, predatory warning
+  const pubTypeBadge = document.getElementById('pub-type-badge');
+  const oaBadge      = document.getElementById('oa-badge');
+  const fulltextLink = document.getElementById('fulltext-link');
+  const predBanner   = document.getElementById('predatory-warning');
+  const metaBadges   = document.getElementById('paper-meta-badges');
+
+  if (pubTypeBadge) {
+    if (p.publication_type) {
+      pubTypeBadge.textContent = p.publication_type;
+      pubTypeBadge.style.display = 'inline-block';
+    } else {
+      pubTypeBadge.style.display = 'none';
+    }
+  }
+
+  if (oaBadge) oaBadge.style.display = isOAFull ? 'inline-block' : 'none';
+
+  if (fulltextLink && p.full_text_url) {
+    fulltextLink.href = p.full_text_url;
+    fulltextLink.style.display = 'inline-block';
+  } else if (fulltextLink) {
+    fulltextLink.style.display = 'none';
+  }
+
+  if (metaBadges) {
+    const anyBadge = !!(p.publication_type || isOAFull || p.full_text_url);
+    metaBadges.style.display = anyBadge ? 'flex' : 'none';
+  }
+
+  if (predBanner) predBanner.style.display = p.is_predatory_journal ? 'block' : 'none';
 }
 
 async function loadOAFullTextForPaper(p) {

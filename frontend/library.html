@@ -1103,12 +1103,14 @@ function renderPapers(filtered, total) {
             <div class="paperCardTitle">${esc(it.title || 'Untitled')}</div>
 
             <div class="paperCardMeta">
-              ${it.year       ? `<span class="badge blue">${esc(String(it.year))}</span>` : ''}
-              ${it.study_type ? `<span class="badge green">${esc(it.study_type)}</span>` : ''}
-              ${it.source     ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
-              ${it.venue      ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
-              ${it.tags       ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass" style="cursor:pointer;" title="Filter by tag: ${esc(t.trim())}" data-tag-filter="${esc(t.trim())}">${esc(t.trim())}</span>`).join('') : ''}
-              ${it.comment_count ? `<span class="badge">&#x1F4AC; ${it.comment_count}</span>` : ''}
+              ${it.year             ? `<span class="badge blue">${esc(String(it.year))}</span>` : ''}
+              ${it.study_type       ? `<span class="badge green">${esc(it.study_type)}</span>` : ''}
+              ${it.publication_type ? `<span class="badge" style="background:var(--brass-light,#f5e6c8);color:var(--brass2,#7a5c1e);">${esc(it.publication_type)}</span>` : ''}
+              ${it.is_predatory_journal ? `<span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;" title="Potential predatory journal — exercise caution">&#x26A0; Predatory</span>` : ''}
+              ${it.source           ? `<span class="badge coffee">${esc(it.source)}</span>` : ''}
+              ${it.venue            ? `<span class="badge" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.venue)}</span>` : ''}
+              ${it.tags             ? it.tags.split(',').slice(0,3).map(t => `<span class="badge brass" style="cursor:pointer;" title="Filter by tag: ${esc(t.trim())}" data-tag-filter="${esc(t.trim())}">${esc(t.trim())}</span>`).join('') : ''}
+              ${it.comment_count    ? `<span class="badge">&#x1F4AC; ${it.comment_count}</span>` : ''}
             </div>
 
             ${it.abstract ? `<p class="paperCardAbstract">${esc(stripHtml(it.abstract))}</p>` : ''}

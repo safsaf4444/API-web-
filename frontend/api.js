@@ -265,6 +265,18 @@
           _emitAuthChangedOncePer(1500);
         }
 
+        if (res.status === 429) {
+          const retryAfter = res.headers.get("Retry-After");
+          const waitMsg = retryAfter
+            ? `Too many requests — please wait ${retryAfter}s before trying again.`
+            : "Too many requests — please slow down and try again in a moment.";
+          if (typeof showToast === "function") showToast("Rate Limited", waitMsg, "warning");
+          const err = new Error(waitMsg);
+          err.status = 429;
+          err.data = data;
+          throw err;
+        }
+
         const err = new Error(msg || "Request failed");
         err.status = res.status;
         err.data = data;

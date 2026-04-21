@@ -712,9 +712,9 @@ class PubMedProvider:
         yf, yt = _year_bounds(year_from, year_to)
         term = q
         if yf is not None or yt is not None:
-            yf2 = yf if yf is not None else 1900
-            yt2 = yt if yt is not None else 2100
-            term = f"({q}) AND ({yf2}:{yt2}[pdat])"
+            yf2 = str(yf) if yf is not None else "1900"
+            yt2 = str(yt) if yt is not None else "2100"
+            term = f'({q}) AND ("{yf2}"[Date - Publication] : "{yt2}"[Date - Publication])'
 
         search_params: Dict[str, Any] = {
             "db": "pubmed",
@@ -898,7 +898,8 @@ class COREProvider:
         year_to: Optional[int] = None,
     ) -> SearchResult:
         if not self.api_key:
-            raise ProviderError("CORE_API_KEY is required. Get a free key at core.ac.uk/api-keys", status_code=400)
+            # Return empty gracefully — don't crash the UI when the key is not configured
+            return [], None, 0
 
         page_size = _clamp_limit(limit, 100)
         offset = 0
@@ -1052,6 +1053,9 @@ class ClinicalTrialsProvider:
 
         if r.status_code == 429:
             raise ProviderError("ClinicalTrials.gov rate-limited. Try again soon.", status_code=429)
+        if r.status_code in (400, 422):
+            # Malformed query — return graceful empty result rather than surfacing a 502
+            return [], None, 0
         if r.status_code >= 400:
             raise ProviderError(f"ClinicalTrials.gov HTTP {r.status_code}.", status_code=502)
 
@@ -1250,6 +1254,29 @@ class PreprintProvider:
 
 
 # ── Unpaywall enrichment (utility, not a search provider) ─────────────────────
+
+def unpaywall_enrich_sync(doi: str, email: str = "seren@seren.app") -> Optional[str]:
+    """Synchronous Unpaywall lookup for use from sync FastAPI routes."""
+    if not doi:
+        return None
+    clean = _clean_doi(doi)
+    if not clean:
+        return None
+    try:
+        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+            r = client.get(
+                f"https://api.unpaywall.org/v2/{clean}",
+                params={"email": email},
+                headers={"User-Agent": "MedicalEvidenceApp/1.0 (Unpaywall)"},
+            )
+        if r.status_code == 200:
+            data = r.json()
+            best = data.get("best_oa_location") or {}
+            return best.get("url_for_pdf") or best.get("url") or None
+    except Exception:
+        pass
+    return None
+
 
 async def unpaywall_enrich(doi: str, email: str = "seren@seren.app") -> Optional[str]:
     """

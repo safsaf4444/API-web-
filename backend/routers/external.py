@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 
 from backend.db import get_session
 from backend.deps.auth import get_current_user
-from backend.external_providers import ProviderError, get_provider, list_sources
+from backend.external_providers import ProviderError, get_provider, list_sources, unpaywall_enrich_sync
 from backend.models import Study, StudyExternalRef, User, ReadingStatus
 from backend.schemas import ExternalImportRequest, ExternalPaperOut, FullTextResponse, StudyRead
 from backend.services.study_analysis import detect_study_type_and_tags
@@ -265,11 +265,15 @@ def external_import(
         if not (existing_by_doi.authors and str(existing_by_doi.authors).strip()) and payload.authors:
             existing_by_doi.authors = ", ".join([a for a in payload.authors if a])
 
-        # Update citation count and retraction if provided
+        # Update citation count, retraction and new fields if provided
         if getattr(payload, "citation_count", None) is not None:
             existing_by_doi.citation_count = payload.citation_count
         if getattr(payload, "is_retracted", None) is not None:
             existing_by_doi.is_retracted = payload.is_retracted
+        if getattr(payload, "publication_type", None):
+            existing_by_doi.publication_type = payload.publication_type
+        if getattr(payload, "full_text_url", None):
+            existing_by_doi.full_text_url = payload.full_text_url
 
         existing_by_doi.doi = doi_clean
 
@@ -315,6 +319,8 @@ def external_import(
         reading_status=ReadingStatus.UNREAD,
         citation_count=getattr(payload, "citation_count", None),
         is_retracted=getattr(payload, "is_retracted", False) or False,
+        publication_type=getattr(payload, "publication_type", None),
+        full_text_url=getattr(payload, "full_text_url", None),
     )
     session.add(study)
     session.commit()
@@ -322,6 +328,20 @@ def external_import(
 
     _ensure_external_ref(session=session, owner_username=owner, study_id=study.id, source=src, source_id=sid)
     session.commit()
+    session.refresh(study)
+
+    # Enrich with Unpaywall open-access URL if we have a DOI and no full_text_url yet
+    if doi_clean and not study.full_text_url:
+        import os
+        try:
+            oa_url = unpaywall_enrich_sync(doi_clean, os.getenv("UNPAYWALL_EMAIL", "safa.dubai@gmail.com"))
+            if oa_url:
+                study.full_text_url = oa_url
+                session.add(study)
+                session.commit()
+                session.refresh(study)
+        except Exception:
+            pass  # Unpaywall enrichment is best-effort
 
     return study
 
