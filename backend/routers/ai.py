@@ -1054,12 +1054,47 @@ def _build_weighting(studies: list) -> list:
 
 
 def _parse_synthesis_json(raw: str) -> dict:
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"): raw = raw[4:]
-        raw = raw.strip()
-    return json.loads(raw)
+    """
+    Robustly extract the synthesis JSON from AI output.
+    Handles: bare JSON, markdown fences, JSON buried in prose, trailing commas.
+    """
+    s = raw.strip()
+
+    # 1. Strip any leading/trailing markdown fences
+    s = re.sub(r'^```(?:json)?\s*', '', s, flags=re.MULTILINE).strip()
+    s = re.sub(r'\s*```\s*$', '', s, flags=re.MULTILINE).strip()
+
+    # 2. Try direct parse
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        pass
+
+    # 3. Find the outermost { ... } block
+    start = s.find('{')
+    end   = s.rfind('}')
+    if start >= 0 and end > start:
+        candidate = s[start:end + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+        # 4. Fix trailing commas (common AI mistake) then retry
+        fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
+        try:
+            return json.loads(fixed)
+        except json.JSONDecodeError:
+            pass
+
+    raise json.JSONDecodeError("Could not extract valid JSON from AI response", raw, 0)
+
+
+_SYNTHESIS_RETRY_PROMPT = (
+    "The previous response was not valid JSON. "
+    "Return ONLY a JSON object — no markdown, no prose, no code fences — with exactly these keys: "
+    "synthesis_narrative, consensus_points, contradictions, gap_analysis, weighted_conclusion, steel_man, comparative_methodology. "
+    "Every string value must be on one line. Arrays must be well-formed. No trailing commas."
+)
 
 
 def _build_synthesis_response(rec: SynthesisResult, study_ids: list, cached: bool) -> AISynthesisResponse:
@@ -1146,9 +1181,15 @@ async def ai_synthesise(payload: AISynthesisRequest, session: Session = Depends(
 
     try:
         data = _parse_synthesis_json(result.text)
-    except json.JSONDecodeError as exc:
-        logger.error("Synthesis AI JSON parse failed: %s\nRaw: %s", exc, result.text[:500])
-        raise HTTPException(status_code=502, detail="AI returned malformed JSON. Try again or use a BYOK key.")
+    except json.JSONDecodeError:
+        logger.warning("Synthesis JSON parse failed on first attempt — retrying with strict prompt.")
+        try:
+            retry_msg = f"{_SYNTHESIS_RETRY_PROMPT}\n\nOriginal papers context:\n{user_msg}"
+            result2 = await engine_run(_SYNTHESIS_SYSTEM, retry_msg, **byok)
+            data = _parse_synthesis_json(result2.text)
+        except json.JSONDecodeError as exc:
+            logger.error("Synthesis AI JSON parse failed after retry: %s\nRaw: %s", exc, result.text[:300])
+            raise HTTPException(status_code=502, detail="AI returned malformed JSON. Try again or set a BYOK key.")
 
     try:
         rec = SynthesisResult(
@@ -1313,9 +1354,15 @@ async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = De
 
     try:
         data = _parse_synthesis_json(result.text)
-    except json.JSONDecodeError as exc:
-        logger.error("Subject query AI JSON parse failed: %s\nRaw: %s", exc, result.text[:500])
-        raise HTTPException(status_code=502, detail="AI returned malformed JSON. Try again.")
+    except json.JSONDecodeError:
+        logger.warning("Subject query JSON parse failed on first attempt — retrying with strict prompt.")
+        try:
+            retry_msg = f"{_SYNTHESIS_RETRY_PROMPT}\n\nOriginal papers context:\n{user_msg}"
+            result2 = await engine_run(_SYNTHESIS_SYSTEM, retry_msg, **byok)
+            data = _parse_synthesis_json(result2.text)
+        except json.JSONDecodeError as exc:
+            logger.error("Subject query AI JSON parse failed after retry: %s\nRaw: %s", exc, result.text[:300])
+            raise HTTPException(status_code=502, detail="AI returned malformed JSON. Try again or switch to a different source.")
 
     synthesis_id = 0
     try:

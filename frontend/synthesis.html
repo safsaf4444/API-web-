@@ -671,21 +671,25 @@ function showError(msg) {
 function renderResults(data, mode, query) {
   clearInterval(_loadingInterval);
 
-  const consensus      = data.consensus_points   || [];
-  const contradictions = data.contradictions      || [];
-  const gaps           = data.gap_analysis        || [];
-  const papersUsed     = data.papers_used         || [];
-  const weighting      = data.weighting_breakdown || [];
+  if (!data || typeof data !== 'object') {
+    showError('Invalid response from server. Please try again.');
+    return;
+  }
+
+  const consensus      = Array.isArray(data.consensus_points)   ? data.consensus_points   : [];
+  const contradictions = Array.isArray(data.contradictions)      ? data.contradictions      : [];
+  const gaps           = Array.isArray(data.gap_analysis)        ? data.gap_analysis        : [];
+  const papersUsed     = Array.isArray(data.papers_used)         ? data.papers_used         : [];
+  const weighting      = Array.isArray(data.weighting_breakdown) ? data.weighting_breakdown : [];
 
   // Build papers list for BOTH modes
-  // cross_paper: use studiesData; subject_query: use papersUsed from response
   const allPapers = mode === 'cross_paper'
     ? selectedStudyIds.map(id => {
         const s = studiesData[id];
         if (!s) return null;
-        return { title: s.title, year: s.year, source: s.source || '', study_type: s.study_type || detectStudyType(s.abstract), doi: s.doi };
+        return { title: s.title || '', year: s.year || null, source: s.source || '', study_type: s.study_type || detectStudyType(s.abstract), doi: s.doi || null };
       }).filter(Boolean)
-    : papersUsed;
+    : papersUsed.map(p => p && typeof p === 'object' ? p : null).filter(Boolean);
 
   let html = '<div class="synthResultWrap">';
 
@@ -751,10 +755,11 @@ function renderResults(data, mode, query) {
     contradictionsBody += `<div class="contradictionItem"><div class="contradictionIssue">&#8596; ${esc(c.issue)}</div><div class="contradictionSides"><div class="sideBox"><div class="sideLabel">Side A</div><div class="sideStudies">${(c.side_a_studies||[]).map(s=>esc(s)).join(', ')}</div><div class="sidePosition">${esc(c.side_a_position)}</div></div><div class="sideBox"><div class="sideLabel">Side B</div><div class="sideStudies">${(c.side_b_studies||[]).map(s=>esc(s)).join(', ')}</div><div class="sidePosition">${esc(c.side_b_position)}</div></div></div>${c.likely_explanation?`<div class="contradictionExplan">${esc(c.likely_explanation)}</div>`:''}</div>`;
   });
 
-  // Gaps body
-  const gapsBody = !gaps.length
+  // Gaps body — AI sometimes returns objects instead of strings; normalise
+  const gapsNorm = gaps.map(g => typeof g === 'string' ? g : (g?.gap || g?.text || g?.description || JSON.stringify(g)));
+  const gapsBody = !gapsNorm.length
     ? '<div class="synthEmpty">No specific evidence gaps identified.</div>'
-    : '<ul class="gapList">' + gaps.map(g=>`<li class="gapItem"><span class="gapIcon">&#9675;</span><span>${esc(g)}</span></li>`).join('') + '</ul>';
+    : '<ul class="gapList">' + gapsNorm.map(g=>`<li class="gapItem"><span class="gapIcon">&#9675;</span><span>${esc(g)}</span></li>`).join('') + '</ul>';
 
   // Steel-man body
   const steelManBody = data.steel_man
@@ -788,7 +793,7 @@ function renderResults(data, mode, query) {
       </div>
     </div>
     <div style="font-size:11px;color:var(--subtle);margin-top:14px;font-style:italic;line-height:1.6;">
-      For a full PRISMA flow with manual screening, use the Systematic Reviews tool (Reviews section).
+      PRISMA counts are estimated from the papers used in this synthesis.
     </div>`;
 
   // Risk of Bias heatmap body
@@ -814,9 +819,11 @@ function renderResults(data, mode, query) {
       <thead><tr><th>Paper</th>${ROB_DOMAINS.map(d=>`<th style="text-align:center;">${d}</th>`).join('')}</tr></thead>
       <tbody>`;
   allPapers.forEach(p => {
-    const st   = p.study_type || detectStudyType(p.abstract) || 'other';
-    const risks = ROB_RISK_MAP[st] || ROB_RISK_MAP.other;
-    robBody += `<tr><td style="max-width:200px;font-size:12px;">${esc(p.title?.slice(0,60)||'Unknown')}${(p.title?.length||0)>60?'…':''}</td>${risks.map(r=>`<td style="text-align:center;"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:${riskBg(r)};color:${riskColor(r)};border:1px solid ${riskColor(r)}40;">${r}</span></td>`).join('')}</tr>`;
+    if (!p || typeof p !== 'object') return;
+    const ptitle = (p.title || 'Unknown');
+    const st     = (p.study_type || detectStudyType(p.abstract) || 'other').toLowerCase().replace(/\s+/g,'_');
+    const risks  = ROB_RISK_MAP[st] || ROB_RISK_MAP.other;
+    robBody += `<tr><td style="max-width:200px;font-size:12px;">${esc(ptitle.slice(0,60))}${ptitle.length>60?'…':''}</td>${risks.map(r=>`<td style="text-align:center;"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:${riskBg(r)};color:${riskColor(r)};border:1px solid ${riskColor(r)}40;">${r}</span></td>`).join('')}</tr>`;
   });
   robBody += `</tbody></table></div>
     <div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap;font-size:11px;color:var(--subtle);">
