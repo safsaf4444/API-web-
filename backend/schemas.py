@@ -400,275 +400,48 @@ class SynthesisListItem(BaseModel):
     updated_at: datetime
 
 
-# ── Phase 4: Systematic Review Tooling ───────────────────────────────────────
+# ── Citation Web (OpenAlex) ───────────────────────────────────────────────────
 
-REVIEW_PHASES = ["search", "screen", "extract", "synthesise", "complete"]
-SCREENING_DECISIONS = ["pending", "included", "excluded", "maybe"]
-
-class SystematicReviewCreate(BaseModel):
-    title: str = Field(min_length=3, max_length=200)
-    description: Optional[str] = Field(default=None, max_length=2000)
-    search_query: Optional[str] = None
-    search_source: str = Field(default="europepmc")
-    inclusion_criteria: Optional[Dict[str, Any]] = None
-    exclusion_criteria: Optional[Dict[str, Any]] = None
-    filters: Optional[Dict[str, Any]] = None
-
-class SystematicReviewPatch(BaseModel):
-    title: Optional[str] = Field(default=None, max_length=200)
-    description: Optional[str] = None
-    phase: Optional[str] = None
-    search_query: Optional[str] = None
-    search_source: Optional[str] = None
-    inclusion_criteria: Optional[Dict[str, Any]] = None
-    exclusion_criteria: Optional[Dict[str, Any]] = None
-    filters: Optional[Dict[str, Any]] = None
-    evidence_notes: Optional[str] = None
-
-class SystematicReviewRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    owner_username: str
-    title: str
-    description: Optional[str] = None
-    phase: str
-    search_query: Optional[str] = None
-    search_source: str
-    search_results_count: int
-    inclusion_criteria: Optional[Dict[str, Any]] = None
-    exclusion_criteria: Optional[Dict[str, Any]] = None
-    filters: Optional[Dict[str, Any]] = None
-    audit_log: Optional[Any] = None
-    synthesis_id: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
-    evidence_notes: Optional[str] = None
-    # summary counts (populated by router)
-    screening_total: int = 0
-    screening_included: int = 0
-    screening_excluded: int = 0
-    screening_pending: int = 0
-    screening_maybe: int = 0
-
-class ReviewScreeningCreate(BaseModel):
-    study_id: Optional[int] = None
-    external_title: Optional[str] = None
-    external_doi: Optional[str] = None
-    external_abstract: Optional[str] = None
-    external_source: Optional[str] = None
-    external_source_id: Optional[str] = None
-    external_year: Optional[int] = None
-    decision: str = Field(default="pending")
-    screener_notes: Optional[str] = None
-
-class ReviewScreeningPatch(BaseModel):
-    decision: Optional[str] = None
-    exclusion_reason: Optional[str] = None
-    screener_notes: Optional[str] = None
-
-class ReviewScreeningRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    review_id: int
-    study_id: Optional[int] = None
-    external_title: Optional[str] = None
-    external_doi: Optional[str] = None
-    external_abstract: Optional[str] = None
-    external_source: Optional[str] = None
-    external_source_id: Optional[str] = None
-    external_year: Optional[int] = None
-    decision: str
-    exclusion_reason: Optional[str] = None
-    screener_notes: Optional[str] = None
-    created_at: datetime
-    # denormalised for UI
-    study_title: Optional[str] = None
-
-class BulkScreeningUpdate(BaseModel):
-    screening_ids: List[int] = Field(min_length=1, max_length=200)
-    decision: str
-    exclusion_reason: Optional[str] = None
-
-class PRISMAData(BaseModel):
-    identified: int = 0
-    duplicates_removed: int = 0
-    screened: int = 0
-    excluded_screening: int = 0
-    eligible: int = 0
-    excluded_eligibility: int = 0
-    included: int = 0
-    review_title: str = ""
-
-class EvidenceDriftPoint(BaseModel):
-    period: str
-    paper_count: int
-    avg_outcome_value: Optional[float] = None     # Phase 4c
-    avg_bias_score: Optional[float] = None        # Phase 4c
-    study_titles: List[str] = []
-
-class EvidenceDriftResponse(BaseModel):
-    review_id: int
-    periods: List[EvidenceDriftPoint] = []
-    drift_detected: bool = False
-    drift_summary: Optional[str] = None
-    narrative: Optional[str] = None          # Phase 4c: AI discovery narrative
-
-
-# ── Phase 4c: Living Review Cumulative Stats ──────────────────────────────────
-
-class CumulativeStatPoint(BaseModel):
-    year: Optional[int]
-    title: str
-    source: str
-    outcome_value: Optional[float] = None
-    sample_size: Optional[int] = None
-    bias_score: Optional[int] = None
-    ci_lower: Optional[float] = None
-    ci_upper: Optional[float] = None
-    cumulative_n: int = 0
-    cumulative_effect: Optional[float] = None
-    has_data: bool = False
-
-class CumulativeStatsResponse(BaseModel):
-    review_id: int
-    points: List[CumulativeStatPoint] = []
-    total_included: int = 0
-    total_with_data: int = 0
-
-class NetworkNode(BaseModel):
+class CitationNode(BaseModel):
     id: str
     label: str
     year: Optional[int] = None
-    citation_count: Optional[int] = None
-    source: Optional[str] = None
-    doi: Optional[str] = None
-    study_type: Optional[str] = None
-    abstract_snippet: Optional[str] = None   # ≤200 chars for sidebar
-    text_offsets: Optional[List[Dict]] = None # for redline jump
-
-class NetworkEdge(BaseModel):
-    source: str
-    target: str
-    reason: str = "shared_author"
-    is_path: bool = False                     # chronological discovery path
-
-class NetworkResponse(BaseModel):
-    review_id: int
-    nodes: List[NetworkNode] = []
-    edges: List[NetworkEdge] = []
-
-
-# ── Phase 5: Extended Citation Network (OpenAlex) ────────────────────────────
-
-class CitationNode(BaseModel):
-    id: str                                      # OpenAlex ID or DOI
-    label: str
-    year: Optional[int] = None
     citation_count: int = 0
-    node_type: str = "seed"                      # seed | ancestor | descendant | cocite
-    field: Optional[str] = None                  # top concept/field
+    node_type: str = "seed"   # seed | ancestor | descendant | cocite
+    field: Optional[str] = None
     doi: Optional[str] = None
     abstract: Optional[str] = None
     authors: Optional[str] = None
-    source: Optional[str] = None                 # journal/venue
+    source: Optional[str] = None
     is_key_paper: bool = False
 
 class CitationEdge(BaseModel):
     source: str
     target: str
-    edge_type: str = "references"                # references | cites | co_citation
+    edge_type: str = "references"  # references | cites | co_citation
 
 class CitationNetworkResponse(BaseModel):
     seed_doi: str
     nodes: List[CitationNode] = []
     edges: List[CitationEdge] = []
-    year_range: List[int] = []                   # [min_year, max_year] for timeline slider
+    year_range: List[int] = []
 
 
-# ── Phase 5: Verdict Synthesiser ─────────────────────────────────────────────
+# ── Evidence Drift ─────────────────────────────────────────────────────────────
 
-class VerdictRequest(BaseModel):
-    review_id: int
+class EvidenceDriftPoint(BaseModel):
+    period: str
+    paper_count: int
+    avg_outcome_value: Optional[float] = None
+    avg_bias_score: Optional[float] = None
+    study_titles: List[str] = []
 
-class SupportingStudy(BaseModel):
-    title: str
-    year: Optional[int] = None
-    finding: str
-    weight: str = "moderate"                     # strong | moderate | weak
-
-class VerdictResponse(BaseModel):
-    review_id: int
-    verdict: str                                  # "Supported" | "Mixed" | "Insufficient"
-    confidence: str                               # "High" | "Moderate" | "Low"
-    confidence_pct: Optional[int] = None         # 0-100
-    summary: str
-    key_supporting_studies: List[SupportingStudy] = []
-    key_contradictions: List[str] = []
-    limitations: List[str] = []
-    recommendation: str = ""
-
-
-# ── Phase 5: Bias Heatmap ─────────────────────────────────────────────────────
-
-class BiasCell(BaseModel):
-    study: str
-    dimension: str
-    score: int                                   # 0=low, 1=some, 2=high risk
-    reason: Optional[str] = None
-
-class BiasHeatmapResponse(BaseModel):
-    review_id: int
-    studies: List[str] = []
-    dimensions: List[str] = []
-    cells: List[BiasCell] = []
-
-
-# ── Phase 5: Key Papers ───────────────────────────────────────────────────────
-
-class KeyPaper(BaseModel):
-    screening_id: int
-    title: str
-    year: Optional[int] = None
-    citation_count: int = 0
-    doi: Optional[str] = None
-    abstract_snippet: Optional[str] = None
-    rank: int = 0
-
-class KeyPapersResponse(BaseModel):
-    review_id: int
-    papers: List[KeyPaper] = []
-
-
-class ReviewAskRequest(BaseModel):
-    question: str = Field(min_length=3, max_length=500)
-
-class ReviewAskResponse(BaseModel):
-    answer: str
-    review_id: int
-    question: str
-    papers_used: int = 0
-
-class PaperReminderCreate(BaseModel):
-    study_id: int
-    remind_at: datetime
-    reason: Optional[str] = Field(default=None, max_length=500)
-
-class PaperReminderPatch(BaseModel):
-    remind_at: Optional[datetime] = None
-    reason: Optional[str] = None
-    is_dismissed: Optional[bool] = None
-
-class PaperReminderRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    owner_username: str
-    study_id: int
-    remind_at: datetime
-    reason: Optional[str] = None
-    is_dismissed: bool
-    created_at: datetime
-    # denormalised
-    study_title: Optional[str] = None
+class EvidenceDriftResponse(BaseModel):
+    synthesis_id: int
+    periods: List[EvidenceDriftPoint] = []
+    drift_detected: bool = False
+    drift_summary: Optional[str] = None
+    narrative: Optional[str] = None
 
 
 # ── Notebook ──────────────────────────────────────────────────────────────────
@@ -837,54 +610,6 @@ class LandingStats(BaseModel):
 
 
 # ── Phase 4c: Extraction Templates & Records ─────────────────────────────────
-
-class ExtractionFieldDef(BaseModel):
-    name: str
-    type: str = "text"   # text | number | select | boolean
-    required: bool = False
-    options: Optional[List[str]] = None  # for select type
-
-class ExtractionTemplateCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    fields: List[ExtractionFieldDef] = []
-
-class ExtractionTemplateRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    owner_username: str
-    name: str
-    fields: Optional[List[Dict]] = None
-    is_global: bool = False
-    created_at: datetime
-
-class ExtractionRecordCreate(BaseModel):
-    screening_id: int
-    template_id: Optional[int] = None
-    data: Dict[str, Any] = {}
-
-class ExtractionRecordRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    review_id: int
-    screening_id: int
-    template_id: Optional[int] = None
-    owner_username: str
-    data: Optional[Dict[str, Any]] = None
-    ai_extracted: bool = False
-    created_at: datetime
-    updated_at: datetime
-    paper_title: Optional[str] = None  # enriched
-
-class BulkExtractionRequest(BaseModel):
-    template_id: Optional[int] = None
-    fields: Optional[List[str]] = None  # specific fields to extract; None = all template fields
-
-class BulkExtractionResponse(BaseModel):
-    review_id: int
-    extracted: int = 0
-    failed: int = 0
-    records: List[ExtractionRecordRead] = []
-
 
 # ── Phase 4c: Interactive Reading Endpoints ───────────────────────────────────
 

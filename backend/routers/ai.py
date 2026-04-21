@@ -32,6 +32,7 @@ from backend.schemas import (
     ExplainTableRequest, ExplainTableResponse,
     ExplainFigureRequest, ExplainFigureResponse,
     ExplainFigureImageRequest, ExplainFigureImageResponse,
+    EvidenceDriftPoint, EvidenceDriftResponse,
     GRADEData, JargonItem, PICOData, RewritesData, StatisticalData, WeightingItem,
     SynthesisListItem,
 )
@@ -1788,3 +1789,105 @@ async def ai_paper_secondary_data(study_id: int, session: Session = Depends(get_
     byok = _get_byok_keys(current_user)
     result = await engine_run("You are a clinical data sleuth.", user_msg, **byok)
     return {"text": result.text, "study_id": study.id}
+
+# ── Evidence Drift (moved from Systematic Reviews) ────────────────────────────
+
+@router.get("/ai/synthesis/{synthesis_id}/evidence-drift", response_model=EvidenceDriftResponse)
+async def synthesis_evidence_drift(
+    synthesis_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Analyse how evidence shifts across publication year periods for the papers
+    in a cross-paper synthesis. Grouped into 5-year cohorts.
+    """
+    rec = session.get(SynthesisResult, synthesis_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Synthesis not found.")
+    if rec.owner_username != current_user.username:
+        raise HTTPException(status_code=403, detail="Not allowed.")
+
+    raw_ids = json.loads(rec.study_ids or "[]")
+    study_ids = [s for s in raw_ids if isinstance(s, int)]
+    if not study_ids:
+        return EvidenceDriftResponse(synthesis_id=synthesis_id, drift_detected=False, drift_summary="No saved studies in this synthesis.")
+
+    studies = [session.get(Study, sid) for sid in study_ids]
+    studies = [s for s in studies if s is not None]
+
+    # Group by 5-year periods
+    periods: dict[str, list] = {}
+    for study in studies:
+        if not study.year:
+            continue
+        start = (study.year // 5) * 5
+        label = f"{start}–{start + 4}"
+        periods.setdefault(label, []).append(study)
+
+    if not periods:
+        return EvidenceDriftResponse(synthesis_id=synthesis_id, drift_detected=False, drift_summary="No papers have year data to analyse.")
+
+    points = []
+    for label in sorted(periods.keys()):
+        group = periods[label]
+        outcome_vals = [s.extracted_outcome_value for s in group if s.extracted_outcome_value is not None]
+        bias_vals    = [s.extracted_bias_score    for s in group if s.extracted_bias_score    is not None]
+        try:
+            outcomes_num = [float(v) for v in outcome_vals]
+        except (TypeError, ValueError):
+            outcomes_num = []
+        avg_outcome = round(sum(outcomes_num) / len(outcomes_num), 4) if outcomes_num else None
+        avg_bias    = round(sum(bias_vals) / len(bias_vals), 2) if bias_vals else None
+        points.append(EvidenceDriftPoint(
+            period=label,
+            paper_count=len(group),
+            avg_outcome_value=avg_outcome,
+            avg_bias_score=avg_bias,
+            study_titles=[s.title or "Untitled" for s in group],
+        ))
+
+    drift_detected = len(points) >= 2
+    first, last = points[0], points[-1]
+    outcome_note = ""
+    if first.avg_outcome_value is not None and last.avg_outcome_value is not None:
+        direction = "increasing" if last.avg_outcome_value > first.avg_outcome_value else "decreasing" if last.avg_outcome_value < first.avg_outcome_value else "stable"
+        outcome_note = f" Mean outcome shifted from {first.avg_outcome_value} to {last.avg_outcome_value} ({direction})."
+    drift_summary = (
+        f"Evidence spans {len(points)} time period(s) ({first.period} to {last.period}). "
+        f"Earliest period: {first.paper_count} paper(s), latest: {last.paper_count} paper(s).{outcome_note}"
+    )
+
+    # AI narrative — optional, fails silently
+    narrative: str | None = None
+    if drift_detected:
+        try:
+            byok = _get_byok_keys(current_user)
+            lines = []
+            for pt in points:
+                preview = ", ".join(pt.study_titles[:3])
+                if len(pt.study_titles) > 3:
+                    preview += f" +{len(pt.study_titles)-3} more"
+                lines.append(
+                    f"{pt.period}: {pt.paper_count} paper(s)"
+                    + (f", avg outcome {pt.avg_outcome_value:.3f}" if pt.avg_outcome_value is not None else "")
+                    + (f", avg bias {pt.avg_bias_score:.1f}/10" if pt.avg_bias_score is not None else "")
+                    + f". Papers: {preview}"
+                )
+            result = await engine_run(
+                "You are a senior systematic review methodologist. Write a concise 3-paragraph discovery narrative: "
+                "paragraph 1 covers the earliest evidence, paragraph 2 the evolution, paragraph 3 the most recent evidence and clinical implications.",
+                f"Chronological evidence by 5-year period:\n" + "\n".join(lines),
+                **byok,
+            )
+            narrative = result.text
+        except Exception:
+            pass
+
+    return EvidenceDriftResponse(
+        synthesis_id=synthesis_id,
+        periods=points,
+        drift_detected=drift_detected,
+        drift_summary=drift_summary,
+        narrative=narrative,
+    )

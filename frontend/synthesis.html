@@ -880,6 +880,16 @@ function renderResults(data, mode, query) {
       <div id="askAnythingResult"></div>
     </div>`;
 
+  // Evidence Drift body (cross_paper mode only, requires synthesis_id)
+  const driftSynthId = data.synthesis_id || null;
+  const driftBody = mode === 'cross_paper' && driftSynthId ? `
+    <div style="font-size:13px;color:var(--subtle);margin-bottom:12px;line-height:1.6;">
+      Analyse how evidence shifts across publication year periods in these papers, grouped into 5-year cohorts.
+    </div>
+    <button class="btn primary sm" id="loadDriftBtn">Analyse Evidence Drift</button>
+    <div id="driftResult" style="margin-top:14px;"></div>
+  ` : `<div style="font-size:13px;color:var(--subtle);font-style:italic;">Evidence drift is available after running a cross-paper synthesis on saved papers.</div>`;
+
   // Assemble accordion
   html += '<div class="folderAccordion">';
   html += _accordionTab('overview',        '📊', 'Overview',           null,              overviewBody,      true);
@@ -890,6 +900,7 @@ function renderResults(data, mode, query) {
   html += _accordionTab('prisma',          '📋', 'PRISMA Flow',        null,              prismaBody,        false);
   html += _accordionTab('rob',             '🔬', 'Risk of Bias',       allPapers.length,  robBody,           false);
   if (weighting.length) html += _accordionTab('weighting', '⚖', 'Evidence Weighting', null, weightingBody, false);
+  html += _accordionTab('drift',           '📈', 'Evidence Drift',     null,              driftBody,         false);
   html += _accordionTab('citations',       '📄', 'Citations',          null,              citationsBody,     false);
   html += _accordionTab('papers',          '📚', 'Papers Used',        allPapers.length,  papersBody,        false);
   html += _accordionTab('ask',             '💬', 'Ask AI',             null,              askBody,           false);
@@ -926,6 +937,27 @@ function renderResults(data, mode, query) {
   // Fresh Analysis
   const rerunBtn = document.getElementById('rerunBtn');
   if (rerunBtn) rerunBtn.onclick = () => runAnalysis(true);
+
+  // Evidence Drift
+  const loadDriftBtn = document.getElementById('loadDriftBtn');
+  if (loadDriftBtn && driftSynthId) {
+    loadDriftBtn.onclick = async () => {
+      const driftResult = document.getElementById('driftResult');
+      loadDriftBtn.disabled = true;
+      loadDriftBtn.textContent = 'Analysing…';
+      driftResult.innerHTML = '<div style="font-size:13px;color:var(--subtle);">Grouping papers by publication period…</div>';
+      try {
+        const d = await fetchJson(`/ai/synthesis/${driftSynthId}/evidence-drift`);
+        loadDriftBtn.textContent = 'Refresh';
+        loadDriftBtn.disabled = false;
+        _renderDrift(driftResult, d);
+      } catch (e) {
+        loadDriftBtn.textContent = 'Analyse Evidence Drift';
+        loadDriftBtn.disabled = false;
+        driftResult.innerHTML = `<div style="color:var(--bad);font-size:13px;">${esc(e.message || 'Failed to load drift.')}</div>`;
+      }
+    };
+  }
 
   // Jump to citations — open citations tab in accordion
   const jumpCiteBtn = document.getElementById('jumpCitationsBtn');
@@ -1136,6 +1168,45 @@ function formatCitationJS(paper, fmt) {
 }
 
 init();
+
+function _renderDrift(container, d) {
+  const periods = d.periods || [];
+  if (!periods.length) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--subtle);font-style:italic;">${esc(d.drift_summary || 'No year data available.')}</div>`;
+    return;
+  }
+
+  const maxCount = Math.max(...periods.map(p => p.paper_count), 1);
+
+  const bars = periods.map(p => {
+    const pct = Math.round((p.paper_count / maxCount) * 100);
+    const outcomeNote = p.avg_outcome_value != null ? ` · outcome avg: ${p.avg_outcome_value}` : '';
+    const biasNote    = p.avg_bias_score    != null ? ` · bias avg: ${p.avg_bias_score}/10` : '';
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+        <div style="font-size:11.5px;font-weight:600;color:var(--navy);min-width:72px;">${esc(p.period)}</div>
+        <div style="flex:1;background:var(--line);border-radius:4px;height:10px;overflow:hidden;">
+          <div style="width:${pct}%;background:var(--brass);height:100%;border-radius:4px;transition:width .3s;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--subtle);min-width:22px;text-align:right;">${p.paper_count}</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);padding-left:80px;">${esc(p.study_titles.slice(0,3).join(', '))}${p.study_titles.length>3?` +${p.study_titles.length-3} more`:''}${outcomeNote}${biasNote}</div>
+    </div>`;
+  }).join('');
+
+  const narrative = d.narrative
+    ? `<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px;">AI Discovery Narrative</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.75;white-space:pre-wrap;">${esc(d.narrative)}</div>
+      </div>`
+    : '';
+
+  container.innerHTML = `
+    <div style="font-size:12px;color:var(--subtle);margin-bottom:12px;line-height:1.6;">${esc(d.drift_summary || '')}</div>
+    <div>${bars}</div>
+    ${narrative}
+  `;
+}
 </script>
 <script src="trust.js" defer></script>
 <script>

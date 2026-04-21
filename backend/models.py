@@ -182,59 +182,6 @@ class SynthesisResult(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-# ── Phase 4: Systematic Review Tooling ───────────────────────────────────────
-
-class SystematicReview(SQLModel, table=True):
-    id:             Optional[int] = Field(default=None, primary_key=True)
-    owner_username: str           = Field(index=True)
-    title:          str           = Field(default="Untitled Review")
-    description:    Optional[str] = None
-
-    phase: str = Field(default="search", index=True)
-    # phase: "search" | "screen" | "extract" | "synthesise" | "complete"
-
-    search_query:         Optional[str] = None
-    search_source:        str           = Field(default="europepmc")
-    search_results_count: int           = Field(default=0)
-
-    inclusion_criteria: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
-    exclusion_criteria: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
-    filters:            Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
-    # filters: {year_from, year_to, languages, study_designs, outcome_keywords}
-
-    audit_log:    Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
-    # audit_log: [{timestamp, action, details}]
-
-    synthesis_id: Optional[int] = Field(default=None, foreign_key="synthesisresult.id")
-
-    # Phase 4c: global evidence notes for this review
-    evidence_notes: Optional[str] = None
-
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-class ReviewScreening(SQLModel, table=True):
-    id:             Optional[int] = Field(default=None, primary_key=True)
-    review_id:      int           = Field(foreign_key="systematicreview.id", index=True)
-    owner_username: str           = Field(index=True)
-
-    study_id:          Optional[int] = Field(default=None, foreign_key="study.id", index=True)
-    external_title:    Optional[str] = None
-    external_doi:      Optional[str] = None
-    external_abstract: Optional[str] = None
-    external_source:   Optional[str] = None
-    external_source_id: Optional[str] = None
-    external_year:     Optional[int] = None
-
-    decision:         str           = Field(default="pending", index=True)
-    # decision: "pending" | "included" | "excluded" | "maybe"
-    exclusion_reason: Optional[str] = None
-    screener_notes:   Optional[str] = None
-
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
 class PaperReminder(SQLModel, table=True):
     id:             Optional[int]  = Field(default=None, primary_key=True)
     owner_username: str            = Field(index=True)
@@ -368,32 +315,6 @@ class Bookmark(SQLModel, table=True):
     created_at:     datetime     = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-# ── Phase 4c: Extraction Templates & Records ─────────────────────────────────
-
-class ExtractionTemplate(SQLModel, table=True):
-    """User-defined extraction form schema (reusable across reviews)."""
-    id:             Optional[int] = Field(default=None, primary_key=True)
-    owner_username: str           = Field(index=True)
-    name:           str
-    fields:         Optional[Any] = Field(default=None, sa_column=Column(JSON))
-    # fields: [{name: str, type: "text"|"number"|"select"|"boolean", required: bool, options: [str]?}]
-    is_global:      bool          = Field(default=False)
-    created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-class ExtractionRecord(SQLModel, table=True):
-    """Filled extraction form data for one paper in a review."""
-    id:             Optional[int] = Field(default=None, primary_key=True)
-    review_id:      int           = Field(foreign_key="systematicreview.id", index=True)
-    screening_id:   int           = Field(foreign_key="reviewscreening.id", index=True)
-    template_id:    Optional[int] = Field(default=None, foreign_key="extractiontemplate.id")
-    owner_username: str           = Field(index=True)
-    data:           Optional[Any] = Field(default=None, sa_column=Column(JSON))
-    # data: {field_name: value, ...}
-    ai_extracted:   bool          = Field(default=False)
-    created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 # ── Phase 5/6: Spreadsheets, Attachments & Research Lifecycle ──────────────
 
 class SpreadsheetData(SQLModel, table=True):
@@ -413,21 +334,6 @@ class Attachment(SQLModel, table=True):
     file_type:      str
     content_base64: str           # storing files up to 4MB in base64
     created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class ResearchQuestion(SQLModel, table=True):
-    id:             Optional[int] = Field(default=None, primary_key=True)
-    owner_username: str           = Field(index=True)
-    question_text:  str
-    pico_json:      Optional[Any] = Field(default=None, sa_column=Column(JSON))
-    finer_scores_json: Optional[Any] = Field(default=None, sa_column=Column(JSON))
-    hypothesis_null: Optional[str] = None
-    hypothesis_alt:  Optional[str] = None
-    objectives_json: Optional[Any] = Field(default=None, sa_column=Column(JSON))
-    novelty_score:   Optional[int] = Field(default=None)
-    novelty_notes:   Optional[str] = None
-    created_at:      datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at:      datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 # ── Phase 5: Search & Alerts ─────────────────────────────────────────────────
 

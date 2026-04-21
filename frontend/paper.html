@@ -2093,6 +2093,91 @@ function showCitation() {
   }
 
   renderCitationPanel("harvard");
+
+  // ── Citation Web section (OpenAlex) ──────────────────────────────────────
+  const doi = p?.doi || p?.doi;
+  const citWebWrap = document.createElement('div');
+  citWebWrap.id = 'citWebSection';
+  citWebWrap.style.cssText = 'margin-top:20px;border-top:1px solid var(--line);padding-top:16px;';
+
+  if (!doi) {
+    citWebWrap.innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.09em;text-transform:uppercase;margin-bottom:8px;">Citation Web</div>
+      <div style="font-size:12px;color:var(--subtle);font-style:italic;">No DOI available — citation web requires a DOI.</div>`;
+  } else {
+    citWebWrap.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.09em;text-transform:uppercase;">Citation Web</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <select id="citWebDepth" style="font-size:11.5px;padding:4px 8px;width:auto;">
+            <option value="1">1-hop</option>
+            <option value="2">2-hop (slower)</option>
+          </select>
+          <button class="btn sm primary" id="loadCitWebBtn">Load via OpenAlex</button>
+        </div>
+      </div>
+      <div id="citWebResult" style="font-size:12px;color:var(--subtle);font-style:italic;">Click to load citation network for this paper.</div>`;
+  }
+
+  document.getElementById('panel').appendChild(citWebWrap);
+
+  if (doi) {
+    document.getElementById('loadCitWebBtn').onclick = async () => {
+      const depth = document.getElementById('citWebDepth').value;
+      const result = document.getElementById('citWebResult');
+      const btn = document.getElementById('loadCitWebBtn');
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      result.innerHTML = '<div style="color:var(--subtle);">Fetching from OpenAlex…</div>';
+      try {
+        const data = await fetchJson(`/external/citation-network?doi=${encodeURIComponent(doi)}&depth=${depth}`);
+        btn.textContent = 'Reload';
+        btn.disabled = false;
+        _renderCitationWeb(result, data);
+      } catch (e) {
+        btn.textContent = 'Load via OpenAlex';
+        btn.disabled = false;
+        result.innerHTML = `<div style="color:var(--bad);font-size:12px;">${escapeHtml(e.message || 'Failed to load citation web.')}</div>`;
+      }
+    };
+  }
+}
+
+function _renderCitationWeb(container, data) {
+  const nodes = data.nodes || [];
+  const seed  = nodes.find(n => n.node_type === 'seed');
+  const ancestors   = nodes.filter(n => n.node_type === 'ancestor');
+  const descendants = nodes.filter(n => n.node_type === 'descendant');
+  const cocites     = nodes.filter(n => n.node_type === 'cocite');
+
+  function nodeCard(n) {
+    const doi_link = n.doi ? `<a href="https://doi.org/${escapeHtml(n.doi)}" target="_blank" rel="noopener" style="font-size:10.5px;color:var(--brass2);">DOI ↗</a>` : '';
+    const key = n.is_key_paper ? ' 🔑' : '';
+    return `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface2);margin-bottom:6px;">
+      <div style="font-size:12px;font-weight:600;color:var(--navy);line-height:1.4;">${escapeHtml(n.label)}${key}</div>
+      <div style="font-size:10.5px;color:var(--subtle);margin-top:2px;">
+        ${n.year ? escapeHtml(String(n.year)) + ' · ' : ''}${n.citation_count ? escapeHtml(String(n.citation_count)) + ' citations · ' : ''}${n.source ? escapeHtml(n.source) + ' · ' : ''}${doi_link}
+      </div>
+      ${n.authors ? `<div style="font-size:10.5px;color:var(--muted);margin-top:1px;">${escapeHtml(n.authors)}</div>` : ''}
+    </div>`;
+  }
+
+  function section(title, color, items) {
+    if (!items.length) return '';
+    return `<div style="margin-bottom:14px;">
+      <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${color};margin-bottom:6px;">${escapeHtml(title)} (${items.length})</div>
+      ${items.slice(0, 15).map(nodeCard).join('')}
+      ${items.length > 15 ? `<div style="font-size:11px;color:var(--subtle);font-style:italic;">…and ${items.length - 15} more</div>` : ''}
+    </div>`;
+  }
+
+  const yr = data.year_range?.length === 2 ? ` · ${data.year_range[0]}–${data.year_range[1]}` : '';
+  container.innerHTML = `
+    <div style="font-size:11px;color:var(--subtle);margin-bottom:12px;">${nodes.length} papers · ${(data.edges||[]).length} connections${yr}</div>
+    ${section('References (this paper cites)', 'var(--navy)', ancestors)}
+    ${section('Cited By (citing this paper)', 'var(--good)', descendants)}
+    ${section('Co-cited With', 'var(--brass2)', cocites)}
+  `;
 }
 
 /* ══ RELATED TAB ═════════════════════════════════════════════ */

@@ -24,11 +24,7 @@ from backend.routers.folders import router as folders_router
 from backend.routers.health import router as health_router
 from backend.routers.metrics import router as metrics_router
 from backend.routers.notebooks import router as notebooks_router
-from backend.routers.extraction import router as extraction_router
-from backend.routers.reviews import router as reviews_router
 from backend.routers.studies import router as studies_router
-from backend.routers.research import router as research_router
-from backend.routers.writing import router as writing_router
 from backend.routers.trust import router as trust_router         # Phase 6
 from backend.routers.eval_router import router as eval_router   # Phase 6
 from backend.routers.analytics import router as analytics_router # Phase 5
@@ -137,10 +133,6 @@ app.include_router(health_router)
 app.include_router(ai_router)
 app.include_router(notebooks_router)   # Phase 4b
 app.include_router(community_router)   # Phase 4b
-app.include_router(reviews_router)     # Phase 4
-app.include_router(extraction_router)  # Phase 4c
-app.include_router(research_router)    # Phase 5: Research Lifecycle
-app.include_router(writing_router)     # Phase 5: Writing and Reports
 app.include_router(trust_router)       # Phase 6: Trust & Validity
 app.include_router(eval_router)        # Phase 6: Benchmark Eval
 app.include_router(analytics_router)   # Phase 5: Analytics
@@ -173,8 +165,7 @@ _API_PREFIXES = (
     "/auth/", "/studies/", "/folders/", "/comments/",
     "/external/", "/metrics/", "/ai/", "/health/",
     "/notebooks/", "/community/",
-    "/reviews/", "/reminders/", "/extraction-templates/",
-    "/research/", "/trust/", "/eval/",
+    "/trust/", "/eval/",
     "/docs", "/redoc", "/openapi",
 )
 
