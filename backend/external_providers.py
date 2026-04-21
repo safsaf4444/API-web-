@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
@@ -24,6 +25,7 @@ class ExternalPaper:
     pmcid: Optional[str] = None
     citation_count: Optional[int] = None
     is_retracted: bool = False
+    publication_type: Optional[str] = None  # "preprint", "trial", "article", etc.
     raw: Optional[Dict[str, Any]] = None
 
 
@@ -124,6 +126,8 @@ async def _request_with_retries(
     raise RuntimeError("Retry loop failed unexpectedly")
 
 
+# ── Europe PMC ────────────────────────────────────────────────────────────────
+
 class EuropePMCProvider:
     source_name = "europepmc"
 
@@ -218,12 +222,8 @@ class EuropePMCProvider:
                 url = f"https://doi.org/{doi}"
 
             abstract = item.get("abstractText")
-
-            # Retraction: Europe PMC returns "Y" / "N" string
             retracted_raw = item.get("isRetracted", "N")
             is_retracted = str(retracted_raw).strip().upper() == "Y"
-
-            # Citation count: Europe PMC returns citedByCount
             citation_count = _int_or_none(item.get("citedByCount"))
 
             out.append(
@@ -247,6 +247,8 @@ class EuropePMCProvider:
 
         return out, next_cursor, int(hit_count)
 
+
+# ── Semantic Scholar ──────────────────────────────────────────────────────────
 
 class SemanticScholarProvider:
     source_name = "semantic_scholar"
@@ -277,7 +279,6 @@ class SemanticScholarProvider:
             "query": q,
             "limit": page_size,
             "offset": offset,
-            # Added citationCount to fields
             "fields": "paperId,title,abstract,year,venue,authors,url,externalIds,citationCount,isOpenAccess",
         }
 
@@ -314,10 +315,8 @@ class SemanticScholarProvider:
                 "Semantic Scholar rate-limited (429). Add SEMANTIC_SCHOLAR_API_KEY or try again later.",
                 status_code=429,
             )
-        if r.status_code == 401:
-            raise ProviderError("Semantic Scholar auth failed (401). Check SEMANTIC_SCHOLAR_API_KEY.", status_code=502)
-        if r.status_code == 403:
-            raise ProviderError("Semantic Scholar blocked the request (403).", status_code=502)
+        if r.status_code in (401, 403):
+            raise ProviderError(f"Semantic Scholar auth error ({r.status_code}).", status_code=502)
         if r.status_code >= 400:
             raise ProviderError(f"Semantic Scholar HTTP {r.status_code}. {(r.text or '')[:250]}", status_code=502)
 
@@ -358,8 +357,6 @@ class SemanticScholarProvider:
             url      = item.get("url") or f"https://www.semanticscholar.org/paper/{paper_id}"
             abstract = item.get("abstract")
             year     = _int_or_none(item.get("year"))
-
-            # Citation count: Semantic Scholar returns citationCount directly
             citation_count = _int_or_none(item.get("citationCount"))
 
             out.append(
@@ -376,7 +373,7 @@ class SemanticScholarProvider:
                     pmid=str(pmid) if pmid else None,
                     pmcid=str(pmcid) if pmcid else None,
                     citation_count=citation_count,
-                    is_retracted=False,  # Semantic Scholar doesn't expose retraction status
+                    is_retracted=False,
                     raw=item,
                 )
             )
@@ -387,6 +384,8 @@ class SemanticScholarProvider:
 
         return out, next_cursor, int(total)
 
+
+# ── OpenAlex ──────────────────────────────────────────────────────────────────
 
 class OpenAlexProvider:
     source_name = "openalex"
@@ -513,7 +512,6 @@ class OpenAlexProvider:
                 except Exception:
                     abstract = None
 
-            # OpenAlex returns cited_by_count
             citation_count = _int_or_none(item.get("cited_by_count"))
 
             out.append(
@@ -535,6 +533,8 @@ class OpenAlexProvider:
 
         return out, next_cursor, int(hit_count)
 
+
+# ── Crossref ──────────────────────────────────────────────────────────────────
 
 class CrossrefProvider:
     source_name = "crossref"
@@ -669,7 +669,7 @@ class CrossrefProvider:
                     doi=doi,
                     url=url,
                     abstract=str(abstract) if isinstance(abstract, str) and abstract.strip() else None,
-                    citation_count=None,  # Crossref doesn't expose citation counts
+                    citation_count=None,
                     is_retracted=False,
                     raw=item,
                 )
@@ -682,23 +682,634 @@ class CrossrefProvider:
         return out, next_cursor, int(total)
 
 
+# ── PubMed (NCBI E-utilities) ─────────────────────────────────────────────────
+
+class PubMedProvider:
+    source_name = "pubmed"
+    ESEARCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    EFETCH  = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
+    def __init__(self):
+        self.api_key = (os.getenv("PUBMED_API_KEY") or "").strip()
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "0",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 100)
+        retstart = 0
+        try:
+            if cursor_mark and str(cursor_mark).strip():
+                retstart = max(0, int(str(cursor_mark)))
+        except Exception:
+            retstart = 0
+
+        yf, yt = _year_bounds(year_from, year_to)
+        term = q
+        if yf is not None or yt is not None:
+            yf2 = yf if yf is not None else 1900
+            yt2 = yt if yt is not None else 2100
+            term = f"({q}) AND ({yf2}:{yt2}[pdat])"
+
+        search_params: Dict[str, Any] = {
+            "db": "pubmed",
+            "term": term,
+            "retmax": str(page_size),
+            "retstart": str(retstart),
+            "retmode": "json",
+            "usehistory": "n",
+        }
+        if self.api_key:
+            search_params["api_key"] = self.api_key
+
+        headers = {"User-Agent": "MedicalEvidenceApp/1.0 (PubMed)"}
+
+        try:
+            r = await _request_with_retries("GET", self.ESEARCH, params=search_params, headers=headers, timeout=20.0, max_retries=2)
+        except Exception as e:
+            raise ProviderError(f"PubMed esearch error: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError("PubMed rate-limited (429). Add PUBMED_API_KEY or try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"PubMed HTTP {r.status_code}.", status_code=502)
+
+        try:
+            search_data = r.json()
+        except Exception:
+            raise ProviderError("PubMed esearch returned non-JSON.", status_code=502)
+
+        esr    = search_data.get("esearchresult") or {}
+        id_list = esr.get("idlist") or []
+        total  = _int_or_none(esr.get("count")) or 0
+
+        if not id_list:
+            return [], None, total
+
+        # Fetch full records as XML
+        fetch_params: Dict[str, Any] = {
+            "db": "pubmed",
+            "id": ",".join(id_list),
+            "retmode": "xml",
+        }
+        if self.api_key:
+            fetch_params["api_key"] = self.api_key
+
+        try:
+            fr = await _request_with_retries("GET", self.EFETCH, params=fetch_params, headers=headers, timeout=30.0, max_retries=2)
+        except Exception as e:
+            raise ProviderError(f"PubMed efetch error: {e}", status_code=502)
+
+        if fr.status_code >= 400:
+            raise ProviderError(f"PubMed efetch HTTP {fr.status_code}.", status_code=502)
+
+        out = self._parse_xml(fr.text)
+
+        next_cursor: Optional[str] = None
+        if total > 0 and (retstart + page_size) < total:
+            next_cursor = str(retstart + page_size)
+
+        return out, next_cursor, total
+
+    def _parse_xml(self, xml_text: str) -> List[ExternalPaper]:
+        out: List[ExternalPaper] = []
+        try:
+            root = ET.fromstring(xml_text)
+        except ET.ParseError:
+            return out
+
+        for article in root.findall(".//PubmedArticle"):
+            try:
+                medline = article.find("MedlineCitation")
+                if medline is None:
+                    continue
+
+                pmid_el = medline.find("PMID")
+                pmid = pmid_el.text.strip() if pmid_el is not None and pmid_el.text else None
+                if not pmid:
+                    continue
+
+                art = medline.find("Article")
+                if art is None:
+                    continue
+
+                # Title
+                title_el = art.find("ArticleTitle")
+                title = "".join(title_el.itertext()).strip() if title_el is not None else ""
+                if not title:
+                    continue
+
+                # Abstract
+                abstract_parts: List[str] = []
+                for ab_text in art.findall(".//AbstractText"):
+                    lbl = ab_text.get("Label")
+                    txt = "".join(ab_text.itertext()).strip()
+                    if txt:
+                        abstract_parts.append(f"{lbl}: {txt}" if lbl else txt)
+                abstract = " ".join(abstract_parts) or None
+
+                # Year
+                year = None
+                pub_date = art.find(".//PubDate")
+                if pub_date is not None:
+                    year_el = pub_date.find("Year")
+                    if year_el is not None:
+                        year = _int_or_none(year_el.text)
+                    else:
+                        med_el = pub_date.find("MedlineDate")
+                        if med_el is not None and med_el.text:
+                            m = re.match(r"(\d{4})", med_el.text.strip())
+                            if m:
+                                year = _int_or_none(m.group(1))
+
+                # Authors
+                authors: List[str] = []
+                for auth in art.findall(".//Author"):
+                    ln = auth.find("LastName")
+                    fn = auth.find("ForeName") or auth.find("Initials")
+                    if ln is not None and ln.text:
+                        name = ln.text.strip()
+                        if fn is not None and fn.text:
+                            name = f"{fn.text.strip()} {name}"
+                        authors.append(name)
+
+                # Journal
+                journal_el = art.find(".//Journal/Title") or art.find(".//Journal/ISOAbbreviation")
+                venue = journal_el.text.strip() if journal_el is not None and journal_el.text else None
+
+                # DOI
+                doi = None
+                for artid in article.findall(".//ArticleId"):
+                    if artid.get("IdType") == "doi" and artid.text:
+                        doi = _clean_doi(artid.text.strip())
+                        break
+
+                # PMCID
+                pmcid = None
+                for artid in article.findall(".//ArticleId"):
+                    if artid.get("IdType") == "pmc" and artid.text:
+                        pmcid = artid.text.strip()
+                        break
+
+                url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+
+                out.append(ExternalPaper(
+                    source=self.source_name,
+                    source_id=pmid,
+                    title=title,
+                    year=year,
+                    authors=authors or None,
+                    venue=venue,
+                    doi=doi,
+                    url=url,
+                    abstract=abstract,
+                    pmid=pmid,
+                    pmcid=pmcid,
+                    is_retracted=False,
+                    publication_type="article",
+                ))
+            except Exception:
+                continue
+
+        return out
+
+
+# ── CORE Open Access Aggregator ───────────────────────────────────────────────
+
+class COREProvider:
+    source_name = "core"
+    BASE = "https://api.core.ac.uk/v3"
+
+    def __init__(self):
+        self.api_key = (os.getenv("CORE_API_KEY") or "").strip()
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "0",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        if not self.api_key:
+            raise ProviderError("CORE_API_KEY is required. Get a free key at core.ac.uk/api-keys", status_code=400)
+
+        page_size = _clamp_limit(limit, 100)
+        offset = 0
+        try:
+            if cursor_mark and str(cursor_mark).strip():
+                offset = max(0, int(str(cursor_mark)))
+        except Exception:
+            offset = 0
+
+        yf, yt = _year_bounds(year_from, year_to)
+        query = q
+        if yf is not None or yt is not None:
+            yf2 = yf if yf is not None else 1900
+            yt2 = yt if yt is not None else 2100
+            query = f"{q} AND yearPublished>={yf2} AND yearPublished<={yt2}"
+
+        params: Dict[str, Any] = {
+            "q": query,
+            "limit": page_size,
+            "offset": offset,
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (CORE)",
+        }
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                f"{self.BASE}/search/works",
+                params=params,
+                headers=headers,
+                timeout=25.0,
+                max_retries=2,
+            )
+        except Exception as e:
+            raise ProviderError(f"CORE error: {e}", status_code=502)
+
+        if r.status_code == 401:
+            raise ProviderError("CORE API key invalid or expired.", status_code=401)
+        if r.status_code == 429:
+            raise ProviderError("CORE rate-limited (429). Try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"CORE HTTP {r.status_code}.", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("CORE returned non-JSON response.", status_code=502)
+
+        results = data.get("results") or []
+        total   = _int_or_none(data.get("totalHits")) or 0
+
+        out: List[ExternalPaper] = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            core_id = item.get("id")
+            if not title or not core_id:
+                continue
+
+            doi   = _clean_doi(item.get("doi"))
+            year  = _int_or_none(item.get("yearPublished"))
+
+            authors_raw = item.get("authors") or []
+            authors: Optional[List[str]] = None
+            if isinstance(authors_raw, list) and authors_raw:
+                names: List[str] = []
+                for a in authors_raw:
+                    if isinstance(a, dict):
+                        nm = a.get("name") or ""
+                    elif isinstance(a, str):
+                        nm = a
+                    else:
+                        continue
+                    if nm.strip():
+                        names.append(nm.strip())
+                if names:
+                    authors = names
+
+            venue    = item.get("publisher") or item.get("journals", [{}])[0].get("title") if item.get("journals") else None
+            abstract = item.get("abstract")
+            url      = item.get("downloadUrl") or (f"https://doi.org/{doi}" if doi else f"https://core.ac.uk/works/{core_id}")
+
+            out.append(ExternalPaper(
+                source=self.source_name,
+                source_id=str(core_id),
+                title=title,
+                year=year,
+                authors=authors,
+                venue=str(venue) if venue else None,
+                doi=doi,
+                url=url,
+                abstract=abstract,
+                is_retracted=False,
+                publication_type="article",
+                raw=item,
+            ))
+
+        next_cursor: Optional[str] = None
+        if total > 0 and (offset + page_size) < total:
+            next_cursor = str(offset + page_size)
+
+        return out, next_cursor, total
+
+
+# ── ClinicalTrials.gov ────────────────────────────────────────────────────────
+
+class ClinicalTrialsProvider:
+    source_name = "clinicaltrials"
+    BASE = "https://clinicaltrials.gov/api/v2"
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 100)
+
+        params: Dict[str, Any] = {
+            "query.term": q,
+            "pageSize": page_size,
+            "format": "json",
+        }
+        if cursor_mark:
+            params["pageToken"] = cursor_mark
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (ClinicalTrials)",
+        }
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                f"{self.BASE}/studies",
+                params=params,
+                headers=headers,
+                timeout=25.0,
+                max_retries=2,
+            )
+        except Exception as e:
+            raise ProviderError(f"ClinicalTrials.gov error: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError("ClinicalTrials.gov rate-limited. Try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"ClinicalTrials.gov HTTP {r.status_code}.", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("ClinicalTrials.gov returned non-JSON.", status_code=502)
+
+        studies = data.get("studies") or []
+        total   = _int_or_none(data.get("totalCount")) or 0
+        next_page_token = data.get("nextPageToken")
+
+        out: List[ExternalPaper] = []
+        for study in studies:
+            if not isinstance(study, dict):
+                continue
+            try:
+                proto = study.get("protocolSection") or {}
+                ident = proto.get("identificationModule") or {}
+                desc  = proto.get("descriptionModule") or {}
+                status_mod = proto.get("statusModule") or {}
+                design = proto.get("designModule") or {}
+                arms   = proto.get("armsInterventionsModule") or {}
+
+                nct_id = ident.get("nctId") or ""
+                if not nct_id:
+                    continue
+
+                title = ident.get("briefTitle") or ident.get("officialTitle") or ""
+                if not title:
+                    continue
+
+                abstract = desc.get("briefSummary") or desc.get("detailedDescription")
+
+                # Year from start date
+                year = None
+                start = status_mod.get("startDateStruct") or {}
+                if start.get("date"):
+                    m = re.match(r"(\d{4})", start["date"])
+                    if m:
+                        year = _int_or_none(m.group(1))
+
+                # Phase
+                phases = design.get("phases") or []
+                phase_str = ", ".join(phases) if phases else None
+
+                # Interventions
+                interventions = arms.get("interventions") or []
+                interv_names  = [iv.get("name") for iv in interventions if isinstance(iv, dict) and iv.get("name")]
+
+                # Status
+                overall_status = status_mod.get("overallStatus")
+
+                # Build a structured abstract if none
+                if not abstract:
+                    parts = []
+                    if overall_status:
+                        parts.append(f"Status: {overall_status}")
+                    if phase_str:
+                        parts.append(f"Phase: {phase_str}")
+                    if interv_names:
+                        parts.append(f"Interventions: {', '.join(interv_names[:3])}")
+                    abstract = ". ".join(parts) or None
+
+                url = f"https://clinicaltrials.gov/study/{nct_id}"
+
+                out.append(ExternalPaper(
+                    source=self.source_name,
+                    source_id=nct_id,
+                    title=title,
+                    year=year,
+                    authors=None,
+                    venue="ClinicalTrials.gov",
+                    doi=None,
+                    url=url,
+                    abstract=abstract,
+                    is_retracted=False,
+                    publication_type="trial",
+                    raw=study,
+                ))
+            except Exception:
+                continue
+
+        return out, next_page_token or None, total
+
+
+# ── Preprints: bioRxiv + medRxiv via Europe PMC ───────────────────────────────
+
+class PreprintProvider:
+    """Searches bioRxiv and medRxiv preprints via Europe PMC (SRC:PPR filter)."""
+    source_name = "preprints"
+
+    async def search(
+        self,
+        q: str,
+        limit: int = 10,
+        cursor_mark: str = "*",
+        *,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> SearchResult:
+        page_size = _clamp_limit(limit, 100)
+
+        yf, yt = _year_bounds(year_from, year_to)
+        query = f"({q}) AND SRC:PPR"
+        if yf is not None or yt is not None:
+            yf2 = yf if yf is not None else 1000
+            yt2 = yt if yt is not None else 3000
+            query += f" AND PUB_YEAR:[{yf2} TO {yt2}]"
+
+        params = {
+            "query": query,
+            "format": "json",
+            "pageSize": str(page_size),
+            "resultType": "core",
+            "cursorMark": cursor_mark or "*",
+        }
+
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "MedicalEvidenceApp/1.0 (EuropePMC-Preprints)",
+        }
+
+        try:
+            r = await _request_with_retries(
+                "GET",
+                "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+                params=params,
+                headers=headers,
+                timeout=20.0,
+                max_retries=2,
+            )
+        except Exception as e:
+            raise ProviderError(f"Preprint search error: {e}", status_code=502)
+
+        if r.status_code == 429:
+            raise ProviderError("Preprint search rate-limited. Try again soon.", status_code=429)
+        if r.status_code >= 400:
+            raise ProviderError(f"Preprint search HTTP {r.status_code}.", status_code=502)
+
+        try:
+            data = r.json() or {}
+        except Exception:
+            raise ProviderError("Preprint search returned non-JSON.", status_code=502)
+
+        results    = (data.get("resultList") or {}).get("result") or []
+        next_cursor = data.get("nextCursorMark")
+        hit_count  = _int_or_none(data.get("hitCount")) or 0
+
+        out: List[ExternalPaper] = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            source_id = item.get("id") or item.get("doi")
+            if not title or not source_id:
+                continue
+
+            doi   = item.get("doi")
+            pmid  = item.get("pmid")
+            pmcid = item.get("pmcid")
+            year  = _int_or_none(item.get("pubYear"))
+
+            author_str = item.get("authorString")
+            authors: Optional[List[str]] = None
+            if isinstance(author_str, str) and author_str.strip():
+                authors = [a.strip() for a in author_str.split(",") if a.strip()]
+
+            journal = item.get("journalTitle") or "Preprint"
+            abstract = item.get("abstractText")
+
+            url = None
+            if doi:
+                url = f"https://doi.org/{doi}"
+            elif pmid:
+                url = f"https://europepmc.org/article/PPR/{source_id}"
+
+            out.append(ExternalPaper(
+                source=self.source_name,
+                source_id=str(source_id),
+                title=title,
+                year=year,
+                authors=authors,
+                venue=journal,
+                doi=str(doi) if doi else None,
+                url=url,
+                abstract=abstract,
+                pmid=str(pmid) if pmid else None,
+                pmcid=str(pmcid) if pmcid else None,
+                is_retracted=False,
+                publication_type="preprint",
+                raw=item,
+            ))
+
+        return out, next_cursor, int(hit_count)
+
+
+# ── Unpaywall enrichment (utility, not a search provider) ─────────────────────
+
+async def unpaywall_enrich(doi: str, email: str = "seren@seren.app") -> Optional[str]:
+    """
+    Given a DOI, returns the best open-access full-text PDF URL from Unpaywall,
+    or None if not found or on error.
+    """
+    if not doi:
+        return None
+    clean = _clean_doi(doi)
+    if not clean:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            r = await client.get(
+                f"https://api.unpaywall.org/v2/{clean}",
+                params={"email": email},
+                headers={"User-Agent": "MedicalEvidenceApp/1.0 (Unpaywall)"},
+            )
+        if r.status_code == 200:
+            data = r.json()
+            best = data.get("best_oa_location") or {}
+            return best.get("url_for_pdf") or best.get("url") or None
+    except Exception:
+        pass
+    return None
+
+
+# ── Provider registry ─────────────────────────────────────────────────────────
+
 PROVIDERS: Dict[str, Provider] = {
-    EuropePMCProvider.source_name:    EuropePMCProvider(),
+    EuropePMCProvider.source_name:      EuropePMCProvider(),
     SemanticScholarProvider.source_name: SemanticScholarProvider(),
-    OpenAlexProvider.source_name:     OpenAlexProvider(),
-    CrossrefProvider.source_name:     CrossrefProvider(),
+    OpenAlexProvider.source_name:       OpenAlexProvider(),
+    CrossrefProvider.source_name:       CrossrefProvider(),
+    PubMedProvider.source_name:         PubMedProvider(),
+    COREProvider.source_name:           COREProvider(),
+    ClinicalTrialsProvider.source_name: ClinicalTrialsProvider(),
+    PreprintProvider.source_name:       PreprintProvider(),
 }
 
 ALIASES: Dict[str, str] = {
-    "europe_pmc":     "europepmc",
-    "europepmc":      "europepmc",
-    "semantic":       "semantic_scholar",
+    "europe_pmc":       "europepmc",
+    "europepmc":        "europepmc",
+    "semantic":         "semantic_scholar",
     "semantic_scholar": "semantic_scholar",
-    "semanticscholar": "semantic_scholar",
-    "open_alex":      "openalex",
-    "openalex":       "openalex",
-    "cross_ref":      "crossref",
-    "crossref":       "crossref",
+    "semanticscholar":  "semantic_scholar",
+    "open_alex":        "openalex",
+    "openalex":         "openalex",
+    "cross_ref":        "crossref",
+    "crossref":         "crossref",
+    "ncbi":             "pubmed",
+    "pubmed":           "pubmed",
+    "core":             "core",
+    "clinical_trials":  "clinicaltrials",
+    "clinicaltrials":   "clinicaltrials",
+    "clinicaltrials_gov": "clinicaltrials",
+    "biorxiv":          "preprints",
+    "medrxiv":          "preprints",
+    "preprints":        "preprints",
+    "preprint":         "preprints",
 }
 
 

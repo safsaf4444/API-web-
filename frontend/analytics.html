@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Analytics — Seren</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .analyticsLayout {
+      display: grid;
+      grid-template-columns: 220px minmax(0,1fr);
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width:860px) { .analyticsLayout { grid-template-columns:1fr; } }
+
+    .analyticsSidebar { position:sticky; top:80px; }
+    .analyticsSideCard { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; margin-bottom:12px; }
+    .analyticsSideTitle { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.09em; color:var(--subtle); margin-bottom:10px; }
+    .analyticsSideNav a { display:block; padding:7px 10px; font-size:13px; color:var(--text2); border-radius:var(--r-sm); margin-bottom:2px; text-decoration:none; transition:background .12s; }
+    .analyticsSideNav a:hover { background:var(--surface2); }
+    .analyticsSideNav a.active { background:var(--cream3); color:var(--navy); font-weight:600; }
+
+    .statsBar { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin-bottom:20px; }
+    .statCard { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; text-align:center; }
+    .statNumber { font-family:var(--font-display); font-size:28px; font-weight:800; color:var(--navy); line-height:1; }
+    .statLabel { font-size:11px; color:var(--subtle); margin-top:4px; text-transform:uppercase; letter-spacing:.06em; }
+
+    .chartGrid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media (max-width:900px) { .chartGrid { grid-template-columns:1fr; } }
+    .chartWide { grid-column:1/-1; }
+
+    .chartCard { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:18px; }
+    .chartCardTitle { font-size:13px; font-weight:700; color:var(--navy); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+    .chartCardSub { font-size:11px; color:var(--subtle); font-weight:400; }
+    .chartWrap { position:relative; height:220px; }
+    .chartWrapTall { position:relative; height:320px; }
+
+    .leaderboardTable { width:100%; border-collapse:collapse; font-size:12.5px; }
+    .leaderboardTable th { text-align:left; padding:7px 10px; font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:var(--subtle); border-bottom:2px solid var(--line); }
+    .leaderboardTable td { padding:8px 10px; border-bottom:1px solid var(--line2); vertical-align:top; }
+    .leaderboardTable tr:last-child td { border-bottom:none; }
+    .leaderboardTable tr:hover td { background:var(--surface2); }
+    .esBadge { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; font-size:11px; font-weight:700; }
+    .esBadge.high { background:rgba(61,122,74,.15); color:var(--good); }
+    .esBadge.mid  { background:rgba(196,134,42,.15); color:var(--warn); }
+    .esBadge.low  { background:rgba(184,64,64,.12); color:var(--bad); }
+
+    .heatmapGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(28px,1fr)); gap:3px; }
+    .heatmapCell { height:28px; border-radius:4px; background:var(--line); transition:background .15s; cursor:default; }
+    .heatmapCell[title]:hover { opacity:.8; }
+
+    .exportRow { display:flex; gap:8px; flex-wrap:wrap; }
+
+    .emptyState { text-align:center; padding:40px 20px; color:var(--subtle); font-size:13px; }
+    .emptyState .emptyIcon { font-size:36px; margin-bottom:12px; }
+
+    #loadingOverlay { display:none; position:fixed; inset:0; background:rgba(255,255,255,.7); z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:12px; }
+    #loadingOverlay.show { display:flex; }
+  </style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+  <div class="spinner" style="width:36px;height:36px;border-width:3px;"></div>
+  <div style="font-size:13px;color:var(--subtle);">Loading analytics…</div>
+</div>
+
+<main>
+<div class="analyticsLayout">
+
+  <!-- Sidebar -->
+  <aside class="analyticsSidebar">
+    <div class="analyticsSideCard">
+      <div class="analyticsSideTitle">Analytics</div>
+      <nav class="analyticsSideNav">
+        <a href="#overview" class="active">Overview</a>
+        <a href="#evidence">Evidence Quality</a>
+        <a href="#publications">Publications</a>
+        <a href="#authors">Authors & Journals</a>
+        <a href="#leaderboard">Leaderboard</a>
+      </nav>
+    </div>
+    <div class="analyticsSideCard">
+      <div class="analyticsSideTitle">Export</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <a class="btn sm ghost" id="exportCsvBtn" href="/export/csv" target="_blank">&#8681; CSV</a>
+        <a class="btn sm ghost" id="exportXlsxBtn" href="/export/xlsx" target="_blank">&#8681; XLSX Evidence Table</a>
+        <a class="btn sm ghost" id="exportBibBtn" href="/export/bibtex" target="_blank">&#8681; BibTeX</a>
+        <a class="btn sm ghost" id="exportRisBtn" href="/export/ris" target="_blank">&#8681; RIS</a>
+        <a class="btn sm ghost" id="exportDocxBtn" href="/export/docx" target="_blank">&#8681; DOCX Report</a>
+        <a class="btn sm ghost" id="exportAnnotatedBtn" href="/export/annotated-bibliography" target="_blank">&#8681; Annotated Bibliography</a>
+      </div>
+    </div>
+    <div class="analyticsSideCard">
+      <div class="analyticsSideTitle">Filter</div>
+      <label style="font-size:11px;">Folder</label>
+      <select id="folderFilter" style="width:100%;margin-top:4px;font-size:12px;padding:7px 8px;">
+        <option value="">All papers</option>
+      </select>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div>
+
+    <!-- Overview stats -->
+    <div id="overview" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--navy);">Library Analytics</div>
+          <div style="font-size:12px;color:var(--subtle);margin-top:2px;">Visualise your research library at a glance</div>
+        </div>
+        <button class="btn sm ghost" id="refreshBtn">&#8635; Refresh</button>
+      </div>
+
+      <div class="statsBar" id="statsBar">
+        <div class="statCard"><div class="statNumber" id="statTotal">—</div><div class="statLabel">Papers</div></div>
+        <div class="statCard"><div class="statNumber" id="statTypes">—</div><div class="statLabel">Study Types</div></div>
+        <div class="statCard"><div class="statNumber" id="statRetracted" style="color:var(--bad);">—</div><div class="statLabel">Retracted</div></div>
+        <div class="statCard"><div class="statNumber" id="statOA" style="color:var(--good);">—</div><div class="statLabel">Open Access</div></div>
+      </div>
+    </div>
+
+    <div id="evidence" style="margin-bottom:20px;">
+      <div class="chartGrid">
+        <!-- Study type doughnut -->
+        <div class="chartCard">
+          <div class="chartCardTitle">Study Type Distribution <span class="chartCardSub">by design</span></div>
+          <div class="chartWrap"><canvas id="chartStudyType"></canvas></div>
+        </div>
+        <!-- Evidence scatter -->
+        <div class="chartCard">
+          <div class="chartCardTitle">Evidence Quality Scatter <span class="chartCardSub">year vs. strength (0–5)</span></div>
+          <div class="chartWrap"><canvas id="chartScatter"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="publications" style="margin-bottom:20px;">
+      <div class="chartGrid">
+        <!-- Publication trend -->
+        <div class="chartCard chartWide">
+          <div class="chartCardTitle">Publication Trend <span class="chartCardSub">papers per year</span></div>
+          <div class="chartWrap"><canvas id="chartYears"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="authors" style="margin-bottom:20px;">
+      <div class="chartGrid">
+        <!-- Top journals -->
+        <div class="chartCard">
+          <div class="chartCardTitle">Top Journals <span class="chartCardSub">by frequency</span></div>
+          <div class="chartWrapTall"><canvas id="chartJournals"></canvas></div>
+        </div>
+        <!-- Top authors -->
+        <div class="chartCard">
+          <div class="chartCardTitle">Top Authors <span class="chartCardSub">by paper count</span></div>
+          <div class="chartWrapTall"><canvas id="chartAuthors"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboard" class="card" style="margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:14px;">Evidence Strength Leaderboard</div>
+      <div id="leaderboardContainer">
+        <div class="emptyState"><div class="emptyIcon">📊</div>Loading…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</main>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script>
+const CHART_COLORS = [
+  '#8B6914','#4A7C59','#243044','#C9A87C','#3D7A4A',
+  '#6B8CAE','#B47B3E','#2C5F3D','#7A9BBF','#D4956A',
+];
+
+let charts = {};
+let summaryData = null;
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function renderStudyTypeChart(data) {
+  destroyChart('studyType');
+  const ctx = document.getElementById('chartStudyType').getContext('2d');
+  if (!data || !data.length) return;
+  charts['studyType'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.label.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())),
+      datasets: [{ data: data.map(d => d.count), backgroundColor: CHART_COLORS, borderWidth: 2, borderColor: '#fff' }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { font: { size: 11 }, padding: 10 } } },
+    },
+  });
+}
+
+function renderScatterChart(data) {
+  destroyChart('scatter');
+  const ctx = document.getElementById('chartScatter').getContext('2d');
+  if (!data || !data.length) return;
+  charts['scatter'] = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Papers',
+        data: data.map(d => ({ x: d.x, y: d.y, title: d.title })),
+        backgroundColor: 'rgba(139,105,20,.65)',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.raw.title ? ctx.raw.title.slice(0,50) : `(${ctx.raw.x}, ${ctx.raw.y})` } },
+      },
+      scales: {
+        x: { title: { display: true, text: 'Year', font: { size: 10 } } },
+        y: { min: 0, max: 5, title: { display: true, text: 'Evidence Strength', font: { size: 10 } } },
+      },
+    },
+  });
+}
+
+function renderYearsChart(data) {
+  destroyChart('years');
+  const ctx = document.getElementById('chartYears').getContext('2d');
+  if (!data || !data.length) return;
+  charts['years'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.year),
+      datasets: [{
+        label: 'Papers',
+        data: data.map(d => d.count),
+        backgroundColor: 'rgba(139,105,20,.15)',
+        borderColor: '#8B6914',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+    },
+  });
+}
+
+function renderBarChart(canvasId, chartKey, labels, values, labelText, color = '#8B6914') {
+  destroyChart(chartKey);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (!labels.length) return;
+  charts[chartKey] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels.map(l => l.length > 30 ? l.slice(0,30)+'…' : l),
+      datasets: [{
+        label: labelText,
+        data: values,
+        backgroundColor: color,
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } },
+    },
+  });
+}
+
+function renderLeaderboard(rows) {
+  const container = document.getElementById('leaderboardContainer');
+  if (!rows || !rows.length) {
+    container.innerHTML = '<div class="emptyState"><div class="emptyIcon">📊</div>No papers with evidence strength data yet.</div>';
+    return;
+  }
+  container.innerHTML = `<table class="leaderboardTable">
+    <thead><tr>
+      <th>#</th><th>Title</th><th>Year</th><th>Type</th><th>ES</th><th>N</th><th>Citations</th>
+    </tr></thead>
+    <tbody>${rows.map((r,i) => {
+      const es = r.evidence_strength;
+      const esCls = es >= 4 ? 'high' : es >= 2 ? 'mid' : 'low';
+      const doiLink = r.doi ? `<a href="https://doi.org/${esc(r.doi)}" target="_blank" style="color:var(--brass2);font-size:10px;">↗</a>` : '';
+      return `<tr>
+        <td style="color:var(--subtle);font-size:11px;">${i+1}</td>
+        <td><span style="font-size:12.5px;font-weight:600;color:var(--navy);">${esc(r.title)}</span> ${doiLink}</td>
+        <td style="white-space:nowrap;">${r.year||'—'}</td>
+        <td style="font-size:11px;">${esc((r.study_type||'—').replace(/_/g,' '))}</td>
+        <td><span class="esBadge ${esCls}">${es !== null && es !== undefined ? es : '—'}</span></td>
+        <td style="font-size:11px;">${r.sample_size !== null && r.sample_size !== undefined ? r.sample_size.toLocaleString() : '—'}</td>
+        <td style="font-size:11px;">${r.citation_count !== null && r.citation_count !== undefined ? r.citation_count.toLocaleString() : '—'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadAnalytics(folderId) {
+  document.getElementById('loadingOverlay').classList.add('show');
+  try {
+    const qp = folderId ? `?folder_id=${folderId}` : '';
+
+    const [summary, leaderboard] = await Promise.all([
+      fetchJson(`/analytics/summary${qp}`),
+      fetchJson(`/analytics/evidence-leaderboard${qp}`),
+    ]);
+    summaryData = summary;
+
+    // Stats bar
+    document.getElementById('statTotal').textContent     = summary.total ?? '—';
+    document.getElementById('statTypes').textContent     = summary.study_types?.length ?? '—';
+    document.getElementById('statRetracted').textContent = summary.retracted ?? '0';
+    document.getElementById('statOA').textContent        = summary.open_access ?? '—';
+
+    // Charts
+    renderStudyTypeChart(summary.study_types);
+    renderScatterChart(summary.scatter);
+    renderYearsChart(summary.years);
+    renderBarChart('chartJournals', 'journals',
+      (summary.journals || []).map(j => j.journal),
+      (summary.journals || []).map(j => j.count),
+      'Papers', '#4A7C59'
+    );
+    renderBarChart('chartAuthors', 'authors',
+      (summary.authors || []).map(a => a.author),
+      (summary.authors || []).map(a => a.count),
+      'Papers', '#243044'
+    );
+    renderLeaderboard(leaderboard);
+
+    // Export links — add folder filter if selected
+    const exportBase = folderId ? `?folder_id=${folderId}` : '';
+    document.querySelectorAll('[id^="export"]').forEach(a => {
+      const baseHref = a.href.split('?')[0];
+      a.href = baseHref + exportBase;
+    });
+
+  } catch (e) {
+    showToast('Analytics error', e.message, 'error');
+  } finally {
+    document.getElementById('loadingOverlay').classList.remove('show');
+  }
+}
+
+async function loadFolders() {
+  try {
+    const folders = await fetchJson('/folders');
+    const sel = document.getElementById('folderFilter');
+    (folders || []).forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = f.name;
+      sel.appendChild(opt);
+    });
+  } catch {}
+}
+
+document.getElementById('folderFilter').addEventListener('change', e => {
+  loadAnalytics(e.target.value || undefined);
+});
+
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  loadAnalytics(document.getElementById('folderFilter').value || undefined);
+});
+
+// Smooth scroll for sidebar nav
+document.querySelectorAll('.analyticsSideNav a').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.getElementById(a.getAttribute('href').slice(1));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.querySelectorAll('.analyticsSideNav a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+  });
+});
+
+(async () => {
+  await loadFolders();
+  await loadAnalytics();
+})();
+</script>
+</body>
+</html>

@@ -31,6 +31,8 @@ from backend.routers.research import router as research_router
 from backend.routers.writing import router as writing_router
 from backend.routers.trust import router as trust_router         # Phase 6
 from backend.routers.eval_router import router as eval_router   # Phase 6
+from backend.routers.analytics import router as analytics_router # Phase 5
+from backend.routers.export import router as export_router       # Phase 5
 
 logger = logging.getLogger("uvicorn")
 
@@ -141,6 +143,8 @@ app.include_router(research_router)    # Phase 5: Research Lifecycle
 app.include_router(writing_router)     # Phase 5: Writing and Reports
 app.include_router(trust_router)       # Phase 6: Trust & Validity
 app.include_router(eval_router)        # Phase 6: Benchmark Eval
+app.include_router(analytics_router)   # Phase 5: Analytics
+app.include_router(export_router)      # Phase 5: Export
 
 # ── Static ────────────────────────────────────────────────────────────────────
 

@@ -78,10 +78,15 @@ class Study(SQLModel, table=True):
     grade_criteria:          Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
 
     # Phase 5: External Data Links
-    kaggle_url: Optional[str] = None
-    github_url: Optional[str] = None
-    osf_url:    Optional[str] = None
-    zenodo_url: Optional[str] = None
+    kaggle_url:  Optional[str] = None
+    github_url:  Optional[str] = None
+    osf_url:     Optional[str] = None
+    zenodo_url:  Optional[str] = None
+
+    # Phase 5: Extended metadata
+    publication_type:    Optional[str] = None  # article, preprint, trial, grey_literature, thesis
+    full_text_url:       Optional[str] = None  # populated by Unpaywall on import
+    is_predatory_journal: bool         = Field(default=False)
 
 
 class StudyExternalRef(SQLModel, table=True):
@@ -422,6 +427,37 @@ class ResearchQuestion(SQLModel, table=True):
     novelty_notes:   Optional[str] = None
     created_at:      datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at:      datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ── Phase 5: Search & Alerts ─────────────────────────────────────────────────
+
+class SavedSearch(SQLModel, table=True):
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    owner_username: str           = Field(index=True)
+    query:          str
+    provider:       str           = Field(default="europepmc")
+    filters:        Optional[str] = None  # JSON blob: {year_from, year_to, ...}
+    last_run:       Optional[datetime] = None
+    created_at:     datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class SearchHistory(SQLModel, table=True):
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    owner_username: str           = Field(index=True)
+    query:          str
+    provider:       str           = Field(default="europepmc")
+    result_count:   int           = Field(default=0)
+    created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ReadingQueue(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("owner_username", "study_id", name="uq_readingqueue_owner_study"),)
+
+    id:             Optional[int] = Field(default=None, primary_key=True)
+    owner_username: str           = Field(index=True)
+    study_id:       int           = Field(foreign_key="study.id", index=True)
+    position:       int           = Field(default=0)
+    created_at:     datetime      = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ── Phase 6: Trust & Validity System ─────────────────────────────────────────

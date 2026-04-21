@@ -273,8 +273,12 @@
         <label>Source</label>
         <select id="subjectSource">
           <option value="europepmc" selected>Europe PMC</option>
+          <option value="pubmed">PubMed (NCBI)</option>
           <option value="openalex">OpenAlex</option>
           <option value="crossref">Crossref</option>
+          <option value="core">CORE (Open Access)</option>
+          <option value="clinicaltrials">ClinicalTrials.gov</option>
+          <option value="preprints">bioRxiv / medRxiv</option>
         </select>
         <label>Papers to synthesise:</label>
         <input type="range" id="maxPapers" min="5" max="20" value="10" step="1" oninput="document.getElementById('maxPapersVal').textContent=this.value" style="width:100px;">
@@ -441,12 +445,20 @@ function renderHistory() {
       activeHistoryId = entry.id;
       renderHistory();
       if (entry.data) {
+        if ((entry.mode === 'cross_paper' || entry.mode === 'multi_paper') && Array.isArray(entry.data.study_ids) && entry.data.study_ids.length) {
+          selectedStudyIds = entry.data.study_ids.filter(id => typeof id === 'number');
+          loadStudiesData().then(() => renderSelectedPapers());
+        }
         renderResults(entry.data, entry.mode, entry.mode === 'subject_query' ? entry.title : null);
         document.getElementById('synthResults').scrollIntoView({behavior:'smooth',block:'start'});
       } else if (entry.persisted) {
         // Load from backend
         fetchJson(`/ai/synthesise/${entry.id}`).then(data => {
           entry.data = data;
+          if ((entry.mode === 'cross_paper' || entry.mode === 'multi_paper') && Array.isArray(data.study_ids) && data.study_ids.length) {
+            selectedStudyIds = data.study_ids.filter(id => typeof id === 'number');
+            loadStudiesData().then(() => renderSelectedPapers());
+          }
           renderResults(data, entry.mode, entry.mode === 'subject_query' ? entry.title : null);
           document.getElementById('synthResults').scrollIntoView({behavior:'smooth',block:'start'});
         }).catch(e => showToast('Error', e.message, 'error'));
