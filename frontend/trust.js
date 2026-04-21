@@ -29,14 +29,14 @@ const EVIDENCE_LABELS = {
 };
 
 const EVIDENCE_ICONS = {
-  rct:               '🔬',
-  systematic_review: '📚',
-  cohort:            '👥',
-  case_control:      '↔️',
-  cross_sectional:   '📊',
-  case_report:       '📋',
-  expert_opinion:    '🎓',
-  unknown:           '❓',
+  rct:               'RCT',
+  systematic_review: 'SR',
+  cohort:            'Cohort',
+  case_control:      'CC',
+  cross_sectional:   'CS',
+  case_report:       'CR',
+  expert_opinion:    'Expert',
+  unknown:           '?',
 };
 
 // ── renderTrustBadge ─────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ function renderTrustBadge(trustData, onClick) {
 function renderEvidenceBasisBadge(basis) {
   const key = (basis || 'unknown').toLowerCase().replace(/[\s-]/g, '_');
   const label = EVIDENCE_LABELS[key] || basis;
-  const icon  = EVIDENCE_ICONS[key]  || '❓';
+  const icon  = EVIDENCE_ICONS[key]  || '?';
   const el = document.createElement('span');
   el.className = `evidence-basis-badge evidence-basis-badge--${key}`;
   el.innerHTML = `${icon} ${label}`;
@@ -188,7 +188,7 @@ class ProvenanceDrawer {
     this._drawer.setAttribute('aria-label', 'AI Provenance');
     this._drawer.innerHTML = `
       <div class="provenance-drawer__header">
-        <h3 class="provenance-drawer__title">🔍 AI Provenance</h3>
+        <h3 class="provenance-drawer__title">AI Provenance</h3>
         <button class="provenance-drawer__close" aria-label="Close">✕</button>
       </div>
       <div class="provenance-drawer__body" id="prov-body"></div>
@@ -236,7 +236,7 @@ class ProvenanceDrawer {
             <div class="prov-span__claim">${_esc(s.claim_text)}</div>
             <div class="prov-span__source">"${_esc(s.source_text.slice(0, 120))}${s.source_text.length > 120 ? '…' : ''}"</div>
             <div class="prov-span__meta">
-              <span class="evidence-basis-badge evidence-basis-badge--${basisKey}">${EVIDENCE_ICONS[basisKey] || '❓'} ${basisLabel}</span>
+              <span class="evidence-basis-badge evidence-basis-badge--${basisKey}">${EVIDENCE_ICONS[basisKey] || '?'} ${basisLabel}</span>
               ${s.confidence != null ? `<span style="font-size:11px;color:#6b7280">conf ${(s.confidence * 100).toFixed(0)}%</span>` : ''}
             </div>
           </div>`;
@@ -248,7 +248,7 @@ class ProvenanceDrawer {
     if (claims.length) {
       html += `<div class="prov-section"><div class="prov-section__title">Claims (${claims.length})</div>`;
       for (const c of claims) {
-        const stateIcon = { approved: '✅', rejected: '❌', needs_review: '🔄', pending: '⏳' }[c.verification_state] || '⏳';
+        const stateIcon = { approved: 'approved', rejected: 'rejected', needs_review: 'review', pending: 'pending' }[c.verification_state] || 'pending';
         html += `
           <div class="prov-claim" data-claim-id="${c.id}">
             <div class="prov-claim__text">${_esc(c.text)}</div>
@@ -308,8 +308,7 @@ class ProvenanceDrawer {
         return;
       }
       const stateEl = claimEl.querySelector('.prov-claim__controls span');
-      const icon = decision === 'approved' ? '✅' : '❌';
-      if (stateEl) stateEl.textContent = `${icon} ${decision}`;
+      if (stateEl) stateEl.textContent = decision;
     } catch (err) {
       alert(`Failed to verify: ${err.message}`);
     }

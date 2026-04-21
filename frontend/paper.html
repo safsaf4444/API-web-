@@ -338,8 +338,8 @@
     <!-- Back navigation -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;" id="paperBackNav">
       <button class="btn sm ghost" onclick="history.length>1?history.back():location.href='search.html'" style="font-size:12px;">← Back</button>
-      <a class="btn sm ghost" href="library.html" style="font-size:12px;">📚 Library</a>
-      <a class="btn sm ghost" href="search.html" style="font-size:12px;">🔍 Search</a>
+      <a class="btn sm ghost" href="library.html" style="font-size:12px;">Library</a>
+      <a class="btn sm ghost" href="search.html" style="font-size:12px;">Search</a>
     </div>
 
     <div class="card">
@@ -354,8 +354,8 @@
       <!-- Phase 5b: publication type, open-access, and full-text badges -->
       <div id="paper-meta-badges" style="display:none; margin:8px 0; gap:8px; flex-wrap:wrap; align-items:center;">
         <span id="pub-type-badge" class="badge" style="display:none; background:var(--brass-light,#f5e6c8); color:var(--brass2,#7a5c1e); padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600;"></span>
-        <span id="oa-badge" style="display:none; background:#2e7d32; color:#fff; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600;">🔓 Open Access</span>
-        <a id="fulltext-link" href="#" target="_blank" rel="noopener" style="display:none; background:#1b5e20; color:#fff; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600; text-decoration:none;">📄 View Full Text →</a>
+        <span id="oa-badge" style="display:none; background:#2e7d32; color:#fff; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600;">Open Access</span>
+        <a id="fulltext-link" href="#" target="_blank" rel="noopener" style="display:none; background:#1b5e20; color:#fff; padding:3px 10px; border-radius:12px; font-size:0.78rem; font-weight:600; text-decoration:none;">View Full Text →</a>
       </div>
 
       <!-- Phase 5b: predatory journal warning -->
@@ -374,7 +374,7 @@
       <div class="saveRow">
         <button type="button" class="btn primary" id="saveBtn">Save to library</button>
         <button type="button" class="btn" id="openBtn" disabled>Open DOI ↗</button>
-        <button type="button" class="btn sm ghost" id="setReminderBtn" title="Set a reminder to revisit this paper" style="display:none;">🔔 Remind</button>
+        <button type="button" class="btn sm ghost" id="setReminderBtn" title="Set a reminder to revisit this paper" style="display:none;">Remind</button>
         <select id="saveFolderPick"><option value="">No folder</option></select>
       </div>
       <div id="saveMsg"></div>
@@ -398,7 +398,7 @@
 
     <div class="card" id="notesCard" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div class="sectionLabel" style="margin-bottom:0;">📝 Your Notes</div>
+        <div class="sectionLabel" style="margin-bottom:0;">Your Notes</div>
         <span id="notesSaveStatus" style="font-size:10.5px;color:var(--subtle);"></span>
       </div>
       <div class="hr"></div>
@@ -803,7 +803,7 @@ function renderPaper(p) {
 
   // Citation count badge
   const citationBadge = (p.citation_count != null && p.citation_count > 0)
-    ? `<span class="citationBadge">📚 ${escapeHtml(String(p.citation_count))} citations</span>`
+    ? `<span class="citationBadge">${escapeHtml(String(p.citation_count))} citations</span>`
     : "";
 
   const isOAFull = isOA || !!p.full_text_url;
@@ -1545,7 +1545,7 @@ function renderEvidencePanel(data, study) {
       <div style="font-size:11px;font-weight:700;color:var(--subtle);letter-spacing:.09em;text-transform:uppercase;">Clinical Intelligence</div>
       <div style="display:flex;gap:6px;">
         <button class="btn primary sm" id="runClinicalBtn">${hasData ? '↺ Re-run' : '▶ Analyse'}</button>
-        ${hasData ? '<button class="btn sm" id="shareClinicalBtn">🔗 Share</button>' : ''}
+        ${hasData ? '<button class="btn sm" id="shareClinicalBtn">Share</button>' : ''}
       </div>
     </div>`;
 
@@ -2152,7 +2152,7 @@ function _renderCitationWeb(container, data) {
 
   function nodeCard(n) {
     const doi_link = n.doi ? `<a href="https://doi.org/${escapeHtml(n.doi)}" target="_blank" rel="noopener" style="font-size:10.5px;color:var(--brass2);">DOI ↗</a>` : '';
-    const key = n.is_key_paper ? ' 🔑' : '';
+    const key = n.is_key_paper ? ' [key]' : '';
     return `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface2);margin-bottom:6px;">
       <div style="font-size:12px;font-weight:600;color:var(--navy);line-height:1.4;">${escapeHtml(n.label)}${key}</div>
       <div style="font-size:10.5px;color:var(--subtle);margin-top:2px;">
@@ -2214,7 +2214,7 @@ async function showRelated() {
       const relTypeLabel = relType ? (STUDY_TYPE_LABELS_PAPER[relType] || relType) : null;
       const relOA        = !!((it.pmcid || "").toString().trim());
       const relCitations = (it.citation_count != null && it.citation_count > 0)
-        ? `<span class="citationBadge">📚 ${escapeHtml(String(it.citation_count))}</span>`
+        ? `<span class="citationBadge">${escapeHtml(String(it.citation_count))} citations</span>`
         : "";
       html += `
         <div style="background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color .12s;" data-open-rel="1">

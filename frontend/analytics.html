@@ -167,7 +167,7 @@
     <div id="leaderboard" class="card" style="margin-bottom:20px;">
       <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:14px;">Evidence Strength Leaderboard</div>
       <div id="leaderboardContainer">
-        <div class="emptyState"><div class="emptyIcon">📊</div>Loading…</div>
+        <div class="emptyState"><div class="emptyIcon"></div>Loading…</div>
       </div>
     </div>
 
@@ -290,7 +290,7 @@ function renderBarChart(canvasId, chartKey, labels, values, labelText, color = '
 function renderLeaderboard(rows) {
   const container = document.getElementById('leaderboardContainer');
   if (!rows || !rows.length) {
-    container.innerHTML = '<div class="emptyState"><div class="emptyIcon">📊</div>No papers with evidence strength data yet.</div>';
+    container.innerHTML = '<div class="emptyState"><div class="emptyIcon"></div>No papers with evidence strength data yet.</div>';
     return;
   }
   container.innerHTML = `<table class="leaderboardTable">

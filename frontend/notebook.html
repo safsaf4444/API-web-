@@ -365,7 +365,7 @@
         <div class="notebookEditorHeader">
           <input class="nbEditorTitle" id="nbEditorTitle" placeholder="Note title…" maxlength="200"/>
           <span class="nbSaveStatus" id="nbSaveStatus"></span>
-          <button class="btn sm ghost" id="nbPinBtn" title="Pin note">📌</button>
+          <button class="btn sm ghost" id="nbPinBtn" title="Pin note">Pin</button>
           <button class="btn sm ghost" id="nbOpenPaperBtn" title="Open source paper" style="display:none;">Open paper →</button>
           <button class="btn sm danger" id="nbDeleteBtn">Delete</button>
         </div>
@@ -488,9 +488,8 @@ function renderPageList() {
   const container = qs('notebookPages');
   if (!pages.length) {
     container.innerHTML = `<div style="padding:20px 16px;text-align:center;">
-      <div style="font-size:28px;margin-bottom:10px;opacity:.4;">📝</div>
       <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:6px;">Your notes live here</div>
-      <div style="font-size:12px;color:var(--subtle);line-height:1.6;margin-bottom:12px;">Notes from papers appear automatically. Open any paper, scroll to <strong>📝 Your Notes</strong>, and start writing — they sync here instantly.</div>
+      <div style="font-size:12px;color:var(--subtle);line-height:1.6;margin-bottom:12px;">Notes from papers appear automatically. Open any paper, scroll to <strong>Your Notes</strong>, and start writing — they sync here instantly.</div>
       <button class="btn primary sm" onclick="document.getElementById('newExternalBtn').click()">+ Create a note</button>
     </div>`;
     return;
@@ -504,7 +503,7 @@ function renderPageList() {
   let html = '';
 
   if (pinned.length) {
-    html += `<div class="nbGroupLabel">📌 Pinned</div>`;
+    html += `<div class="nbGroupLabel">Pinned</div>`;
     html += pinned.map(p => renderPageCard(p)).join('');
   }
   if (papersLinked.length) {
@@ -529,10 +528,10 @@ function renderPageCard(p) {
   return `
     <div class="nbPageCard${active}" data-id="${p.id}" data-color="${esc(p.color || 'default')}">
       <div class="nbPageTitle">
-        ${p.is_pinned ? '<span class="nbPinBadge">📌 </span>' : ''}${esc(p.title || 'Untitled')}
+        ${p.is_pinned ? '<span class="nbPinBadge">Pinned </span>' : ''}${esc(p.title || 'Untitled')}
       </div>
       <div class="nbPageMeta">
-        ${p.study_title ? `<span style="color:var(--brass2);font-size:10px;">📄 ${esc(p.study_title.slice(0,30))}${p.study_title.length>30?'…':''}</span>` : '<span>External note</span>'}
+        ${p.study_title ? `<span style="color:var(--brass2);font-size:10px;">${esc(p.study_title.slice(0,30))}${p.study_title.length>30?'…':''}</span>` : '<span>External note</span>'}
         <span>${timeAgo(p.updated_at)}</span>
       </div>
       ${snippet ? `<div style="font-size:11.5px;color:var(--subtle);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(snippet)}</div>` : ''}
@@ -558,7 +557,7 @@ async function openPage(id) {
 
   qs('nbEditorTitle').value    = currentPage.title || '';
   qs('nbEditorTextarea').value = currentPage.content || '';
-  qs('nbPinBtn').textContent   = currentPage.is_pinned ? '📌 Pinned' : '📌';
+  qs('nbPinBtn').textContent   = currentPage.is_pinned ? 'Pinned' : 'Pin';
   qs('nbWordCount').textContent = `${wordCount(currentPage.content)} words`;
 
   // Show "open paper" button if linked to a study
@@ -684,7 +683,7 @@ qs('nbPinBtn').onclick = async () => {
     currentPage.is_pinned = newPinned;
     const idx = pages.findIndex(p => p.id === currentPageId);
     if (idx !== -1) pages[idx].is_pinned = newPinned;
-    qs('nbPinBtn').textContent = newPinned ? '📌 Pinned' : '📌';
+    qs('nbPinBtn').textContent = newPinned ? 'Pinned' : 'Pin';
     renderPageList();
     showToast(newPinned ? 'Pinned' : 'Unpinned', '', 'success');
   } catch(e) { showToast('Error', e.message, 'error'); }
@@ -737,7 +736,7 @@ qs('compileBtn').onclick = () => {
     <div class="compilePageRow">
       <input type="checkbox" id="cp_${p.id}" value="${p.id}" checked/>
       <label for="cp_${p.id}" style="font-size:13px;cursor:pointer;">${esc(p.title || 'Untitled')}</label>
-      <span style="font-size:11px;color:var(--subtle);margin-left:auto;">${p.study_title ? `📄 ${p.study_title.slice(0,20)}` : 'External'}</span>
+      <span style="font-size:11px;color:var(--subtle);margin-left:auto;">${p.study_title ? p.study_title.slice(0,20) : 'External'}</span>
     </div>`).join('');
   qs('compileModal').classList.add('open');
 };

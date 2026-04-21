@@ -86,7 +86,6 @@
         <div class="hr"></div>
         <div id="pdfDropZone">
           <input type="file" id="pdfFileInput" accept=".pdf"/>
-          <div style="font-size:32px;margin-bottom:10px;opacity:.5;">📄</div>
           <div style="font-size:15px; color:var(--navy);"><strong>Drop a PDF here</strong> or <span style="color:var(--brass);text-decoration:underline;cursor:pointer;" id="pdfBrowseLink">browse</span></div>
           <div style="font-size:12px;margin-top:6px;">Extracts full text, figures metadata, and references · Max 50 MB</div>
         </div>
@@ -231,10 +230,10 @@
         const data = await resp.json();
         result.innerHTML = `
           <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--subtle);background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 12px;align-items:center;justify-content:center;">
-            <span style="color:var(--navy);">📄 <strong>${data.pages}</strong> pages</span>
-            <span style="color:var(--navy);">💬 <strong>${data.total_characters.toLocaleString()}</strong> chars</span>
-            <span style="color:var(--navy);">🖼 <strong>${data.figures_count}</strong> figures</span>
-            <span style="color:var(--navy);">📚 <strong>${data.references_count}</strong> refs</span>
+            <span style="color:var(--navy);"><strong>${data.pages}</strong> pages</span>
+            <span style="color:var(--navy);"><strong>${data.total_characters.toLocaleString()}</strong> chars</span>
+            <span style="color:var(--navy);"><strong>${data.figures_count}</strong> figures</span>
+            <span style="color:var(--navy);"><strong>${data.references_count}</strong> refs</span>
           </div>
           ${data.references.length ? `<details style="margin-bottom:8px;"><summary style="font-size:13px;cursor:pointer;color:var(--navy);font-weight:600;">References (${data.references.length})</summary><pre>${escHtml(data.references.join('\n'))}</pre></details>` : ''}
           <details open><summary style="font-size:13px;cursor:pointer;color:var(--navy);font-weight:600;">Full Text Preview</summary><pre>${escHtml(data.full_text.slice(0, 10000))}${data.full_text.length > 10000 ? '\n… (truncated)' : ''}</pre></details>
@@ -344,7 +343,7 @@
         if(dbDoc && dbDoc.data_json) existingData = JSON.parse(dbDoc.data_json);
       } catch(e) {}
       
-      openBtn.textContent = '📊 Open FortuneSheet';
+      openBtn.textContent = 'Open FortuneSheet';
       if (sheetInst) { document.getElementById('spreadsheet-container').innerHTML = ''; sheetInst = null; }
 
       sheetInst = window.fortuneSheet.create({

@@ -621,8 +621,8 @@ function renderPostCard(p) {
         <div class="postMeta">
           <span class="postAuthor${anonClass}">${esc(author)}</span>
           <span>${timeAgo(p.created_at)}</span>
-          <span>💬 ${p.reply_count} replies</span>
-          ${p.study_title ? `<span>📄 ${esc(p.study_title.slice(0,30))}</span>` : ''}
+          <span>${p.reply_count} replies</span>
+          ${p.study_title ? `<span>${esc(p.study_title.slice(0,30))}</span>` : ''}
         </div>
       </div>
     </div>`;
@@ -680,7 +680,7 @@ function renderPostDetail(post, replies) {
       <div style="white-space:pre-wrap;word-break:break-word;">${esc(post.body)}</div>
       ${post.study_title ? `
         <div class="linkedPaperCard" id="linkedPaper" data-study-id="${post.study_id}">
-          <span style="font-size:18px;">📄</span>
+          <span style="font-size:18px;"></span>
           <div>
             <div style="font-size:12px;font-weight:700;color:var(--subtle);letter-spacing:.06em;text-transform:uppercase;">Linked paper</div>
             <div style="font-size:13px;font-weight:600;color:var(--navy);">${esc(post.study_title)}</div>
