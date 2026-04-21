@@ -7,11 +7,12 @@ import re
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
 from backend.ai_secure import decrypt_api_key, encrypt_api_key, mask_key
+from backend.core.rate_limit import per_route_limit
 from backend.db import get_session
 from backend.deps.auth import get_current_user
 from backend.models import AIResult, Study, SynthesisResult, User
@@ -413,7 +414,7 @@ def ai_clear_key(session: Session = Depends(get_session), current_user: User = D
 # ── Summarize (standard) ──────────────────────────────────────────────────────
 
 @router.post("/ai/summarize", response_model=AISummarizeResponse)
-async def ai_summarize(payload: AISummarizeRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_summarize(payload: AISummarizeRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(30, 3600))):
     ck = _cache_key("summarize", payload.title, payload.doi, payload.pmid, payload.pmcid)
     cached = session.exec(select(AIResult).where(
         (AIResult.owner_username == current_user.username) &
@@ -583,7 +584,7 @@ async def _anthropic_stream(api_key, system, user):
 # ── Ask ───────────────────────────────────────────────────────────────────────
 
 @router.post("/ai/ask", response_model=AIAskResponse)
-async def ai_ask(payload: AIAskRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_ask(payload: AIAskRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(30, 3600))):
     ck = _cache_key("ask", payload.title, payload.doi, payload.pmid, payload.pmcid, payload.question)
     cached = session.exec(select(AIResult).where(
         (AIResult.owner_username == current_user.username) &
@@ -654,7 +655,7 @@ If a value cannot be determined from the abstract, use null."""
 
 
 @router.post("/ai/clinical", response_model=AIClinicalResponse)
-async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(20, 3600))):
     study = session.get(Study, payload.study_id)
     if not study:
         raise HTTPException(status_code=404, detail="Study not found")
@@ -1083,7 +1084,7 @@ def _build_synthesis_response(rec: SynthesisResult, study_ids: list, cached: boo
 # ── Phase 4: Cross-Paper Analysis ────────────────────────────────────────────
 
 @router.post("/ai/synthesise", response_model=AISynthesisResponse)
-async def ai_synthesise(payload: AISynthesisRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_synthesise(payload: AISynthesisRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(10, 3600))):
     """Cross-paper evidence analysis across 2-10 saved papers."""
     if len(payload.study_ids) < 2:  raise HTTPException(status_code=400, detail="At least 2 studies required.")
     if len(payload.study_ids) > 10: raise HTTPException(status_code=400, detail="Maximum 10 studies per analysis.")
@@ -1245,7 +1246,7 @@ def get_synthesis(synthesis_id: int, session: Session = Depends(get_session), cu
 # ── Phase 4: Literature Search & Synthesis (Subject Query) ───────────────────
 
 @router.post("/ai/subject-query", response_model=AISubjectQueryResponse)
-async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(10, 3600))):
     """
     Literature search and synthesis mode.
     Searches FRESH literature from the specified source.

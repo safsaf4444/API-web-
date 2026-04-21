@@ -147,7 +147,7 @@ def trending_topics(
         select(CommunityPost)
         .where(CommunityPost.is_deleted == False)
         .order_by(CommunityPost.created_at.desc())
-        .limit(200)
+        .limit(100)
     ).all())
 
     counts: dict[str, int] = {t: 0 for t in _TOPIC_KEYWORDS}
@@ -429,6 +429,7 @@ def get_replies(
         select(CommunityReply)
         .where(CommunityReply.post_id == post_id, CommunityReply.is_deleted == False)
         .order_by(CommunityReply.created_at)
+        .limit(500)
     ).all())
 
     return _build_reply_tree(replies, session, username)

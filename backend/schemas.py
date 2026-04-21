@@ -11,13 +11,13 @@ from backend.models import ReadingStatus
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
-    username: str
-    email: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_\-\.]+$")
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., max_length=100)
+    password: str = Field(..., max_length=128)
 
 class TokenResponse(BaseModel):
     access_token: str

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request
 from jose import JWTError, jwt
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -20,6 +20,7 @@ from backend.auth import (
     verify_password,
 )
 from backend.core.config import settings
+from backend.core.rate_limit import auth_limiter, per_route_limit
 from backend.db import get_session
 from backend.deps.auth import get_current_user
 from backend.models import User
@@ -58,9 +59,11 @@ def _purge_expired(store: dict) -> None:
 
 @router.post("/auth/register", response_model=UserPublic)
 def register(
+    request: Request,
     payload: RegisterRequest,
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
+    _rl=Depends(per_route_limit(10, 3600)),
 ):
     existing = session.exec(
         select(User).where(
@@ -101,11 +104,17 @@ def register(
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 @router.post("/auth/login", response_model=TokenResponse)
-def login(payload: LoginRequest, session: Session = Depends(get_session)):
+def login(request: Request, payload: LoginRequest, session: Session = Depends(get_session)):
+    from backend.core.rate_limit import _client_ip
+    limiter_key = f"{payload.username}:{_client_ip(request)}"
+    auth_limiter.check(limiter_key)
+
     user = session.exec(select(User).where(User.username == payload.username)).first()
     if not user or not verify_password(payload.password, user.hashed_password):
+        auth_limiter.record_failure(limiter_key)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
+    auth_limiter.record_success(limiter_key)
     token = create_access_token(subject=user.username)
     return TokenResponse(access_token=token)
 
@@ -237,6 +246,7 @@ def forgot_password(
     payload: dict,
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
+    _rl=Depends(per_route_limit(5, 3600)),
 ):
     """Request a password reset email. Always returns 200 to prevent email enumeration."""
     email = (payload.get("email") or "").strip().lower()

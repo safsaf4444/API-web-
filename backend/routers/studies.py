@@ -28,7 +28,7 @@ router = APIRouter(tags=["studies"])
 def list_studies(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    q: Optional[str] = Query(default=None, description="Search title + abstract"),
+    q: Optional[str] = Query(default=None, max_length=500, description="Search title + abstract"),
     sort: str = Query(default="newest", description="newest|oldest|year_desc|year_asc|title_asc|title_desc"),
     folder_id: Optional[int] = Query(default=None),
     # PHASE 3 FIX: Changed to Optional[str]
