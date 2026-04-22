@@ -709,9 +709,21 @@
               </div>
             </div>
           </div>
-          <button class="btn sm ghost" id="launchStatsCalcBtn" title="Launch Stat Calculator">
-            &#128200; Stats Calc
-          </button>
+          <div class="statsInfoWrap">
+            <button class="btn sm ghost" id="launchStatsCalcBtn">
+              Stats Calc
+            </button>
+            <div class="statsInfoTooltip" id="statsCalcTooltip" style="width:300px;">
+              <strong>Statistical Calculator</strong>
+              A bedside toolkit for interpreting paper statistics. All calculations run locally — nothing is sent to a server.
+              <ul>
+                <li><strong style="color:var(--cream);">NNT</strong> — Number Needed to Treat. How many patients must be treated for one to benefit over control. Enter event rates (%) from the paper's results table.</li>
+                <li><strong style="color:var(--cream);">Odds Ratio</strong> — Enter the 2×2 contingency table (exposed/unexposed cases &amp; controls). Returns OR with 95% CI.</li>
+                <li><strong style="color:var(--cream);">Effect Size (Cohen's d)</strong> — Standardised mean difference. Enter means and SDs from both groups. d ≥ 0.2 small · ≥ 0.5 medium · ≥ 0.8 large.</li>
+              </ul>
+              <div style="margin-top:6px;font-size:11px;color:rgba(245,240,232,.5);">Click the button to open the calculator. Use the "Show guide" link inside for full instructions.</div>
+            </div>
+          </div>
           <button class="btn sm" id="selectModeBtn" title="Select papers to synthesise together">
             &#9638; Select
           </button>
@@ -1453,18 +1465,20 @@ $id('toggleAnalyticsBtn').onclick = () => {
   }
 };
 
-// Stats info tooltip toggle
-(function wireStatsTooltip() {
-  const btn = $id('statsInfoBtn');
-  const tip = $id('statsInfoTooltip');
+// Tooltip helper
+function wireTooltip(btnId, tipId) {
+  const btn = $id(btnId);
+  const tip = $id(tipId);
   if (!btn || !tip) return;
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    tip.classList.toggle('visible');
-  });
+  btn.addEventListener('mouseenter', () => tip.classList.add('visible'));
+  btn.addEventListener('mouseleave', () => tip.classList.remove('visible'));
+  btn.addEventListener('click', e => { e.stopPropagation(); tip.classList.toggle('visible'); });
   document.addEventListener('click', () => tip.classList.remove('visible'));
   tip.addEventListener('click', e => e.stopPropagation());
-})();
+}
+
+wireTooltip('statsInfoBtn',     'statsInfoTooltip');
+wireTooltip('launchStatsCalcBtn', 'statsCalcTooltip');
 
 function renderAnalytics() {
   const items = window._currentLibFiltered || [];

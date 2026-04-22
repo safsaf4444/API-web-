@@ -219,27 +219,32 @@
     /* Multi-source banner */
     .multiSourceBanner {
       display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: rgba(36,48,68,.06);
-      border: 1px solid rgba(36,48,68,.12);
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--navy);
       border-radius: var(--r-sm);
       font-size: 12px;
-      color: var(--navy2);
+      color: var(--cream);
       font-weight: 500;
+      line-height: 1.6;
+      margin-bottom: 6px;
     }
     .multiSourceBanner.active { display: flex; }
     .multiSourceDot {
-      width: 7px; height: 7px;
+      width: 8px; height: 8px;
       border-radius: 50%;
       background: var(--good);
       animation: pulse 1.5s ease infinite;
       flex-shrink: 0;
+      margin-top: 5px;
     }
+    .multiSourceDot.warn { background: var(--warn); }
+    .msBannerSection { font-size: 11px; color: rgba(245,240,232,.55); margin-top: 3px; }
+    .msBannerWarn    { font-size: 11px; color: #f0b849; margin-top: 3px; }
     @keyframes pulse {
       0%,100% { opacity: 1; }
-      50% { opacity: .4; }
+      50% { opacity: .35; }
     }
   </style>
 </head>
@@ -261,7 +266,7 @@
             <div class="toggleRow">
               <div>
                 <div class="toggleLabel">Search All Sources</div>
-                <div class="toggleSub">Query all providers simultaneously</div>
+                <div class="toggleSub" id="searchAllSub">Free sources only &middot; API-key sources excluded</div>
               </div>
               <label class="toggleSwitch">
                 <input type="checkbox" id="searchAllToggle"/>
@@ -671,8 +676,22 @@ function clearFilters(){
   updateLabel(null,__LAST_ITEMS__.length,applyFilters(__LAST_ITEMS__).length);
 }
 
-// ── Multi-source toggle logic ─────────────────────────────────────────────────
+// ── Multi-source logic ────────────────────────────────────────────────────────
 let __SEARCH_ALL__ = false;
+
+// Sources that work reliably without an API key
+const FREE_SOURCES = ['europepmc', 'openalex', 'crossref', 'pubmed', 'clinicaltrials', 'preprints'];
+
+// Sources excluded from "Search All" and the reason why
+const EXCLUDED_SOURCES = {
+  semantic_scholar: { label: 'Semantic Scholar', reason: 'heavily rate-limited without SEMANTIC_SCHOLAR_API_KEY — search individually' },
+  core:             { label: 'CORE',             reason: 'requires CORE_API_KEY env variable — search individually' },
+};
+
+// Client-side pagination state for multi-source mode
+let __MULTI_ALL_ITEMS__ = [];
+let __MULTI_PAGE__       = 0;
+const MULTI_PAGE_SIZE    = 25;
 
 function deduplicateResults(items) {
   const seen = new Map();
@@ -681,74 +700,120 @@ function deduplicateResults(items) {
     const doi   = normStr(it.doi).toLowerCase().replace(/\s/g, '');
     const pmid  = normStr(it.pmid).toLowerCase().replace(/\s/g, '');
     const title = normStr(it.title).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').slice(0, 80);
-    // Build a canonical key: prefer DOI, then PMID, then normalised title
-    const key = doi ? `doi:${doi}` : pmid ? `pmid:${pmid}` : title ? `t:${title}` : null;
+    const key   = doi ? `doi:${doi}` : pmid ? `pmid:${pmid}` : title ? `t:${title}` : null;
     if (!key) { out.push(it); continue; }
     if (!seen.has(key)) {
       seen.set(key, out.length);
       out.push({ ...it });
     } else {
-      // Merge: fill in missing fields from the duplicate
-      const idx = seen.get(key);
-      const base = out[idx];
-      if (!base.abstract && it.abstract) base.abstract = it.abstract;
-      if (!base.doi && doi)              base.doi       = it.doi;
-      if (!base.pmid && pmid)            base.pmid      = it.pmid;
-      if (!base.pmcid && it.pmcid)       base.pmcid     = it.pmcid;
+      const base = out[seen.get(key)];
+      if (!base.abstract && it.abstract)           base.abstract       = it.abstract;
+      if (!base.doi && doi)                         base.doi            = it.doi;
+      if (!base.pmid && pmid)                       base.pmid           = it.pmid;
+      if (!base.pmcid && it.pmcid)                  base.pmcid          = it.pmcid;
       if (!base.citation_count && it.citation_count) base.citation_count = it.citation_count;
     }
   }
   return out;
 }
 
+function _renderMultiSourceBanner({ total, successCount, rateLimited, errors }) {
+  const banner = $id('multiSourceBanner');
+  const hasIssues = rateLimited.length || errors.length;
+  const dot = banner.querySelector('.multiSourceDot');
+  if (dot) dot.className = 'multiSourceDot' + (hasIssues ? ' warn' : '');
+
+  const totalPages = Math.ceil(__MULTI_ALL_ITEMS__.length / MULTI_PAGE_SIZE);
+
+  let html = `<span class="multiSourceDot${hasIssues ? ' warn' : ''}"></span><div style="flex:1;">`;
+  html += `<div><strong style="color:var(--cream);">${total} results</strong> from ${successCount} of ${FREE_SOURCES.length} free sources &mdash; merged &amp; deduplicated &middot; ${totalPages} page${totalPages!==1?'s':''}</div>`;
+
+  if (rateLimited.length) {
+    const names = rateLimited.map(s => SOURCE_LABELS[s] || s).join(', ');
+    html += `<div class="msBannerWarn">Rate limited (429): <strong>${names}</strong>. These providers throttle unauthenticated bulk requests. Wait a moment then retry, or search that source individually using the Source dropdown above.</div>`;
+  }
+  if (errors.length) {
+    html += `<div class="msBannerWarn">Errors: ${errors.map(s => SOURCE_LABELS[s] || s).join(', ')}.</div>`;
+  }
+
+  const excludedLines = Object.entries(EXCLUDED_SOURCES)
+    .map(([, v]) => `${v.label} (${v.reason})`).join(' &middot; ');
+  html += `<div class="msBannerSection">Not searched: ${excludedLines}.</div>`;
+  html += `</div>`;
+
+  // Replace inner HTML but keep the outer element
+  banner.innerHTML = html;
+  banner.classList.add('active');
+}
+
+function _renderMultiPage() {
+  const start     = __MULTI_PAGE__ * MULTI_PAGE_SIZE;
+  const pageItems = __MULTI_ALL_ITEMS__.slice(start, start + MULTI_PAGE_SIZE);
+  renderResults(pageItems);
+  const totalPages = Math.ceil(__MULTI_ALL_ITEMS__.length / MULTI_PAGE_SIZE);
+  const filtered   = applyFilters(pageItems);
+  $id('pageLabel').textContent = `${__MULTI_ALL_ITEMS__.length} total &middot; page ${__MULTI_PAGE__ + 1} of ${totalPages}${filtered.length < pageItems.length ? ` (${filtered.length} after filters)` : ''}`;
+  $id('prevBtn').disabled = __MULTI_PAGE__ === 0;
+  $id('nextBtn').disabled = __MULTI_PAGE__ >= totalPages - 1;
+}
+
 async function newSearchAll() {
   const q = $id('q').value.trim();
   if (!q || q.length < 2) { setMsg('Query must be at least 2 characters.', true); return; }
-  const lim = Math.min(parseInt($id('limit').value, 10), 25);
-  const sources = Array.from($id('source').options).map(o => o.value);
   const seq = ++__REQ_SEQ__;
 
-  $id('multiSourceBanner').classList.add('active');
   $id('prevBtn').disabled = true;
   $id('nextBtn').disabled = true;
   $id('pageLabel').textContent = '';
-  setMsg(`Searching ${sources.length} sources…`);
+  setMsg(`Searching ${FREE_SOURCES.length} free sources in parallel…`);
 
   const yFrom = parseYear($id('yearFrom').value);
   const yTo   = parseYear($id('yearTo').value);
 
-  const fetches = sources.map(src => {
-    let url = `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(src)}&limit=${lim}&cursor_mark=${encodeURIComponent(defaultCursor(src))}`;
+  // Track per-source outcomes
+  const sourceData   = {};
+  const sourceErrors = {};
+
+  await Promise.all(FREE_SOURCES.map(src => {
+    let url = `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(src)}&limit=25&cursor_mark=${encodeURIComponent(defaultCursor(src))}`;
     if (yFrom !== null) url += `&year_from=${yFrom}`;
     if (yTo   !== null) url += `&year_to=${yTo}`;
-    return fetchJson(url, { auth: false }).catch(() => null);
-  });
+    return fetchJson(url, { auth: false })
+      .then(r  => { sourceData[src]   = r; })
+      .catch(e => { sourceErrors[src] = e.message || 'Error'; });
+  }));
 
-  const results = await Promise.all(fetches);
   if (seq !== __REQ_SEQ__) return;
 
-  const all = [];
-  let successful = 0;
-  results.forEach(r => {
-    if (r && Array.isArray(r.items) && r.items.length) {
-      all.push(...r.items);
-      successful++;
+  const all           = [];
+  const rateLimited   = [];
+  const errors        = [];
+  let   successCount  = 0;
+
+  FREE_SOURCES.forEach(src => {
+    if (sourceData[src] && Array.isArray(sourceData[src].items)) {
+      all.push(...sourceData[src].items);
+      successCount++;
+    } else if (sourceErrors[src]) {
+      const msg = sourceErrors[src].toLowerCase();
+      if (msg.includes('429') || msg.includes('rate')) rateLimited.push(src);
+      else errors.push(src);
     }
   });
 
   const deduped = deduplicateResults(all);
   deduped.sort((a, b) => (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0));
 
-  __LAST_ITEMS__ = deduped;
-  __LAST_HIT_COUNT__ = deduped.length;
-  nextCursor = null;
-  stack = [];
+  __MULTI_ALL_ITEMS__ = deduped;
+  __MULTI_PAGE__       = 0;
+  __LAST_ITEMS__       = deduped;
+  __LAST_HIT_COUNT__   = deduped.length;
+  nextCursor           = null;
+  stack                = [];
 
   setMsg('');
-  const shown = applyFilters(deduped).length;
-  $id('pageLabel').textContent = `${deduped.length} results from ${successful}/${sources.length} sources`;
-  renderResults(deduped);
-  updateButtons();
+  _renderMultiSourceBanner({ total: deduped.length, successCount, rateLimited, errors });
+  _renderMultiPage();
   saveState();
 }
 
@@ -756,13 +821,13 @@ $id('searchAllToggle').addEventListener('change', function () {
   __SEARCH_ALL__ = this.checked;
   const wrap = $id('sourceSelectWrap');
   if (__SEARCH_ALL__) {
-    wrap.style.opacity    = '.4';
+    wrap.style.opacity      = '.4';
     wrap.style.pointerEvents = 'none';
-    $id('multiSourceBanner').classList.add('active');
   } else {
-    wrap.style.opacity    = '';
+    wrap.style.opacity      = '';
     wrap.style.pointerEvents = '';
     $id('multiSourceBanner').classList.remove('active');
+    __MULTI_ALL_ITEMS__ = [];
   }
 });
 
@@ -801,15 +866,39 @@ $id('bulkSaveBtn').onclick = async () => {
     showToast('Bulk save done',`${saved} saved${skipped?`, ${skipped} already in library`:''}${errors?`, ${errors} errors`:''}`,errors?'warn':'success');
   });
 };
-$id('nextBtn').onclick   = async()=>{ if(!nextCursor)return; stack.push(nextCursor); await fetchPage(nextCursor); };
-$id('prevBtn').onclick   = async()=>{ if(stack.length<=1)return; stack.pop(); await fetchPage(stack[stack.length-1]); };
+$id('nextBtn').onclick = async () => {
+  if (__SEARCH_ALL__) {
+    const totalPages = Math.ceil(__MULTI_ALL_ITEMS__.length / MULTI_PAGE_SIZE);
+    if (__MULTI_PAGE__ < totalPages - 1) { __MULTI_PAGE__++; _renderMultiPage(); }
+  } else {
+    if (!nextCursor) return; stack.push(nextCursor); await fetchPage(nextCursor);
+  }
+};
+$id('prevBtn').onclick = async () => {
+  if (__SEARCH_ALL__) {
+    if (__MULTI_PAGE__ > 0) { __MULTI_PAGE__--; _renderMultiPage(); }
+  } else {
+    if (stack.length <= 1) return; stack.pop(); await fetchPage(stack[stack.length - 1]);
+  }
+};
 $id('q').addEventListener('keydown',e=>{ if(e.key==='Enter') __SEARCH_ALL__ ? newSearchAll() : newSearch(); });
 
 ['author','hasAbstract','openAccess','titleOnly','studyType','language'].forEach(id=>{
   const el=$id(id); if(!el)return;
   const evt=el.type==='checkbox'?'change':'input';
   let t=null;
-  el.addEventListener(evt,()=>{ clearTimeout(t); t=setTimeout(()=>{ renderResults(__LAST_ITEMS__); updateLabel(null,__LAST_ITEMS__.length,applyFilters(__LAST_ITEMS__).length); },120); });
+  el.addEventListener(evt,()=>{
+    clearTimeout(t);
+    t=setTimeout(()=>{
+      if (__SEARCH_ALL__ && __MULTI_ALL_ITEMS__.length) {
+        __MULTI_PAGE__ = 0;
+        _renderMultiPage();
+      } else {
+        renderResults(__LAST_ITEMS__);
+        updateLabel(null,__LAST_ITEMS__.length,applyFilters(__LAST_ITEMS__).length);
+      }
+    },120);
+  });
 });
 
 ['yearFrom','yearTo'].forEach(id=>{
