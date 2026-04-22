@@ -62,111 +62,100 @@
     }
     .heroCTA .btn.ghost:hover { border-color: rgba(245,240,232,.4); color: var(--cream); background: rgba(245,240,232,.05); }
 
-    /* Stats bar */
-    .statsBar {
-      display: flex; gap: 0;
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: var(--r); overflow: hidden;
-      margin-bottom: 20px; box-shadow: var(--shadow-xs);
-    }
-    .statItem {
-      flex: 1; padding: 16px 20px;
-      border-right: 1px solid var(--line); text-align: center;
-    }
-    .statItem:last-child { border-right: none; }
-    .statNum {
-      font-family: var(--font-display); font-size: 22px;
-      font-weight: 700; color: var(--navy);
-    }
-    .statLabel { font-size: 11px; color: var(--subtle); font-weight: 500; margin-top: 2px; }
 
-    /* Two-column layout below hero */
-    .homeGrid {
-      display: grid;
-      grid-template-columns: 1fr 340px;
+    /* Landing header */
+    .landingHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0 24px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .landingLogo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+    .landingLogoMark {
+      width: 36px; height: 36px;
+      border-radius: 9px;
+      background: var(--navy);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--brass);
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .landingLogoText {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--navy);
+      letter-spacing: -.01em;
+    }
+    .landingNav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .landingNavLink {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text2);
+      text-decoration: none;
+      padding: 7px 12px;
+      border-radius: var(--r-sm);
+      transition: background .12s, color .12s;
+    }
+    .landingNavLink:hover { background: var(--cream3); color: var(--navy); }
+    .landingNavCta {
+      margin-left: 4px;
+      background: var(--navy);
+      color: var(--cream) !important;
+      border-radius: var(--r-sm);
+      padding: 8px 16px !important;
+      font-weight: 600 !important;
+    }
+    .landingNavCta:hover { background: var(--navy2) !important; }
+
+    /* Landing footer */
+    .landingFooter {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .landingFooterBrand {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--navy);
+    }
+    .landingFooterSub {
+      font-size: 11.5px;
+      color: var(--subtle);
+      margin-top: 2px;
+    }
+    .landingFooterLinks {
+      display: flex;
       gap: 20px;
-      margin-bottom: 20px;
+      flex-wrap: wrap;
     }
-
-    .homeGridLeft { display: flex; flex-direction: column; gap: 16px; }
-    .homeGridRight { display: flex; flex-direction: column; gap: 16px; }
-
-    /* Widget card base */
-    .widgetCard {
-      background: var(--surface); border: 1px solid var(--line);
-      border-radius: var(--r); box-shadow: var(--shadow-xs);
-      overflow: hidden;
+    .landingFooterLink {
+      font-size: 12px;
+      color: var(--subtle);
+      text-decoration: none;
+      transition: color .12s;
     }
-    .widgetHeader {
-      padding: 14px 18px; border-bottom: 1px solid var(--line);
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .widgetTitle {
-      font-size: 11px; font-weight: 700; letter-spacing: .09em;
-      text-transform: uppercase; color: var(--subtle);
-    }
-    .widgetBody { padding: 14px 18px; }
-
-    /* Paper of the Day */
-    .potdCard {
-      background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 100%);
-      border-radius: var(--r);
-      padding: 20px;
-      box-shadow: var(--shadow-sm);
-      position: relative;
-      overflow: hidden;
-    }
-    .potdCard::after {
-      content: '';
-      position: absolute; top: -40px; right: -40px;
-      width: 200px; height: 200px;
-      background: radial-gradient(circle, rgba(201,168,124,.12), transparent 70%);
-      pointer-events: none;
-    }
-    .potdLabel {
-      font-size: 10px; font-weight: 700; letter-spacing: .12em;
-      text-transform: uppercase; color: var(--brass); margin-bottom: 10px;
-    }
-    .potdTitle {
-      font-family: var(--font-display); font-size: 15px; font-weight: 600;
-      color: var(--cream); line-height: 1.45; margin-bottom: 10px;
-    }
-    .potdSummary { font-size: 12.5px; color: rgba(245,240,232,.55); line-height: 1.65; margin-bottom: 14px; }
-    .potdMeta { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    /* Trending topics */
-    .trendingItem {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 0; border-bottom: 1px solid var(--line2);
-      cursor: pointer; transition: background .12s;
-    }
-    .trendingItem:last-child { border-bottom: none; padding-bottom: 0; }
-    .trendingItem:hover { background: var(--cream3); margin: 0 -18px; padding-left: 18px; padding-right: 18px; }
-    .trendingRank { font-size: 12px; font-weight: 700; color: var(--subtle); width: 18px; text-align: right; flex-shrink: 0; }
-    .trendingName { font-size: 13px; color: var(--navy); font-weight: 500; flex: 1; }
-    .trendingBar {
-      height: 4px; background: var(--brass-light); border-radius: 4px;
-      width: var(--w, 0%); transition: width .6s ease;
-    }
-
-    /* Community posts widget */
-    .communityPostRow {
-      padding: 12px 0; border-bottom: 1px solid var(--line2);
-      cursor: pointer; transition: all .12s;
-    }
-    .communityPostRow:last-child { border-bottom: none; }
-    .communityPostRow:hover { background: var(--cream3); margin: 0 -18px; padding-left: 18px; padding-right: 18px; }
-    .communityPostRowTitle { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 4px; line-height: 1.4; }
-    .communityPostRowMeta { font-size: 11.5px; color: var(--subtle); display: flex; gap: 8px; }
-
-    .postTypePip {
-      display: inline-block; width: 7px; height: 7px;
-      border-radius: 50%; flex-shrink: 0; margin-top: 4px;
-    }
-    .postTypePip.question   { background: var(--navy3); }
-    .postTypePip.discussion { background: var(--brass2); }
-    .postTypePip.case_study { background: var(--good); }
-    .postTypePip.resource   { background: var(--warn); }
+    .landingFooterLink:hover { color: var(--navy); }
 
     /* Feature grid */
     .featureGrid {
@@ -212,16 +201,28 @@
     .heroSearchBar button:hover { background: var(--brass-light); transform: none; }
 
     @media (max-width: 800px) {
-      .homeGrid { grid-template-columns: 1fr; }
       .heroSection { padding: 36px 24px; }
-      .statsBar { display: grid; grid-template-columns: 1fr 1fr; }
-      .statItem { border-right: none; border-bottom: 1px solid var(--line); }
-      .statItem:nth-child(odd) { border-right: 1px solid var(--line); }
+      .landingNav { display: none; }
     }
   </style>
 </head>
 <body>
 <main class="homeContainer">
+
+  <!-- Landing Header -->
+  <header class="landingHeader">
+    <a class="landingLogo" href="index.html">
+      <div class="landingLogoMark">S</div>
+      <span class="landingLogoText">Seren</span>
+    </a>
+    <nav class="landingNav">
+      <a class="landingNavLink" href="search.html">Search</a>
+      <a class="landingNavLink" href="library.html">Library</a>
+      <a class="landingNavLink" href="synthesis.html">Synthesis</a>
+      <a class="landingNavLink" href="community.html">Community</a>
+      <a class="landingNavLink landingNavCta" href="login.html" id="landingHeaderSignIn">Sign in</a>
+    </nav>
+  </header>
 
   <!-- Hero -->
   <div class="heroSection">
@@ -236,7 +237,6 @@
     <div class="heroCTA" style="position:relative;z-index:1;">
       <button class="btn primary" onclick="location.href='search.html'">Open search</button>
       <button class="btn ghost" onclick="location.href='community.html'">Community</button>
-      <button class="btn ghost" id="landingSignInBtn" onclick="location.href='login.html'" style="display:none;">Sign in</button>
     </div>
   </div>
 
@@ -256,30 +256,7 @@
     </a>
   </div>
 
-  <!-- Stats bar -->
-  <div class="statsBar" id="statsBar">
-    <div class="statItem" id="statItemPapers">
-      <div class="statNum" id="statPapers">—</div>
-      <div class="statLabel">Papers analysed</div>
-    </div>
-    <div class="statItem" id="statItemSynths">
-      <div class="statNum" id="statSynths">—</div>
-      <div class="statLabel">Syntheses run</div>
-    </div>
-    <div class="statItem" id="statItemPosts">
-      <div class="statNum" id="statPosts">—</div>
-      <div class="statLabel">Community posts</div>
-    </div>
-    <div class="statItem" id="statItemResearchers">
-      <div class="statNum" id="statResearchers">—</div>
-      <div class="statLabel">Researchers</div>
-    </div>
-  </div>
-
-  <!-- Two-column grid -->
-  <div class="homeGrid">
-    <div class="homeGridLeft">
-      <!-- Feature cards -->
+  <!-- Feature cards -->
       <div class="featureGrid">
         <a class="featureCard" href="search.html">
           <div class="featureIcon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
@@ -308,55 +285,19 @@
         </a>
       </div>
 
-      <!-- Paper of the day -->
-      <div class="widgetCard">
-        <div class="widgetHeader">
-          <span class="widgetTitle">Paper of the Day</span>
-          <span id="potdDate" style="font-size:11px;color:var(--subtle);"></span>
-        </div>
-        <div class="widgetBody">
-          <div id="potdWrap">
-            <div style="font-size:13px;color:var(--subtle);padding:12px 0;font-style:italic;">Loading…</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent community posts -->
-      <div class="widgetCard">
-        <div class="widgetHeader">
-          <span class="widgetTitle">Community</span>
-          <a href="community.html" style="font-size:11.5px;color:var(--brass2);font-weight:600;text-decoration:none;">View all →</a>
-        </div>
-        <div class="widgetBody">
-          <div id="recentPosts">
-            <div style="font-size:13px;color:var(--subtle);padding:8px 0;font-style:italic;">Loading…</div>
-          </div>
-        </div>
-      </div>
+  <!-- Landing Footer -->
+  <footer class="landingFooter">
+    <div>
+      <div class="landingFooterBrand">Seren</div>
+      <div class="landingFooterSub">Medical Evidence Research Platform</div>
     </div>
-
-    <div class="homeGridRight">
-      <!-- Trending topics -->
-      <div class="widgetCard">
-        <div class="widgetHeader"><span class="widgetTitle">Trending Topics</span></div>
-        <div class="widgetBody">
-          <div id="trendingWrap">
-            <div style="font-size:13px;color:var(--subtle);padding:8px 0;font-style:italic;">Loading…</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick links -->
-      <div class="widgetCard">
-        <div class="widgetHeader"><span class="widgetTitle">Quick Actions</span></div>
-        <div class="widgetBody" style="display:flex;flex-direction:column;gap:8px;">
-          <a class="btn" href="search.html" style="text-align:center;">Search literature</a>
-          <a class="btn" href="library.html" style="text-align:center;">My library</a>
-          <a class="btn" href="community.html" style="text-align:center;">Community</a>
-        </div>
-      </div>
-    </div>
-  </div>
+    <nav class="landingFooterLinks">
+      <a class="landingFooterLink" href="info.html">About</a>
+      <a class="landingFooterLink" href="community.html">Community</a>
+      <a class="landingFooterLink" href="search.html">Search</a>
+      <a class="landingFooterLink" href="login.html">Sign in</a>
+    </nav>
+  </footer>
 
 </main>
 
@@ -375,38 +316,14 @@ document.getElementById('heroSearchInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('heroSearchBtn').click();
 });
 
-// Sign-in button for guests
+// Show/hide header sign-in based on auth state
 (async () => {
   try {
     const token = typeof getToken === 'function' ? getToken() : localStorage.getItem('seren_token');
-    if (!token) document.getElementById('landingSignInBtn').style.display = '';
+    const headerBtn = document.getElementById('landingHeaderSignIn');
+    if (token && headerBtn) { headerBtn.textContent = 'Dashboard'; headerBtn.href = 'library.html'; }
   } catch {}
 })();
-
-// Stats — fetch from /community/stats, hide zeros
-async function loadStats() {
-  try {
-    const s = await fetchJson('/community/stats', { auth: false });
-    const set = (id, val, itemId) => {
-      if (val && val > 0) {
-        document.getElementById(id).textContent = val >= 1000 ? (val/1000).toFixed(1)+'k' : val;
-      } else {
-        // Hide the whole stat item if value is zero or unknown
-        const item = document.getElementById(itemId);
-        if (item) item.style.display = 'none';
-      }
-    };
-    set('statPapers',      s.papers_analysed,  'statItemPapers');
-    set('statSynths',      s.syntheses_run,     'statItemSynths');
-    set('statPosts',       s.community_posts,   'statItemPosts');
-    set('statResearchers', s.researchers,       'statItemResearchers');
-  } catch { /* stats unavailable — leave dashes */ }
-}
-
-// Paper of the day
-async function loadPotd() {
-  const wrap = document.getElementById('potdWrap');
-  try {
-    const p = await fetchJson('/community/paper-of-day', { auth: false });
-    if (!p || !p.title) { wrap.innerHTML = '<div style="font-size:13px;color:var(--subtle);font-style:italic;">No featured paper today.</div>'; return; }
-    document.getElementById(
+</script>
+</body>
+</html>

@@ -212,6 +212,67 @@
       padding-bottom: 4px;
     }
 
+    /* Stats info tooltip */
+    .statsInfoWrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .statsInfoBtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: var(--surface2);
+      color: var(--subtle);
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+      flex-shrink: 0;
+      line-height: 1;
+      padding: 0;
+      box-shadow: none;
+    }
+    .statsInfoBtn:hover { border-color: var(--navy); color: var(--navy); background: var(--surface2); transform: none; }
+    .statsInfoTooltip {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 280px;
+      background: var(--navy);
+      color: var(--cream);
+      border-radius: var(--r);
+      padding: 14px 16px;
+      font-size: 12px;
+      line-height: 1.65;
+      box-shadow: var(--shadow-lg);
+      z-index: 200;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity .15s, transform .15s;
+    }
+    .statsInfoTooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .statsInfoTooltip::before {
+      content: '';
+      position: absolute;
+      top: -5px; right: 10px;
+      width: 10px; height: 10px;
+      background: var(--navy);
+      transform: rotate(45deg);
+      border-radius: 2px;
+    }
+    .statsInfoTooltip strong { color: var(--brass); font-weight: 700; display: block; margin-bottom: 6px; font-size: 12.5px; }
+    .statsInfoTooltip ul { margin: 6px 0 0; padding-left: 14px; }
+    .statsInfoTooltip li { margin-bottom: 4px; }
+
     /* Paper cards */
     .paperCard {
       background: var(--surface);
@@ -631,9 +692,23 @@
         <!-- Phase 4: header right — count + select/synthesise buttons -->
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <div class="libCount" id="countLabel"></div>
-          <button class="btn sm ghost" id="toggleAnalyticsBtn" title="View Library Analytics">
-            &#128202; Analytics
-          </button>
+          <div style="display:inline-flex;align-items:center;gap:4px;">
+            <button class="btn sm ghost" id="toggleAnalyticsBtn" title="View Library Analytics">
+              &#128202; Analytics
+            </button>
+            <div class="statsInfoWrap">
+              <button class="statsInfoBtn" id="statsInfoBtn" type="button" aria-label="How stats are calculated">i</button>
+              <div class="statsInfoTooltip" id="statsInfoTooltip">
+                <strong>How Library Stats are Calculated</strong>
+                <ul>
+                  <li><strong style="color:var(--cream);">Study Type Breakdown</strong> — classifies each paper by scanning its title and abstract for key terms (e.g. "randomised" → RCT, "meta-analysis", "cohort"). Papers that match no pattern are grouped as <em>Other</em>.</li>
+                  <li><strong style="color:var(--cream);">Publication Timeline</strong> — groups saved papers by their recorded publication year. Only papers with a valid 4-digit year are included.</li>
+                  <li><strong style="color:var(--cream);">Citation Impact</strong> — sums the <code>citation_count</code> field stored when each paper was imported. Counts reflect the source database at import time, not real-time.</li>
+                  <li><strong style="color:var(--cream);">Total Papers</strong> — count of all papers currently in your library (any status, any folder).</li>
+                </ul>
+              </div>
+            </div>
+          </div>
           <button class="btn sm ghost" id="launchStatsCalcBtn" title="Launch Stat Calculator">
             &#128200; Stats Calc
           </button>
@@ -1377,6 +1452,19 @@ $id('toggleAnalyticsBtn').onclick = () => {
     renderAnalytics();
   }
 };
+
+// Stats info tooltip toggle
+(function wireStatsTooltip() {
+  const btn = $id('statsInfoBtn');
+  const tip = $id('statsInfoTooltip');
+  if (!btn || !tip) return;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    tip.classList.toggle('visible');
+  });
+  document.addEventListener('click', () => tip.classList.remove('visible'));
+  tip.addEventListener('click', e => e.stopPropagation());
+})();
 
 function renderAnalytics() {
   const items = window._currentLibFiltered || [];

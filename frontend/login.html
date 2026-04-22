@@ -158,49 +158,49 @@
       margin-bottom: 4px;
     }
     .backLink:hover { color: var(--brass2); }
+    /* Override: single-column, centred card */
+    .authCard {
+      grid-template-columns: 1fr;
+      max-width: 460px;
+    }
+    .authVisual { display: none; }
+    .authForm { padding: 40px 36px; }
+
+    /* Compact logo above form */
+    .authFormLogo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+      text-decoration: none;
+    }
+    .authFormLogoMark {
+      width: 36px; height: 36px;
+      border-radius: 9px;
+      background: var(--navy);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--brass);
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .authFormLogoText {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--navy);
+    }
   </style>
 </head>
 <body class="authBody">
   <div class="authShell">
     <div class="authCard">
 
-      <section class="authVisual">
-        <div>
-          <div class="authLogo">
-            <div class="authLogoMark">S</div>
-            <span class="authLogoText">Seren</span>
-          </div>
-          <div class="authTagline">Medical Evidence Research Platform</div>
-          <div class="authPill">Evidence-first · Free AI included · BYOK</div>
-        </div>
-
-        <div class="authVisualQuote">
-          <p>"The strength of evidence should guide the strength of recommendations."</p>
-          <span>Evidence-based medicine</span>
-        </div>
-
-        <div>
-          <div class="authStats">
-            <div class="authStat">
-              <div class="authStatNum">4</div>
-              <div class="authStatLabel">Providers</div>
-            </div>
-            <div class="authStat">
-              <div class="authStatNum">Free</div>
-              <div class="authStatLabel">AI included</div>
-            </div>
-            <div class="authStat">
-              <div class="authStatNum">BYOK</div>
-              <div class="authStatLabel">Your key</div>
-            </div>
-          </div>
-          <div class="authHint">
-            Guest mode lets you search freely. Log in to save papers, annotate, and use AI.
-          </div>
-        </div>
-      </section>
-
       <section class="authForm">
+        <a class="authFormLogo" href="index.html">
+          <div class="authFormLogoMark">S</div>
+          <span class="authFormLogoText">Seren</span>
+        </a>
 
         <div id="mainPanel">
           <div style="margin-bottom:20px;">

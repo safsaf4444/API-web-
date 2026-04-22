@@ -168,6 +168,79 @@
       border-radius: var(--r-lg);
     }
     .emptyResults p { color: var(--subtle); font-size: 14px; margin: 0; }
+
+    /* Toggle switch */
+    .toggleRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .toggleLabel {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text2);
+      line-height: 1.3;
+    }
+    .toggleSub {
+      font-size: 11px;
+      color: var(--subtle);
+      margin-top: 1px;
+    }
+    .toggleSwitch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .toggleSwitch input { opacity: 0; width: 0; height: 0; }
+    .toggleTrack {
+      position: absolute;
+      inset: 0;
+      background: var(--line);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .toggleTrack::before {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      left: 3px; top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .toggleSwitch input:checked + .toggleTrack { background: var(--navy); }
+    .toggleSwitch input:checked + .toggleTrack::before { transform: translateX(16px); }
+
+    /* Multi-source banner */
+    .multiSourceBanner {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(36,48,68,.06);
+      border: 1px solid rgba(36,48,68,.12);
+      border-radius: var(--r-sm);
+      font-size: 12px;
+      color: var(--navy2);
+      font-weight: 500;
+    }
+    .multiSourceBanner.active { display: flex; }
+    .multiSourceDot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--good);
+      animation: pulse 1.5s ease infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
   </style>
 </head>
 <body>
@@ -183,7 +256,21 @@
             <label>Query</label>
             <input id="q" placeholder="e.g. creatine supplementation" autocomplete="off"/>
           </div>
-          <div>
+          <!-- Search All Sources toggle -->
+          <div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);">
+            <div class="toggleRow">
+              <div>
+                <div class="toggleLabel">Search All Sources</div>
+                <div class="toggleSub">Query all providers simultaneously</div>
+              </div>
+              <label class="toggleSwitch">
+                <input type="checkbox" id="searchAllToggle"/>
+                <span class="toggleTrack"></span>
+              </label>
+            </div>
+          </div>
+
+          <div id="sourceSelectWrap">
             <label>Source</label>
             <select id="source">
               <option value="europepmc">Europe PMC</option>
@@ -289,6 +376,10 @@
         </div>
       </div>
 
+      <div class="multiSourceBanner" id="multiSourceBanner">
+        <span class="multiSourceDot"></span>
+        Searching all sources — results are merged and deduplicated.
+      </div>
       <div class="filterChips" id="activeFilters" style="margin-bottom:10px;"></div>
       <div class="statusMsg" id="msg"></div>
 
@@ -580,7 +671,102 @@ function clearFilters(){
   updateLabel(null,__LAST_ITEMS__.length,applyFilters(__LAST_ITEMS__).length);
 }
 
-$id('searchBtn').onclick = newSearch;
+// ── Multi-source toggle logic ─────────────────────────────────────────────────
+let __SEARCH_ALL__ = false;
+
+function deduplicateResults(items) {
+  const seen = new Map();
+  const out  = [];
+  for (const it of items) {
+    const doi   = normStr(it.doi).toLowerCase().replace(/\s/g, '');
+    const pmid  = normStr(it.pmid).toLowerCase().replace(/\s/g, '');
+    const title = normStr(it.title).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').slice(0, 80);
+    // Build a canonical key: prefer DOI, then PMID, then normalised title
+    const key = doi ? `doi:${doi}` : pmid ? `pmid:${pmid}` : title ? `t:${title}` : null;
+    if (!key) { out.push(it); continue; }
+    if (!seen.has(key)) {
+      seen.set(key, out.length);
+      out.push({ ...it });
+    } else {
+      // Merge: fill in missing fields from the duplicate
+      const idx = seen.get(key);
+      const base = out[idx];
+      if (!base.abstract && it.abstract) base.abstract = it.abstract;
+      if (!base.doi && doi)              base.doi       = it.doi;
+      if (!base.pmid && pmid)            base.pmid      = it.pmid;
+      if (!base.pmcid && it.pmcid)       base.pmcid     = it.pmcid;
+      if (!base.citation_count && it.citation_count) base.citation_count = it.citation_count;
+    }
+  }
+  return out;
+}
+
+async function newSearchAll() {
+  const q = $id('q').value.trim();
+  if (!q || q.length < 2) { setMsg('Query must be at least 2 characters.', true); return; }
+  const lim = Math.min(parseInt($id('limit').value, 10), 25);
+  const sources = Array.from($id('source').options).map(o => o.value);
+  const seq = ++__REQ_SEQ__;
+
+  $id('multiSourceBanner').classList.add('active');
+  $id('prevBtn').disabled = true;
+  $id('nextBtn').disabled = true;
+  $id('pageLabel').textContent = '';
+  setMsg(`Searching ${sources.length} sources…`);
+
+  const yFrom = parseYear($id('yearFrom').value);
+  const yTo   = parseYear($id('yearTo').value);
+
+  const fetches = sources.map(src => {
+    let url = `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(src)}&limit=${lim}&cursor_mark=${encodeURIComponent(defaultCursor(src))}`;
+    if (yFrom !== null) url += `&year_from=${yFrom}`;
+    if (yTo   !== null) url += `&year_to=${yTo}`;
+    return fetchJson(url, { auth: false }).catch(() => null);
+  });
+
+  const results = await Promise.all(fetches);
+  if (seq !== __REQ_SEQ__) return;
+
+  const all = [];
+  let successful = 0;
+  results.forEach(r => {
+    if (r && Array.isArray(r.items) && r.items.length) {
+      all.push(...r.items);
+      successful++;
+    }
+  });
+
+  const deduped = deduplicateResults(all);
+  deduped.sort((a, b) => (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0));
+
+  __LAST_ITEMS__ = deduped;
+  __LAST_HIT_COUNT__ = deduped.length;
+  nextCursor = null;
+  stack = [];
+
+  setMsg('');
+  const shown = applyFilters(deduped).length;
+  $id('pageLabel').textContent = `${deduped.length} results from ${successful}/${sources.length} sources`;
+  renderResults(deduped);
+  updateButtons();
+  saveState();
+}
+
+$id('searchAllToggle').addEventListener('change', function () {
+  __SEARCH_ALL__ = this.checked;
+  const wrap = $id('sourceSelectWrap');
+  if (__SEARCH_ALL__) {
+    wrap.style.opacity    = '.4';
+    wrap.style.pointerEvents = 'none';
+    $id('multiSourceBanner').classList.add('active');
+  } else {
+    wrap.style.opacity    = '';
+    wrap.style.pointerEvents = '';
+    $id('multiSourceBanner').classList.remove('active');
+  }
+});
+
+$id('searchBtn').onclick = () => __SEARCH_ALL__ ? newSearchAll() : newSearch();
 $id('clearBtn').onclick  = clearFilters;
 
 // Bulk save
@@ -617,7 +803,7 @@ $id('bulkSaveBtn').onclick = async () => {
 };
 $id('nextBtn').onclick   = async()=>{ if(!nextCursor)return; stack.push(nextCursor); await fetchPage(nextCursor); };
 $id('prevBtn').onclick   = async()=>{ if(stack.length<=1)return; stack.pop(); await fetchPage(stack[stack.length-1]); };
-$id('q').addEventListener('keydown',e=>{ if(e.key==='Enter') newSearch(); });
+$id('q').addEventListener('keydown',e=>{ if(e.key==='Enter') __SEARCH_ALL__ ? newSearchAll() : newSearch(); });
 
 ['author','hasAbstract','openAccess','titleOnly','studyType','language'].forEach(id=>{
   const el=$id(id); if(!el)return;
