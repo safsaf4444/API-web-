@@ -688,15 +688,45 @@ const EXCLUDED_SOURCES = {
   core:             { label: 'CORE',             reason: 'requires CORE_API_KEY env variable — search individually' },
 };
 
-// Client-side pagination state for multi-source mode
-let __MULTI_ALL_ITEMS__ = [];
-let __MULTI_PAGE__       = 0;
-const MULTI_PAGE_SIZE    = 25;
+// Multi-source state
+let __MULTI_ALL_ITEMS__   = [];
+let __MULTI_PAGE__        = 0;
+let __MULTI_CURSORS__     = {};   // { src: cursorValue | null }  null = exhausted
+let __MULTI_HIT_COUNTS__  = {};   // { src: totalHits }
+let __MULTI_RATE_LIMITED__= [];
+let __MULTI_ERRORS__      = [];
+let __MULTI_SUCCESS_SRCS__= new Set();
+let __MULTI_LOADING__     = false;
+const MULTI_PAGE_SIZE     = 25;
+const MULTI_BATCH_SIZE    = 100;
 
-function deduplicateResults(items) {
+function _fmtNum(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+  return String(n);
+}
+
+function _multiTotalHits() {
+  return Object.values(__MULTI_HIT_COUNTS__).reduce((s, v) => s + (v || 0), 0);
+}
+
+function _multiHasMore() {
+  return Object.values(__MULTI_CURSORS__).some(c => c !== null);
+}
+
+// Deduplication — merges incoming items into existing array in-place
+function deduplicateResults(incoming, existing = []) {
   const seen = new Map();
-  const out  = [];
-  for (const it of items) {
+  const out  = [...existing];
+  // Index existing items
+  out.forEach((it, i) => {
+    const doi   = normStr(it.doi).toLowerCase().replace(/\s/g, '');
+    const pmid  = normStr(it.pmid).toLowerCase().replace(/\s/g, '');
+    const title = normStr(it.title).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').slice(0, 80);
+    const key   = doi ? `doi:${doi}` : pmid ? `pmid:${pmid}` : title ? `t:${title}` : null;
+    if (key && !seen.has(key)) seen.set(key, i);
+  });
+  for (const it of incoming) {
     const doi   = normStr(it.doi).toLowerCase().replace(/\s/g, '');
     const pmid  = normStr(it.pmid).toLowerCase().replace(/\s/g, '');
     const title = normStr(it.title).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').slice(0, 80);
@@ -707,33 +737,34 @@ function deduplicateResults(items) {
       out.push({ ...it });
     } else {
       const base = out[seen.get(key)];
-      if (!base.abstract && it.abstract)           base.abstract       = it.abstract;
-      if (!base.doi && doi)                         base.doi            = it.doi;
-      if (!base.pmid && pmid)                       base.pmid           = it.pmid;
-      if (!base.pmcid && it.pmcid)                  base.pmcid          = it.pmcid;
+      if (!base.abstract && it.abstract)            base.abstract       = it.abstract;
+      if (!base.doi && doi)                          base.doi            = it.doi;
+      if (!base.pmid && pmid)                        base.pmid           = it.pmid;
+      if (!base.pmcid && it.pmcid)                   base.pmcid          = it.pmcid;
       if (!base.citation_count && it.citation_count) base.citation_count = it.citation_count;
     }
   }
   return out;
 }
 
-function _renderMultiSourceBanner({ total, successCount, rateLimited, errors }) {
-  const banner = $id('multiSourceBanner');
-  const hasIssues = rateLimited.length || errors.length;
-  const dot = banner.querySelector('.multiSourceDot');
-  if (dot) dot.className = 'multiSourceDot' + (hasIssues ? ' warn' : '');
-
-  const totalPages = Math.ceil(__MULTI_ALL_ITEMS__.length / MULTI_PAGE_SIZE);
+function _renderMultiSourceBanner() {
+  const banner    = $id('multiSourceBanner');
+  const hasIssues = __MULTI_RATE_LIMITED__.length || __MULTI_ERRORS__.length;
+  const loaded    = __MULTI_ALL_ITEMS__.length;
+  const total     = _multiTotalHits();
+  const hasMore   = _multiHasMore();
 
   let html = `<span class="multiSourceDot${hasIssues ? ' warn' : ''}"></span><div style="flex:1;">`;
-  html += `<div><strong style="color:var(--cream);">${total} results</strong> from ${successCount} of ${FREE_SOURCES.length} free sources &mdash; merged &amp; deduplicated &middot; ${totalPages} page${totalPages!==1?'s':''}</div>`;
+  const loadedStr = _fmtNum(loaded);
+  const totalStr  = total > loaded ? `~${_fmtNum(total)}` : loadedStr;
+  html += `<div><strong style="color:var(--cream);">${loadedStr} loaded</strong>${total > loaded ? ` of ${totalStr} total hits` : ' results'} from ${__MULTI_SUCCESS_SRCS__.size} of ${FREE_SOURCES.length} free sources &mdash; merged &amp; deduplicated${hasMore ? ` &middot; <em style="color:var(--brass2);">more available</em>` : ''}</div>`;
 
-  if (rateLimited.length) {
-    const names = rateLimited.map(s => SOURCE_LABELS[s] || s).join(', ');
+  if (__MULTI_RATE_LIMITED__.length) {
+    const names = __MULTI_RATE_LIMITED__.map(s => SOURCE_LABELS[s] || s).join(', ');
     html += `<div class="msBannerWarn">Rate limited (429): <strong>${names}</strong>. These providers throttle unauthenticated bulk requests. Wait a moment then retry, or search that source individually using the Source dropdown above.</div>`;
   }
-  if (errors.length) {
-    html += `<div class="msBannerWarn">Errors: ${errors.map(s => SOURCE_LABELS[s] || s).join(', ')}.</div>`;
+  if (__MULTI_ERRORS__.length) {
+    html += `<div class="msBannerWarn">Errors on: ${__MULTI_ERRORS__.map(s => SOURCE_LABELS[s] || s).join(', ')}.</div>`;
   }
 
   const excludedLines = Object.entries(EXCLUDED_SOURCES)
@@ -741,20 +772,105 @@ function _renderMultiSourceBanner({ total, successCount, rateLimited, errors }) 
   html += `<div class="msBannerSection">Not searched: ${excludedLines}.</div>`;
   html += `</div>`;
 
-  // Replace inner HTML but keep the outer element
   banner.innerHTML = html;
   banner.classList.add('active');
 }
 
 function _renderMultiPage() {
-  const start     = __MULTI_PAGE__ * MULTI_PAGE_SIZE;
-  const pageItems = __MULTI_ALL_ITEMS__.slice(start, start + MULTI_PAGE_SIZE);
+  const start      = __MULTI_PAGE__ * MULTI_PAGE_SIZE;
+  const pageItems  = __MULTI_ALL_ITEMS__.slice(start, start + MULTI_PAGE_SIZE);
   renderResults(pageItems);
   const totalPages = Math.ceil(__MULTI_ALL_ITEMS__.length / MULTI_PAGE_SIZE);
   const filtered   = applyFilters(pageItems);
-  $id('pageLabel').textContent = `${__MULTI_ALL_ITEMS__.length} total &middot; page ${__MULTI_PAGE__ + 1} of ${totalPages}${filtered.length < pageItems.length ? ` (${filtered.length} after filters)` : ''}`;
+  const atEnd      = __MULTI_PAGE__ >= totalPages - 1;
+  const hasMore    = _multiHasMore();
+
+  const loaded  = _fmtNum(__MULTI_ALL_ITEMS__.length);
+  const total   = _multiTotalHits();
+  const totalStr = total > __MULTI_ALL_ITEMS__.length ? ` of ~${_fmtNum(total)}` : '';
+  $id('pageLabel').textContent = `${loaded}${totalStr} loaded · page ${__MULTI_PAGE__ + 1} of ${totalPages}${filtered.length < pageItems.length ? ` (${filtered.length} after filters)` : ''}`;
   $id('prevBtn').disabled = __MULTI_PAGE__ === 0;
-  $id('nextBtn').disabled = __MULTI_PAGE__ >= totalPages - 1;
+
+  const nextBtn = $id('nextBtn');
+  if (atEnd && hasMore) {
+    nextBtn.disabled  = __MULTI_LOADING__;
+    nextBtn.textContent = __MULTI_LOADING__ ? 'Loading…' : 'Load more';
+  } else {
+    nextBtn.disabled    = atEnd;
+    nextBtn.textContent = 'Next';
+  }
+}
+
+// Fetches one batch (MULTI_BATCH_SIZE) from every source that still has a cursor
+async function _fetchMultiBatch(q, yFrom, yTo) {
+  const activeSrcs = FREE_SOURCES.filter(s => __MULTI_CURSORS__[s] !== null);
+  if (!activeSrcs.length) return;
+
+  const batchData   = {};
+  const batchErrors = {};
+
+  await Promise.all(activeSrcs.map(src => {
+    let url = `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(src)}&limit=${MULTI_BATCH_SIZE}&cursor_mark=${encodeURIComponent(__MULTI_CURSORS__[src])}`;
+    if (yFrom !== null) url += `&year_from=${yFrom}`;
+    if (yTo   !== null) url += `&year_to=${yTo}`;
+    return fetchJson(url, { auth: false })
+      .then(r  => { batchData[src]   = r; })
+      .catch(e => { batchErrors[src] = e.message || 'Error'; });
+  }));
+
+  const newItems = [];
+  activeSrcs.forEach(src => {
+    if (batchData[src] && Array.isArray(batchData[src].items)) {
+      newItems.push(...batchData[src].items);
+      // Update cursor — null means exhausted
+      const nc = batchData[src].next_cursor_mark;
+      __MULTI_CURSORS__[src] = (nc && nc !== __MULTI_CURSORS__[src]) ? nc : null;
+      // Capture total hit count on first response (hit_count field)
+      if (batchData[src].hit_count != null && !__MULTI_HIT_COUNTS__[src]) {
+        __MULTI_HIT_COUNTS__[src] = batchData[src].hit_count;
+      }
+      __MULTI_SUCCESS_SRCS__.add(src);
+    } else if (batchErrors[src]) {
+      const msg = batchErrors[src].toLowerCase();
+      if (msg.includes('429') || msg.includes('rate')) {
+        if (!__MULTI_RATE_LIMITED__.includes(src)) __MULTI_RATE_LIMITED__.push(src);
+      } else {
+        if (!__MULTI_ERRORS__.includes(src)) __MULTI_ERRORS__.push(src);
+      }
+      __MULTI_CURSORS__[src] = null; // don't retry errored sources
+    }
+  });
+
+  if (newItems.length) {
+    __MULTI_ALL_ITEMS__ = deduplicateResults(newItems, __MULTI_ALL_ITEMS__);
+    __MULTI_ALL_ITEMS__.sort((a, b) => (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0));
+  }
+}
+
+// Called when Next is pressed at end of local pages and _multiHasMore() is true
+async function _loadNextMultiBatch() {
+  if (__MULTI_LOADING__) return;
+  __MULTI_LOADING__ = true;
+  $id('nextBtn').disabled   = true;
+  $id('nextBtn').textContent = 'Loading…';
+  setMsg('Fetching next batch…');
+
+  const q     = $id('q').value.trim();
+  const yFrom = parseYear($id('yearFrom').value);
+  const yTo   = parseYear($id('yearTo').value);
+
+  await _fetchMultiBatch(q, yFrom, yTo);
+
+  __MULTI_LOADING__ = false;
+  setMsg('');
+  __LAST_ITEMS__     = __MULTI_ALL_ITEMS__;
+  __LAST_HIT_COUNT__ = __MULTI_ALL_ITEMS__.length;
+  _renderMultiSourceBanner();
+  // Advance to next page after the previous last page
+  const totalPages = Math.ceil(__MULTI_ALL_ITEMS__.length / MULTI_PAGE_SIZE);
+  if (__MULTI_PAGE__ < totalPages - 1) __MULTI_PAGE__++;
+  _renderMultiPage();
+  saveState();
 }
 
 async function newSearchAll() {
@@ -762,57 +878,39 @@ async function newSearchAll() {
   if (!q || q.length < 2) { setMsg('Query must be at least 2 characters.', true); return; }
   const seq = ++__REQ_SEQ__;
 
-  $id('prevBtn').disabled = true;
-  $id('nextBtn').disabled = true;
+  $id('prevBtn').disabled    = true;
+  $id('nextBtn').disabled    = true;
+  $id('nextBtn').textContent = 'Next';
   $id('pageLabel').textContent = '';
-  setMsg(`Searching ${FREE_SOURCES.length} free sources in parallel…`);
+  setMsg(`Searching ${FREE_SOURCES.length} free sources…`);
 
   const yFrom = parseYear($id('yearFrom').value);
   const yTo   = parseYear($id('yearTo').value);
 
-  // Track per-source outcomes
-  const sourceData   = {};
-  const sourceErrors = {};
+  // Reset all multi-source state
+  __MULTI_ALL_ITEMS__    = [];
+  __MULTI_PAGE__         = 0;
+  __MULTI_CURSORS__      = {};
+  __MULTI_HIT_COUNTS__   = {};
+  __MULTI_RATE_LIMITED__ = [];
+  __MULTI_ERRORS__       = [];
+  __MULTI_SUCCESS_SRCS__ = new Set();
+  __MULTI_LOADING__      = false;
 
-  await Promise.all(FREE_SOURCES.map(src => {
-    let url = `/external/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(src)}&limit=25&cursor_mark=${encodeURIComponent(defaultCursor(src))}`;
-    if (yFrom !== null) url += `&year_from=${yFrom}`;
-    if (yTo   !== null) url += `&year_to=${yTo}`;
-    return fetchJson(url, { auth: false })
-      .then(r  => { sourceData[src]   = r; })
-      .catch(e => { sourceErrors[src] = e.message || 'Error'; });
-  }));
+  // Initialise cursors for all free sources
+  FREE_SOURCES.forEach(src => { __MULTI_CURSORS__[src] = defaultCursor(src); });
+
+  await _fetchMultiBatch(q, yFrom, yTo);
 
   if (seq !== __REQ_SEQ__) return;
 
-  const all           = [];
-  const rateLimited   = [];
-  const errors        = [];
-  let   successCount  = 0;
-
-  FREE_SOURCES.forEach(src => {
-    if (sourceData[src] && Array.isArray(sourceData[src].items)) {
-      all.push(...sourceData[src].items);
-      successCount++;
-    } else if (sourceErrors[src]) {
-      const msg = sourceErrors[src].toLowerCase();
-      if (msg.includes('429') || msg.includes('rate')) rateLimited.push(src);
-      else errors.push(src);
-    }
-  });
-
-  const deduped = deduplicateResults(all);
-  deduped.sort((a, b) => (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0));
-
-  __MULTI_ALL_ITEMS__ = deduped;
-  __MULTI_PAGE__       = 0;
-  __LAST_ITEMS__       = deduped;
-  __LAST_HIT_COUNT__   = deduped.length;
-  nextCursor           = null;
-  stack                = [];
+  __LAST_ITEMS__     = __MULTI_ALL_ITEMS__;
+  __LAST_HIT_COUNT__ = __MULTI_ALL_ITEMS__.length;
+  nextCursor         = null;
+  stack              = [];
 
   setMsg('');
-  _renderMultiSourceBanner({ total: deduped.length, successCount, rateLimited, errors });
+  _renderMultiSourceBanner();
   _renderMultiPage();
   saveState();
 }
@@ -821,13 +919,14 @@ $id('searchAllToggle').addEventListener('change', function () {
   __SEARCH_ALL__ = this.checked;
   const wrap = $id('sourceSelectWrap');
   if (__SEARCH_ALL__) {
-    wrap.style.opacity      = '.4';
+    wrap.style.opacity       = '.4';
     wrap.style.pointerEvents = 'none';
   } else {
-    wrap.style.opacity      = '';
+    wrap.style.opacity       = '';
     wrap.style.pointerEvents = '';
     $id('multiSourceBanner').classList.remove('active');
-    __MULTI_ALL_ITEMS__ = [];
+    __MULTI_ALL_ITEMS__    = [];
+    $id('nextBtn').textContent = 'Next';
   }
 });
 
@@ -869,7 +968,13 @@ $id('bulkSaveBtn').onclick = async () => {
 $id('nextBtn').onclick = async () => {
   if (__SEARCH_ALL__) {
     const totalPages = Math.ceil(__MULTI_ALL_ITEMS__.length / MULTI_PAGE_SIZE);
-    if (__MULTI_PAGE__ < totalPages - 1) { __MULTI_PAGE__++; _renderMultiPage(); }
+    const atEnd      = __MULTI_PAGE__ >= totalPages - 1;
+    if (atEnd && _multiHasMore()) {
+      await _loadNextMultiBatch();
+    } else if (!atEnd) {
+      __MULTI_PAGE__++;
+      _renderMultiPage();
+    }
   } else {
     if (!nextCursor) return; stack.push(nextCursor); await fetchPage(nextCursor);
   }
