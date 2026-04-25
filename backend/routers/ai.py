@@ -1518,7 +1518,7 @@ async def explain_figure(
     payload: ExplainFigureRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    _rl=Depends(per_route_limit(30, 3600)),
+    _rl=Depends(per_route_limit(5, 3600)),
 ):
     byok = _get_byok_keys(current_user)
     if not byok:
@@ -1544,7 +1544,7 @@ async def explain_figure_image(
     payload: ExplainFigureImageRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    _rl=Depends(per_route_limit(25, 3600)),
+    _rl=Depends(per_route_limit(5, 3600)),
 ):
     """Explain a figure from a base64-encoded image using a vision-capable model."""
     if not payload.image_b64.startswith("data:image/"):

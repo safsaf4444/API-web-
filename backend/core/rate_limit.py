@@ -59,6 +59,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in self._SKIP_PATHS:
             return await call_next(request)
 
+        # Authenticated users are rate-limited per-route (see per_route_limit).
+        # Global middleware only guards unauthenticated (guest/bot) traffic.
+        if _extract_username(request):
+            return await call_next(request)
+
         key = _rate_key(request)
         now = time.monotonic()
         window = settings.rate_limit_window_sec
@@ -71,7 +76,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if len(q) >= max_req:
             return JSONResponse(
                 status_code=429,
-                content={"error": {"code": "rate_limited", "message": "Too many requests. Try again soon."}},
+                content={"error": {"code": "rate_limited", "message": "Too many requests — please slow down and try again in a moment."}},
                 headers={"Retry-After": str(window)},
             )
         q.append(now)
@@ -103,10 +108,11 @@ def per_route_limit(max_calls: int, window_sec: int = 3600):
         while q and q[0] <= now - window_sec:
             q.popleft()
         if len(q) >= max_calls:
-            hours = window_sec // 3600 or 1
+            mins = window_sec // 60
+            period = f"{window_sec // 3600}h" if window_sec >= 3600 else f"{mins}min"
             raise HTTPException(
                 status_code=429,
-                detail=f"Limit of {max_calls} requests per {hours}h exceeded. Try again later.",
+                detail=f"You've used all {max_calls} requests allowed per {period} for this feature. Try again later.",
                 headers={"Retry-After": str(window_sec)},
             )
         q.append(now)

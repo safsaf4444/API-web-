@@ -170,7 +170,7 @@
           <button class="btn sm ghost" id="sheetCloseBtn">&#10005; Close Spreadsheet</button>
        </div>
      </div>
-     <div id="spreadsheet-container" style="flex:1;position:relative;"></div>
+     <div id="spreadsheet-container" style="flex:1;position:relative;width:100%;min-height:0;"></div>
   </div>
 </div>
 
@@ -360,6 +360,7 @@
     openBtn.onclick = async () => {
       overlay.style.display = 'flex';
       openBtn.textContent = 'Loading…';
+      openBtn.disabled = true;
 
       let existingData = null;
       try {
@@ -369,26 +370,46 @@
       } catch(e) {}
 
       openBtn.textContent = 'Open Spreadsheet';
+      openBtn.disabled = false;
 
-      // Destroy previous instance if present
+      // Destroy previous instance cleanly before re-creating
       if (sheetOpen) {
         try { window.luckysheet.destroy(); } catch(e) {}
-        document.getElementById('spreadsheet-container').innerHTML = '';
+        const el = document.getElementById('spreadsheet-container');
+        el.innerHTML = '';
         sheetOpen = false;
       }
 
-      window.luckysheet.create({
-        container: 'spreadsheet-container',
-        title: 'Global Data Hub',
-        showinfobar: false,
-        showsheetbar: true,
-        enableAddRow: true,
-        data: existingData || [{ name: 'Sheet1', celldata: [], config: {} }],
-        hook: {
-          cellUpdateBefore: () => { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(saveToServer, 2500); },
-        },
+      // Defer create() until the browser has painted the modal and the
+      // container has real pixel dimensions — Luckysheet reads offsetWidth/Height
+      // on init and throws if the container is still 0×0.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          try {
+            window.luckysheet.create({
+              container: 'spreadsheet-container',
+              title: 'Global Data Hub',
+              showinfobar: false,
+              showsheetbar: true,
+              enableAddRow: true,
+              showstatisticBar: false,
+              data: existingData || [{ name: 'Sheet1', celldata: [], config: {} }],
+              hook: {
+                cellUpdateBefore: () => {
+                  dirty = true;
+                  clearTimeout(saveTimer);
+                  saveTimer = setTimeout(saveToServer, 2500);
+                },
+              },
+            });
+            sheetOpen = true;
+          } catch(err) {
+            console.error('Luckysheet init error:', err);
+            document.getElementById('spreadsheet-container').innerHTML =
+              `<div style="padding:40px;text-align:center;color:var(--bad);">Spreadsheet failed to load. Try closing and reopening.</div>`;
+          }
+        });
       });
-      sheetOpen = true;
     };
 
     closeBtn.onclick = () => { saveToServer(); overlay.style.display = 'none'; };
