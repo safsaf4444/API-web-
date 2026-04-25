@@ -5,8 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Workspace & Tools — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fortune-sheet@latest/dist/fortune-sheet.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/fortune-sheet@latest/dist/fortune-sheet.umd.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/pluginsCss.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/plugins.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/css/luckysheet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/assets/iconfont/iconfont.css">
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/js/plugin.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/luckysheet.umd.js"></script>
   <style>
     .toolsLayout {
       display: grid;
@@ -140,7 +144,7 @@
            Launch a full spreadsheet editor to curate data manually. Extracted PICO data from your papers can be imported directly into rows.
         </div>
         <div style="display:flex;gap:8px;margin-bottom:16px;">
-           <button class="btn primary" style="width:100%; justify-content:center;" id="openSpreadsheetBtn">&#128202; Open FortuneSheet</button>
+           <button class="btn primary" style="width:100%; justify-content:center;" id="openSpreadsheetBtn">Open Spreadsheet</button>
         </div>
         <div class="hr" style="margin:16px 0;"></div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Dataset Link Tracking</div>
@@ -160,7 +164,7 @@
 <div id="spreadsheetOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#fff;width:95vw;height:95vh;border-radius:var(--r-md);display:flex;flex-direction:column;overflow:hidden;position:relative;">
      <div style="display:flex;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface);">
-       <strong style="font-family:var(--font-display); font-size:16px; color:var(--navy);">Global Spreadsheet (Auto-saving)</strong>
+       <strong style="font-family:var(--font-display); font-size:16px; color:var(--navy);">Spreadsheet — auto-saving</strong>
        <div style="display:flex;gap:10px;">
           <!-- removed sheetImportAiBtn since that was strictly for single paper context -->
           <button class="btn sm ghost" id="sheetCloseBtn">&#10005; Close Spreadsheet</button>
@@ -322,61 +326,69 @@
     };
   })();
 
-  // ── Standalone FortuneSheet ────────────────────────────────────────────────
+  // ── Standalone Luckysheet ──────────────────────────────────────────────────
   (function() {
     const openBtn = document.getElementById('openSpreadsheetBtn');
     const overlay = document.getElementById('spreadsheetOverlay');
     const closeBtn = document.getElementById('sheetCloseBtn');
-    
-    let sheetInst = null;
-    let activeSheetId = null; // Since it's global, we might assign a fixed Study ID 0 or general ID
+
+    let sheetOpen = false;
+    let activeSheetId = null;
     let dirty = false;
     let saveTimer = null;
 
     async function loadGlobalSheet() {
-      // Find a spreadsheet with NO study_id attached (study_id = null)
       const all = await fetchJson('/spreadsheets?global=1');
-      if(all && all.length > 0) return all[0];
+      if (all && all.length > 0) return all[0];
       return null;
     }
 
     async function saveToServer() {
-      if (!dirty || !sheetInst) return;
-      const dataJson = JSON.stringify(sheetInst.getAllSheets());
+      if (!dirty || !sheetOpen) return;
       try {
-        if(activeSheetId) {
+        const dataJson = JSON.stringify(window.luckysheet.getAllSheets());
+        if (activeSheetId) {
           await fetchJson('/spreadsheet/' + activeSheetId, { method: 'PATCH', body: { data_json: dataJson } });
         } else {
-          const created = await fetchJson('/spreadsheet', { method:'POST', body: { name:'Global Hub', data_json: dataJson } });
+          const created = await fetchJson('/spreadsheet', { method: 'POST', body: { name: 'Global Hub', data_json: dataJson } });
           activeSheetId = created.id;
         }
         dirty = false;
-      } catch(err) { console.error("Save failed", err); }
+      } catch(err) { console.error('Spreadsheet save failed', err); }
     }
 
     openBtn.onclick = async () => {
       overlay.style.display = 'flex';
-      openBtn.textContent = 'Loading...';
+      openBtn.textContent = 'Loading…';
+
       let existingData = null;
       try {
         const dbDoc = await loadGlobalSheet();
         activeSheetId = dbDoc ? dbDoc.id : null;
-        if(dbDoc && dbDoc.data_json) existingData = JSON.parse(dbDoc.data_json);
+        if (dbDoc && dbDoc.data_json) existingData = JSON.parse(dbDoc.data_json);
       } catch(e) {}
-      
-      openBtn.textContent = 'Open FortuneSheet';
-      if (sheetInst) { document.getElementById('spreadsheet-container').innerHTML = ''; sheetInst = null; }
 
-      sheetInst = window.fortuneSheet.create({
+      openBtn.textContent = 'Open Spreadsheet';
+
+      // Destroy previous instance if present
+      if (sheetOpen) {
+        try { window.luckysheet.destroy(); } catch(e) {}
+        document.getElementById('spreadsheet-container').innerHTML = '';
+        sheetOpen = false;
+      }
+
+      window.luckysheet.create({
         container: 'spreadsheet-container',
         title: 'Global Data Hub',
-        data: existingData || [{ name: "Sheet1", celldata: [] }],
-        onChange: (data) => {
-          dirty = true;
-          clearTimeout(saveTimer);
-          saveTimer = setTimeout(saveToServer, 2000);
-        }
+        showinfobar: false,
+        showsheetbar: true,
+        enableAddRow: true,
+        data: existingData || [{ name: 'Sheet1', celldata: [], config: {} }],
+        hook: {
+          cellUpdateBefore: () => { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(saveToServer, 2500); },
+        },
       });
+      sheetOpen = true;
     };
 
     closeBtn.onclick = () => { saveToServer(); overlay.style.display = 'none'; };

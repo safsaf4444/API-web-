@@ -22,10 +22,10 @@ class Settings:
     # CORS
     cors_allow_origins: str = os.getenv("CORS_ALLOW_ORIGINS", "*")
 
-    # Rate limit
+    # Rate limit — global guard is DDoS-only; per-route Depends handle per-feature throttling
     rate_limit_enabled: bool = _bool(os.getenv("RATE_LIMIT_ENABLED"), default=True)
     rate_limit_window_sec: int = int(os.getenv("RATE_LIMIT_WINDOW_SEC", "60"))
-    rate_limit_max_requests: int = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "120"))
+    rate_limit_max_requests: int = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "600"))
 
     # JWT
     access_token_expire_hours: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "24"))

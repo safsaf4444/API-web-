@@ -415,7 +415,7 @@ def ai_clear_key(session: Session = Depends(get_session), current_user: User = D
 # ── Summarize (standard) ──────────────────────────────────────────────────────
 
 @router.post("/ai/summarize", response_model=AISummarizeResponse)
-async def ai_summarize(payload: AISummarizeRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(30, 3600))):
+async def ai_summarize(payload: AISummarizeRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(60, 3600))):
     ck = _cache_key("summarize", payload.title, payload.doi, payload.pmid, payload.pmcid)
     cached = session.exec(select(AIResult).where(
         (AIResult.owner_username == current_user.username) &
@@ -585,7 +585,7 @@ async def _anthropic_stream(api_key, system, user):
 # ── Ask ───────────────────────────────────────────────────────────────────────
 
 @router.post("/ai/ask", response_model=AIAskResponse)
-async def ai_ask(payload: AIAskRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(30, 3600))):
+async def ai_ask(payload: AIAskRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(60, 3600))):
     ck = _cache_key("ask", payload.title, payload.doi, payload.pmid, payload.pmcid, payload.question)
     cached = session.exec(select(AIResult).where(
         (AIResult.owner_username == current_user.username) &
@@ -656,7 +656,7 @@ If a value cannot be determined from the abstract, use null."""
 
 
 @router.post("/ai/clinical", response_model=AIClinicalResponse)
-async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(20, 3600))):
+async def ai_clinical(payload: AIClinicalRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(40, 3600))):
     study = session.get(Study, payload.study_id)
     if not study:
         raise HTTPException(status_code=404, detail="Study not found")
@@ -1120,7 +1120,7 @@ def _build_synthesis_response(rec: SynthesisResult, study_ids: list, cached: boo
 # ── Phase 4: Cross-Paper Analysis ────────────────────────────────────────────
 
 @router.post("/ai/synthesise", response_model=AISynthesisResponse)
-async def ai_synthesise(payload: AISynthesisRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(10, 3600))):
+async def ai_synthesise(payload: AISynthesisRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     """Cross-paper evidence analysis across 2-10 saved papers."""
     if len(payload.study_ids) < 2:  raise HTTPException(status_code=400, detail="At least 2 studies required.")
     if len(payload.study_ids) > 10: raise HTTPException(status_code=400, detail="Maximum 10 studies per analysis.")
@@ -1288,7 +1288,7 @@ def get_synthesis(synthesis_id: int, session: Session = Depends(get_session), cu
 # ── Phase 4: Literature Search & Synthesis (Subject Query) ───────────────────
 
 @router.post("/ai/subject-query", response_model=AISubjectQueryResponse)
-async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(10, 3600))):
+async def ai_subject_query(payload: AISubjectQueryRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     """
     Literature search and synthesis mode.
     Searches FRESH literature from the specified source.
@@ -1460,6 +1460,7 @@ async def explain_selection(
     payload: ExplainSelectionRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    _rl=Depends(per_route_limit(40, 3600)),
 ):
     byok = _get_byok_keys(current_user)
     if not byok:
@@ -1492,6 +1493,7 @@ async def explain_table(
     payload: ExplainTableRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    _rl=Depends(per_route_limit(40, 3600)),
 ):
     byok = _get_byok_keys(current_user)
     if not byok:
@@ -1516,6 +1518,7 @@ async def explain_figure(
     payload: ExplainFigureRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    _rl=Depends(per_route_limit(30, 3600)),
 ):
     byok = _get_byok_keys(current_user)
     if not byok:
@@ -1541,6 +1544,7 @@ async def explain_figure_image(
     payload: ExplainFigureImageRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    _rl=Depends(per_route_limit(25, 3600)),
 ):
     """Explain a figure from a base64-encoded image using a vision-capable model."""
     if not payload.image_b64.startswith("data:image/"):
@@ -1575,6 +1579,7 @@ async def resolve_contradictions(
     payload: ContradictionAnalysisRequest,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    _rl=Depends(per_route_limit(20, 3600)),
 ):
     byok = _get_byok_keys(current_user)
     if not byok:
@@ -1659,6 +1664,7 @@ from fastapi import File, UploadFile
 async def upload_pdf(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
+    _rl=Depends(per_route_limit(30, 3600)),
 ):
     """Extract text, figures metadata, and references from an uploaded PDF."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -1799,35 +1805,35 @@ async def _synthesis_sub_prompt(synthesis_id: int, prompt_text: str, session: Se
     return {"text": result.text, "synthesis_id": synthesis_id}
 
 @router.post("/ai/synthesis/{synthesis_id}/outlier-detection")
-async def ai_synthesis_outliers(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_synthesis_outliers(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     return await _synthesis_sub_prompt(synthesis_id, "Identify any papers that have effect sizes or conclusions devitating significantly from the consensus set. Explain why.", session, current_user)
 
 @router.post("/ai/synthesis/{synthesis_id}/confound-identifier")
-async def ai_synthesis_confounds(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_synthesis_confounds(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     return await _synthesis_sub_prompt(synthesis_id, "Identify uncontrolled confounders present across these papers that threaten validity.", session, current_user)
 
 @router.post("/ai/synthesis/{synthesis_id}/sensitivity-analysis")
-async def ai_synthesis_sensitivity(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_synthesis_sensitivity(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     return await _synthesis_sub_prompt(synthesis_id, "Re-analyse the synthesis but explicitly exclude or heavily discount any papers with weak, poor, or low evidence strength.", session, current_user)
 
 @router.post("/ai/synthesis/{synthesis_id}/narrative-synthesis")
-async def ai_synthesis_narrative(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_synthesis_narrative(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     return await _synthesis_sub_prompt(synthesis_id, "Provide a deeply structured narrative synthesis exploring heterogenous evidence points across these papers.", session, current_user)
 
 @router.post("/ai/synthesis/{synthesis_id}/thematic-analysis")
-async def ai_synthesis_thematic(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_synthesis_thematic(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     return await _synthesis_sub_prompt(synthesis_id, "Perform thematic analysis. Extract themes, sub-themes and supporting quotes/evidence. Return as pure valid JSON array of objects [{theme, sub_themes:[], evidence:[]}].", session, current_user)
 
 @router.post("/ai/synthesis/{synthesis_id}/evidence-sufficiency")
-async def ai_synthesis_sufficiency(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_synthesis_sufficiency(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     return await _synthesis_sub_prompt(synthesis_id, "Rate the collective evidence base as Sufficient, Insufficient, or Preliminary. Explain your specific grading.", session, current_user)
 
 @router.post("/ai/synthesis/{synthesis_id}/research-questions")
-async def ai_synthesis_research_qs(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_synthesis_research_qs(synthesis_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(25, 3600))):
     return await _synthesis_sub_prompt(synthesis_id, "Based on the evidence gaps in these papers, generate 5 highly specific future research questions.", session, current_user)
 
 @router.post("/ai/paper/{study_id}/secondary-data")
-async def ai_paper_secondary_data(study_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+async def ai_paper_secondary_data(study_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user), _rl=Depends(per_route_limit(30, 3600))):
     study = session.get(Study, study_id)
     if not study or study.owner_username != current_user.username:
         raise HTTPException(404, "Study not found")
