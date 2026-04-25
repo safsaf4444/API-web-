@@ -59,9 +59,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in self._SKIP_PATHS:
             return await call_next(request)
 
-        # Authenticated users are rate-limited per-route (see per_route_limit).
-        # Global middleware only guards unauthenticated (guest/bot) traffic.
-        if _extract_username(request):
+        # Authenticated users are rate-limited per-route only.
+        # A Bearer token in the Authorization header is enough to skip the global guard —
+        # per-route Depends limits handle throttling for logged-in users.
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.lower().startswith("bearer ") and len(auth_header) > 10:
             return await call_next(request)
 
         key = _rate_key(request)

@@ -5,12 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Workspace & Tools — Seren</title>
   <link rel="stylesheet" href="styles.css"/>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/pluginsCss.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/plugins.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/css/luckysheet.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/assets/iconfont/iconfont.css">
-  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/js/plugin.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/luckysheet.umd.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@6.2.2/dist/handsontable.full.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/handsontable@6.2.2/dist/handsontable.full.min.js"></script>
   <style>
     .toolsLayout {
       display: grid;
@@ -170,7 +166,7 @@
           <button class="btn sm ghost" id="sheetCloseBtn">&#10005; Close Spreadsheet</button>
        </div>
      </div>
-     <div id="spreadsheet-container" style="flex:1;position:relative;width:100%;min-height:0;"></div>
+     <div id="spreadsheet-container" style="flex:1;overflow:hidden;"></div>
   </div>
 </div>
 
@@ -326,27 +322,41 @@
     };
   })();
 
-  // ── Standalone Luckysheet ──────────────────────────────────────────────────
+  // ── Embedded Spreadsheet (Handsontable 6.2.2 — MIT) ───────────────────────
   (function() {
-    const openBtn = document.getElementById('openSpreadsheetBtn');
-    const overlay = document.getElementById('spreadsheetOverlay');
+    const openBtn  = document.getElementById('openSpreadsheetBtn');
+    const overlay  = document.getElementById('spreadsheetOverlay');
     const closeBtn = document.getElementById('sheetCloseBtn');
 
-    let sheetOpen = false;
+    let hotInstance   = null;
     let activeSheetId = null;
-    let dirty = false;
-    let saveTimer = null;
+    let dirty         = false;
+    let saveTimer     = null;
+
+    // Blank 50-row × 20-col grid
+    function blankData() {
+      return Array.from({ length: 50 }, () => Array(20).fill(''));
+    }
+
+    // Stored as a plain 2D array — simple and reliable
+    function parseData(raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        // Accept 2D array only; ignore old Luckysheet-format objects
+        if (Array.isArray(parsed) && Array.isArray(parsed[0])) return parsed;
+      } catch(e) {}
+      return blankData();
+    }
 
     async function loadGlobalSheet() {
       const all = await fetchJson('/spreadsheets?global=1');
-      if (all && all.length > 0) return all[0];
-      return null;
+      return (all && all.length > 0) ? all[0] : null;
     }
 
     async function saveToServer() {
-      if (!dirty || !sheetOpen) return;
+      if (!dirty || !hotInstance) return;
       try {
-        const dataJson = JSON.stringify(window.luckysheet.getAllSheets());
+        const dataJson = JSON.stringify(hotInstance.getData());
         if (activeSheetId) {
           await fetchJson('/spreadsheet/' + activeSheetId, { method: 'PATCH', body: { data_json: dataJson } });
         } else {
@@ -357,59 +367,48 @@
       } catch(err) { console.error('Spreadsheet save failed', err); }
     }
 
+    function initSheet(data) {
+      // Destroy previous instance if any
+      if (hotInstance) { hotInstance.destroy(); hotInstance = null; }
+
+      const container = document.getElementById('spreadsheet-container');
+      container.innerHTML = '';
+
+      hotInstance = new Handsontable(container, {
+        data: data,
+        rowHeaders: true,
+        colHeaders: true,
+        contextMenu: true,
+        manualColumnResize: true,
+        manualRowResize: true,
+        stretchH: 'all',
+        width: '100%',
+        height: '100%',
+        licenseKey: 'non-commercial-and-evaluation',
+        afterChange: (changes) => {
+          if (!changes) return;
+          dirty = true;
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(saveToServer, 2000);
+        },
+      });
+    }
+
     openBtn.onclick = async () => {
       overlay.style.display = 'flex';
       openBtn.textContent = 'Loading…';
       openBtn.disabled = true;
 
-      let existingData = null;
+      let data = blankData();
       try {
         const dbDoc = await loadGlobalSheet();
         activeSheetId = dbDoc ? dbDoc.id : null;
-        if (dbDoc && dbDoc.data_json) existingData = JSON.parse(dbDoc.data_json);
+        if (dbDoc && dbDoc.data_json) data = parseData(dbDoc.data_json);
       } catch(e) {}
 
       openBtn.textContent = 'Open Spreadsheet';
       openBtn.disabled = false;
-
-      // Destroy previous instance cleanly before re-creating
-      if (sheetOpen) {
-        try { window.luckysheet.destroy(); } catch(e) {}
-        const el = document.getElementById('spreadsheet-container');
-        el.innerHTML = '';
-        sheetOpen = false;
-      }
-
-      // Defer create() until the browser has painted the modal and the
-      // container has real pixel dimensions — Luckysheet reads offsetWidth/Height
-      // on init and throws if the container is still 0×0.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          try {
-            window.luckysheet.create({
-              container: 'spreadsheet-container',
-              title: 'Global Data Hub',
-              showinfobar: false,
-              showsheetbar: true,
-              enableAddRow: true,
-              showstatisticBar: false,
-              data: existingData || [{ name: 'Sheet1', celldata: [], config: {} }],
-              hook: {
-                cellUpdateBefore: () => {
-                  dirty = true;
-                  clearTimeout(saveTimer);
-                  saveTimer = setTimeout(saveToServer, 2500);
-                },
-              },
-            });
-            sheetOpen = true;
-          } catch(err) {
-            console.error('Luckysheet init error:', err);
-            document.getElementById('spreadsheet-container').innerHTML =
-              `<div style="padding:40px;text-align:center;color:var(--bad);">Spreadsheet failed to load. Try closing and reopening.</div>`;
-          }
-        });
-      });
+      initSheet(data);
     };
 
     closeBtn.onclick = () => { saveToServer(); overlay.style.display = 'none'; };
