@@ -65,7 +65,7 @@ def _truncate_to_budget(text: str, max_tokens: int = 6000) -> str:
 
 # ── Provider implementations ──────────────────────────────────────────────────
 
-async def _call_gemini(api_key: str, system: str, user: str, model: str = "gemini-1.5-flash") -> str:
+async def _call_gemini(api_key: str, system: str, user: str, model: str = "gemini-2.0-flash") -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": f"{system}\n\n{user}"}]}],
@@ -175,7 +175,7 @@ async def _call_anthropic(api_key: str, system: str, user: str, model: str = "cl
         raise HTTPException(status_code=500, detail="Anthropic response parse error")
 
 
-async def _call_gemini_vision(api_key: str, system: str, user_text: str, image_b64_url: str, model: str = "gemini-1.5-flash") -> str:
+async def _call_gemini_vision(api_key: str, system: str, user_text: str, image_b64_url: str, model: str = "gemini-2.0-flash") -> str:
     """Call Gemini with an image (data URL) and text prompt."""
     try:
         header, b64_data = image_b64_url.split(",", 1)
@@ -257,17 +257,17 @@ async def run_vision(
     Vision-capable AI router. Prefers Gemini (multimodal natively),
     falls back to OpenAI gpt-4o, then free-tier Gemini Flash.
     """
-    # BYOK Gemini Pro first
+    # BYOK Gemini (2.0 Flash — 1.5 Pro is deprecated)
     if gemini_key:
-        text = await _call_gemini_vision(gemini_key, system, user, image_b64_url, model="gemini-1.5-pro")
-        return AIResponse(text, Provider.GEMINI_PRO, "gemini-1.5-pro")
+        text = await _call_gemini_vision(gemini_key, system, user, image_b64_url, model="gemini-2.0-flash")
+        return AIResponse(text, Provider.GEMINI_PRO, "gemini-2.0-flash")
 
     # Free-tier Gemini Flash
     free_gemini = os.getenv("GEMINI_API_KEY", "").strip()
     if free_gemini:
         try:
-            text = await _call_gemini_vision(free_gemini, system, user, image_b64_url)
-            return AIResponse(text, Provider.GEMINI_FREE, "gemini-1.5-flash")
+            text = await _call_gemini_vision(free_gemini, system, user, image_b64_url, model="gemini-2.0-flash")
+            return AIResponse(text, Provider.GEMINI_FREE, "gemini-2.0-flash")
         except HTTPException as e:
             if e.status_code not in (429, 503, 400, 401, 403):
                 raise
@@ -359,8 +359,8 @@ async def run(
         return AIResponse(text, Provider.ANTHROPIC, "claude-haiku-4-5")
 
     if gemini_key:
-        text = await _call_gemini(gemini_key, system, user, model="gemini-1.5-pro")
-        return AIResponse(text, Provider.GEMINI_PRO, "gemini-1.5-pro")
+        text = await _call_gemini(gemini_key, system, user, model="gemini-2.0-flash")
+        return AIResponse(text, Provider.GEMINI_PRO, "gemini-2.0-flash")
 
     if groq_key:
         text = await _call_groq(groq_key, system, user)
@@ -378,8 +378,8 @@ async def run(
 
     if gemini_free_key:
         try:
-            text = await _call_gemini(gemini_free_key, system, user, model="gemini-1.5-flash")
-            return AIResponse(text, Provider.GEMINI_FREE, "gemini-1.5-flash")
+            text = await _call_gemini(gemini_free_key, system, user, model="gemini-2.0-flash")
+            return AIResponse(text, Provider.GEMINI_FREE, "gemini-2.0-flash")
         except HTTPException as e:
             # fall through to Groq on quota, invalid key, or any server error
             if e.status_code not in (429, 503, 400, 401, 403):
@@ -436,7 +436,7 @@ async def _route_to(
     if provider == Provider.GEMINI_PRO:
         if not gemini_key:
             raise HTTPException(status_code=400, detail="Gemini BYOK key required.")
-        return AIResponse(await _call_gemini(gemini_key, system, user, "gemini-1.5-pro"), provider, "gemini-1.5-pro")
+        return AIResponse(await _call_gemini(gemini_key, system, user, "gemini-2.0-flash"), provider, "gemini-2.0-flash")
 
     if provider == Provider.GROQ_BYOK:
         if not groq_key:
@@ -447,7 +447,7 @@ async def _route_to(
         key = os.getenv("GEMINI_API_KEY", "").strip()
         if not key:
             raise HTTPException(status_code=400, detail="GEMINI_API_KEY not set in environment.")
-        return AIResponse(await _call_gemini(key, system, user, "gemini-1.5-flash"), provider, "gemini-1.5-flash")
+        return AIResponse(await _call_gemini(key, system, user, "gemini-2.0-flash"), provider, "gemini-2.0-flash")
 
     if provider == Provider.GROQ_FREE:
         key = os.getenv("GROQ_API_KEY", "").strip()

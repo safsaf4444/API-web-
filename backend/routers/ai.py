@@ -524,7 +524,7 @@ async def _stream_from_provider(system, user_msg, byok):
     if active_gemini:
         yield {"provider": "gemini"}
         from backend.services.ai_engine import _call_gemini
-        model = "gemini-1.5-pro" if gemini_key else "gemini-1.5-flash"
+        model = "gemini-2.0-flash" if gemini_key else "gemini-2.0-flash"
         text  = await _call_gemini(active_gemini, system, user_msg, model=model)
         for i in range(0, len(text), 60):
             yield {"text": text[i:i+60]}

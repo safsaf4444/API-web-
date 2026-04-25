@@ -235,6 +235,7 @@ if (window.__SEREN_APPJS_WIRED__) {
 
       <div class="sideSpacer"></div>
 
+      <a class="sideBtn${page === 'info' ? ' active' : ''}" href="info.html" title="About">${icon('info')}</a>
       ${token
         ? `<a class="sideBtn" href="#" id="logoutSide" title="Sign out">${icon('logout')}</a>`
         : `<a class="sideBtn" href="login.html" title="Sign in">${icon('login')}</a>`
