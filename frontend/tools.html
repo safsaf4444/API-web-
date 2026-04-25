@@ -116,6 +116,22 @@
 
     <!-- RIGHT COLUMN -->
     <div class="cardArea">
+
+      <!-- Statistical Calculator -->
+      <div class="card">
+        <div class="sectionLabel">Statistical Calculator</div>
+        <div class="hr"></div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px;">
+          Bedside toolkit for interpreting numbers reported in papers. All calculations run locally — nothing is sent to a server.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;font-size:12.5px;color:var(--text2);line-height:1.65;">
+          <div><strong style="color:var(--navy);">NNT</strong> — Number Needed to Treat. Enter event rates (%) from the paper's results table.</div>
+          <div><strong style="color:var(--navy);">Odds Ratio</strong> — 2×2 contingency table input. Returns OR with 95% CI via log method.</div>
+          <div><strong style="color:var(--navy);">Effect Size (Cohen's d)</strong> — Standardised mean difference. d ≥ 0.2 small · ≥ 0.5 medium · ≥ 0.8 large.</div>
+        </div>
+        <button class="btn primary" id="launchStatsCalcBtn" style="margin-top:10px;width:100%;justify-content:center;">Open Calculator</button>
+      </div>
+
       <!-- Data Sources & Spreadsheets -->
       <div class="card" id="dataSourcesCard">
         <div class="sectionLabel">Embedded Spreadsheet</div>
@@ -156,9 +172,14 @@
 
 <script src="api.js"></script>
 <script src="app.js"></script>
+<script src="stats-calculator.js"></script>
 <script>
   // Auth gating
   window.onload = () => { requireAuthOrRedirect(); };
+
+  document.getElementById('launchStatsCalcBtn').onclick = () => {
+    if (typeof window.openStatsCalculator === 'function') window.openStatsCalculator();
+  };
 
   function escHtml(s) {
     return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));

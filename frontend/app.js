@@ -208,9 +208,10 @@ if (window.__SEREN_APPJS_WIRED__) {
       { key: 'library',   href: 'library.html',   label: 'Library',     requiresLogin: true  },
       { key: 'synthesis', href: 'synthesis.html', label: 'Synthesis',   requiresLogin: true  },
       { key: 'notebook',  href: 'notebook.html',  label: 'Notebook',    requiresLogin: true  },
-      { key: 'tools',      href: 'tools.html',      label: 'Tools',      requiresLogin: true  },
+      { key: 'tools',     href: 'tools.html',     label: 'Tools',       requiresLogin: true  },
+      { key: 'ai',        href: 'ai.html',        label: 'AI',          requiresLogin: true  },
       { key: 'analytics', href: 'analytics.html', label: 'Analytics',   requiresLogin: true  },
-      { key: 'community', href: 'community.html',  label: 'Community',  requiresLogin: false },
+      { key: 'community', href: 'community.html', label: 'Community',   requiresLogin: false },
     ];
 
     side.innerHTML = `

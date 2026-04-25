@@ -74,25 +74,125 @@
   <div class="infoLayout">
 
     <div class="infoPageTitle">About Seren</div>
-    <div class="infoPageSub">A unified medical evidence platform designed to search, synthesize, and organize research efficiently. Built for speed, transparency, and evidence-based medicine.</div>
+    <div class="infoPageSub">A unified medical evidence platform for searching, synthesizing, and appraising research. Built for speed, transparency, and evidence-based practice.</div>
 
     <div class="infoSection">
       <div class="sectionHeading">Platform Access</div>
 
       <div class="infoCard">
         <div class="infoCardTitle">Guest Mode</div>
-        <div class="infoCardBody">Search and open papers from Europe PMC, Semantic Scholar, OpenAlex, and Crossref instantly. Full-text Open Access loading and DOI resolution are fully available without an account.</div>
+        <div class="infoCardBody">Search across Europe PMC, OpenAlex, Crossref, PubMed, ClinicalTrials.gov, and Preprints instantly. Full-text Open Access loading and DOI resolution available without an account.</div>
       </div>
 
       <div class="infoCard">
         <div class="infoCardTitle">Registered Users</div>
         <div class="infoCardBody">
-          Creating a free account unlocks the core research workflow:<br>
-          • Save papers to your personal library & organize with folders<br>
-          • Annotate papers and participate in comment threads<br>
-          • Use AI summarization and Q&A<br>
-          • Manage BYOK (Bring Your Own Key) for premium AI models
+          A free account unlocks the full research workflow:<br>
+          • Save papers to your personal library &amp; organise with folders<br>
+          • AI summarisation, Q&amp;A, and cross-paper synthesis<br>
+          • Clinical appraisal, bias scoring, and trust metrics<br>
+          • Notebook, community forum, and workspace tools<br>
+          • BYOK (Bring Your Own Key) for premium AI models
         </div>
+      </div>
+    </div>
+
+    <div class="infoSection">
+      <div class="sectionHeading">Search</div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Multi-Source Search</div>
+        <div class="infoCardBody">
+          Search All Sources mode fans out across six free academic APIs simultaneously — Europe PMC, OpenAlex, Crossref, PubMed, ClinicalTrials.gov, and Preprints. Results are deduplicated by DOI, PMID, and normalised title, then cursor-paginated so you can load hundreds of thousands of hits progressively. The banner shows how many results have been loaded versus the total available across all sources.
+        </div>
+      </div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Smart Filters</div>
+        <div class="infoCardBody">Filter by study type (auto-detected from title and abstract), year range, open access status, and language. Filters apply instantly to the current result set without re-fetching.</div>
+      </div>
+    </div>
+
+    <div class="infoSection">
+      <div class="sectionHeading">AI &amp; Synthesis</div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Paper AI Panel</div>
+        <div class="infoCardBody">Open any paper and use the AI tab to summarise, ask questions, extract PICO, or request a clinical appraisal. Streaming responses via Server-Sent Events. AI explains figures, tables, and statistical outputs.</div>
+      </div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Cross-Paper Synthesis</div>
+        <div class="infoCardBody">
+          Select papers from your library and run seven synthesis modes in one workspace:<br>
+          • <strong>Narrative</strong> — unified prose summary across all selected papers<br>
+          • <strong>Thematic</strong> — recurring themes and patterns identified<br>
+          • <strong>Confounds</strong> — potential confounding variables flagged<br>
+          • <strong>Outliers</strong> — results that diverge from consensus highlighted<br>
+          • <strong>Sensitivity</strong> — how robust conclusions are to individual studies<br>
+          • <strong>Sufficiency</strong> — whether the evidence base is adequate<br>
+          • <strong>Research Questions</strong> — gaps the evidence does not yet answer
+        </div>
+      </div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Evidence Drift</div>
+        <div class="infoCardBody">Tracks how findings and consensus have shifted across publication years for a topic, highlighting inflection points and reversals.</div>
+      </div>
+    </div>
+
+    <div class="infoSection">
+      <div class="sectionHeading">Trust &amp; Validity</div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">7-Pillar Trust System</div>
+        <div class="infoCardBody">
+          Every AI synthesis output is scored across seven validity dimensions: Population generalisability, Intervention fidelity, Comparator appropriateness, Outcome relevance, Time horizon, Setting transferability, and Study Design strength. Scores combine into a single trust rating displayed alongside each synthesis.
+        </div>
+      </div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Retraction Check</div>
+        <div class="infoCardBody">Papers are checked against the Europe PMC retraction index. A warning badge is shown if a paper has been retracted or has an expression of concern.</div>
+      </div>
+    </div>
+
+    <div class="infoSection">
+      <div class="sectionHeading">Analytics &amp; Visualisation</div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Library Analytics</div>
+        <div class="infoCardBody">Study type breakdown, publication timeline, citation impact overview, bias heatmap across your saved papers, and a forest plot for quantitative comparisons.</div>
+      </div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Citation Network</div>
+        <div class="infoCardBody">Interactive graph showing citation relationships between papers in your library and their key references.</div>
+      </div>
+    </div>
+
+    <div class="infoSection">
+      <div class="sectionHeading">Workspace Tools</div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Statistical Calculator</div>
+        <div class="infoCardBody">
+          Bedside toolkit for interpreting statistics in papers — runs entirely in your browser, nothing sent to a server:<br>
+          • <strong>NNT</strong> — Number Needed to Treat from event rates<br>
+          • <strong>Odds Ratio</strong> — 2×2 table input with 95% CI<br>
+          • <strong>Cohen's d</strong> — standardised effect size with small/medium/large interpretation<br>
+          Find it in the <a href="tools.html" style="color:var(--brass2);text-decoration:none;font-weight:600;">Tools</a> page.
+        </div>
+      </div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">PDF Extraction &amp; Figure Explainer</div>
+        <div class="infoCardBody">Upload a PDF to extract full text, figures metadata, and references. Upload a figure screenshot and the AI explains its clinical and statistical context.</div>
+      </div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Embedded Spreadsheet</div>
+        <div class="infoCardBody">A full FortuneSheet editor for manual data curation. Extracted PICO data can be imported directly. Auto-saves to your account.</div>
       </div>
     </div>
 
@@ -101,19 +201,24 @@
 
       <div class="infoCard">
         <div class="infoCardTitle">Included Free Tier</div>
-        <div class="infoCardBody">Gemini 1.5 Flash is integrated by default—no API key required. If the global quota is reached, the system automatically falls back to Groq (Llama 3.3 70B) to ensure uninterrupted access.</div>
+        <div class="infoCardBody">Gemini 1.5 Flash is the default — no API key required. If quota is reached, the system automatically falls back to Groq (Llama 3.3 70B). Both are free with no setup.</div>
       </div>
 
       <div class="infoCard">
         <div class="infoCardTitle">BYOK (Bring Your Own Key)</div>
         <div class="infoCardBody">
-          Power users can set their own API keys on the <a href="ai.html" style="color:var(--brass2);text-decoration:none;font-weight:600;">AI settings page</a> to unlock premium models. We currently support automatic routing for:<br><br>
-          • <strong>OpenAI</strong> (GPT-4o, GPT-4o-mini)<br>
-          • <strong>Anthropic</strong> (Claude 3.5 Sonnet)<br>
-          • <strong>Google</strong> (Gemini Pro)<br>
-          • <strong>Groq</strong> (Llama 3.3)<br><br>
-          <em>Security note: Keys are encrypted at rest using secure symmetric encryption. The frontend never stores your key in your browser's local storage.</em>
+          Set your own key on the <a href="ai.html" style="color:var(--brass2);text-decoration:none;font-weight:600;">AI settings page</a> to use premium models. Auto-detected from key prefix:<br><br>
+          • <span class="mono">sk-ant-</span> → <strong>Anthropic</strong> (Claude Haiku / Sonnet)<br>
+          • <span class="mono">AIza</span> → <strong>Google</strong> (Gemini Pro)<br>
+          • <span class="mono">gsk_</span> → <strong>Groq</strong> (Llama 3.3)<br>
+          • anything else → <strong>OpenAI</strong> (GPT-4o)<br><br>
+          Keys are encrypted at rest. The frontend never stores your key in localStorage.
         </div>
+      </div>
+
+      <div class="infoCard">
+        <div class="infoCardTitle">Ollama (Local)</div>
+        <div class="infoCardBody">Route AI to a local Ollama instance at <span class="mono">localhost:11434</span>. No data leaves your device.</div>
       </div>
     </div>
 
@@ -121,7 +226,7 @@
       <div class="sectionHeading">Key Management</div>
       <div class="infoCard">
         <div class="infoCardTitle">Check AI Key Status</div>
-        <div class="infoCardBody">Verify if your custom API key is actively linked to your account or clear it to return to the free tier.</div>
+        <div class="infoCardBody">Verify if your custom API key is linked to your account or clear it to return to the free tier.</div>
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
           <button class="btn primary sm" id="checkAiBtn">Check status</button>
           <button class="btn danger sm" id="clearAiBtn">Clear key</button>
